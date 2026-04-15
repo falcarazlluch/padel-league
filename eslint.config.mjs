@@ -20,7 +20,14 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['src/worker/*.ts', 'src/shared/*.ts'],
+          allowDefaultProject: [
+            'src/worker/*.ts',
+            'src/shared/*.ts',
+            'vitest.config.ts',
+            'tests/unit/shared/*.ts',
+            'tests/unit/*.ts',
+            'tests/integration/*.ts',
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -59,7 +66,7 @@ export default tseslint.config(
           { from: { type: 'tests' },          allow: [{ to: { type: 'app' } }, { to: { type: 'shared' } }, { to: { type: 'module-public' } }, { to: { type: 'module-domain' } }, { to: { type: 'module-app' } }, { to: { type: 'module-infra' } }, { to: { type: 'module-present' } }, { to: { type: 'worker' } }, { to: { type: 'tests' } }] },
         ],
       }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
     },

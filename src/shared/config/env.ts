@@ -32,9 +32,9 @@ const envSchema = z.object({
 
   CRON_SECRET: z.string().min(32),
 
-  FEATURE_2FA: booleanString.default('false'),
-  FEATURE_AI_COMMENTARY: booleanString.default('true'),
-  FEATURE_INDEPENDENT_MATCHES: booleanString.default('true'),
+  FEATURE_2FA: booleanString.default(false),
+  FEATURE_AI_COMMENTARY: booleanString.default(true),
+  FEATURE_INDEPENDENT_MATCHES: booleanString.default(true),
 
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(4),
 

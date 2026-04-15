@@ -12,7 +12,7 @@ describe('errorToResponse', () => {
   it('maps unknown to InfrastructureError 500 with generic message', async () => {
     const res = errorToResponse(new Error('db exploded'));
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = (await res.json()) as { code: string; message: string };
     expect(body.code).toBe('INTERNAL_ERROR');
     expect(body.message).not.toContain('db exploded');
   });
@@ -20,7 +20,7 @@ describe('errorToResponse', () => {
   it('maps InfrastructureError to 500 with generic message', async () => {
     const res = errorToResponse(new InfrastructureError('DB_DOWN', 'connect timeout'));
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = (await res.json()) as { message: string };
     expect(body.message).not.toContain('connect timeout');
   });
 });
