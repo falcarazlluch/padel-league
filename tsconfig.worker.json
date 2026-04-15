@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "noEmit": false,
+    "jsx": "react",
+    "plugins": []
+  },
+  "include": ["src/worker/**/*.ts", "src/shared/**/*.ts"],
+  "exclude": ["node_modules", "**/*.tsx"]
+}
