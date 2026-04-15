@@ -1,0 +1,40 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+dist/
+out/
+build/
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# testing
+coverage/
+playwright-report/
+test-results/
+.vitest-cache/
+
+# prisma
+prisma/*.db
+prisma/*.db-journal
+
+# logs
+*.log
+logs/
+
+# os / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# cache
+.turbo/
+.cache/
