@@ -41,18 +41,22 @@ export default tseslint.config(
       'boundaries/ignore': ['**/*.test.ts', '**/*.spec.ts'],
     },
     rules: {
+      // App-layer code imports from modules only via their public facade (module-public =
+      // src/modules/<mod>/index.ts). This is tighter than spec §6.2's table (which reads
+      // "app → application: ✅"), but aligns with §6.2's footnote "La comunicación entre
+      // módulos pasa por el index.ts que expone una API mínima documentada." Keep it this way.
       'boundaries/dependencies': ['error', {
         default: 'disallow',
         rules: [
-          { from: 'app',           allow: ['shared', 'module-public', 'module-present'] },
-          { from: 'worker',        allow: ['shared', 'module-public'] },
-          { from: 'shared',        allow: ['shared'] },
-          { from: 'module-domain', allow: ['module-domain'] },
-          { from: 'module-app',    allow: ['module-app', 'module-domain', 'shared'] },
-          { from: 'module-infra',  allow: ['module-infra', 'module-app', 'module-domain', 'shared'] },
-          { from: 'module-present',allow: ['module-present', 'module-app', 'module-domain', 'shared'] },
-          { from: 'module-public', allow: ['module-app', 'module-domain', 'module-present', 'shared'] },
-          { from: 'tests',         allow: ['app', 'shared', 'module-public', 'module-domain', 'module-app', 'module-infra', 'module-present', 'worker', 'tests'] },
+          { from: { type: 'app' },            allow: [{ to: { type: 'shared' } }, { to: { type: 'module-public' } }, { to: { type: 'module-present' } }] },
+          { from: { type: 'worker' },         allow: [{ to: { type: 'shared' } }, { to: { type: 'module-public' } }] },
+          { from: { type: 'shared' },         allow: [{ to: { type: 'shared' } }] },
+          { from: { type: 'module-domain' },  allow: [{ to: { type: 'module-domain' } }] },
+          { from: { type: 'module-app' },     allow: [{ to: { type: 'module-app' } }, { to: { type: 'module-domain' } }, { to: { type: 'shared' } }] },
+          { from: { type: 'module-infra' },   allow: [{ to: { type: 'module-infra' } }, { to: { type: 'module-app' } }, { to: { type: 'module-domain' } }, { to: { type: 'shared' } }] },
+          { from: { type: 'module-present' }, allow: [{ to: { type: 'module-present' } }, { to: { type: 'module-app' } }, { to: { type: 'module-domain' } }, { to: { type: 'shared' } }] },
+          { from: { type: 'module-public' },  allow: [{ to: { type: 'module-app' } }, { to: { type: 'module-domain' } }, { to: { type: 'module-present' } }, { to: { type: 'shared' } }] },
+          { from: { type: 'tests' },          allow: [{ to: { type: 'app' } }, { to: { type: 'shared' } }, { to: { type: 'module-public' } }, { to: { type: 'module-domain' } }, { to: { type: 'module-app' } }, { to: { type: 'module-infra' } }, { to: { type: 'module-present' } }, { to: { type: 'worker' } }, { to: { type: 'tests' } }] },
         ],
       }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
