@@ -1,6 +1,9 @@
 import pino, { type Logger, type LoggerOptions } from 'pino';
 
+// pino `redact.paths` wildcards (`*`) match exactly ONE level; nested fields below
+// need explicit paths. Any code emitting deeper structures should extend this list.
 const REDACT_PATHS = [
+  // top-level
   'password',
   'passwordHash',
   'password_hash',
@@ -10,15 +13,26 @@ const REDACT_PATHS = [
   'session_token',
   'authorization',
   'cookie',
+
+  // one-level nested — pino wildcards do NOT recurse, so add known shapes explicitly
   '*.password',
   '*.passwordHash',
+  '*.password_hash',
   '*.sessionToken',
+  '*.session_token',
+  '*.twoFactorSecret',
+
+  // two-level nested for common shapes we emit
+  '*.*.password',
+  '*.*.passwordHash',
+  '*.*.sessionToken',
 ];
 
 export type CreateLoggerOptions = {
   level?: LoggerOptions['level'];
   pretty?: boolean;
   stream?: NodeJS.WritableStream;
+  service?: string;
 };
 
 export function createLogger(opts: CreateLoggerOptions = {}): Logger {
@@ -26,7 +40,7 @@ export function createLogger(opts: CreateLoggerOptions = {}): Logger {
   const options: LoggerOptions = {
     level,
     redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
-    base: { service: 'padel-league', env: process.env.NODE_ENV },
+    base: { service: opts.service ?? 'padel-league', env: process.env.NODE_ENV },
     timestamp: pino.stdTimeFunctions.isoTime,
     formatters: {
       level: (label) => ({ level: label }),
@@ -45,6 +59,8 @@ export function createLogger(opts: CreateLoggerOptions = {}): Logger {
   return pino(options);
 }
 
+// Intentionally bypasses the Zod-validated env() to avoid a circular init hazard:
+// the logger must work before env validation runs so we can log env-parse failures.
 let defaultLogger: Logger | undefined;
 export function logger(): Logger {
   if (!defaultLogger) {

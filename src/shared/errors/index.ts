@@ -21,7 +21,17 @@ export class RateLimitError extends AppError { readonly httpStatus = 429; }
 export class InvalidTokenError extends AppError { readonly httpStatus = 400; }
 export class InfrastructureError extends AppError { readonly httpStatus = 500; }
 
-export function isExpectedError(err: unknown): err is AppError {
+export type UserFacingError =
+  | DomainError
+  | ValidationError
+  | NotFoundError
+  | AuthorizationError
+  | AuthenticationError
+  | ConflictError
+  | RateLimitError
+  | InvalidTokenError;
+
+export function isUserFacingError(err: unknown): err is UserFacingError {
   return (
     err instanceof DomainError ||
     err instanceof ValidationError ||

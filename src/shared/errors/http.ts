@@ -1,7 +1,7 @@
-import { AppError, isExpectedError } from '.';
+import { AppError, isUserFacingError } from '.';
 
 export function errorToResponse(err: unknown): Response {
-  if (isExpectedError(err)) {
+  if (isUserFacingError(err)) {
     return jsonResponse(err.httpStatus, { code: err.code, message: err.message });
   }
   if (err instanceof AppError) {
