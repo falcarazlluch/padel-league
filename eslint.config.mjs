@@ -15,10 +15,13 @@ export default tseslint.config(
   ...next,
   {
     // Type-aware parser options scoped to TS/TSX files only
+    // Worker files use tsconfig.worker.json — allow them via defaultProject
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['src/worker/*.ts', 'src/shared/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -38,7 +41,7 @@ export default tseslint.config(
       'boundaries/ignore': ['**/*.test.ts', '**/*.spec.ts'],
     },
     rules: {
-      'boundaries/element-types': ['error', {
+      'boundaries/dependencies': ['error', {
         default: 'disallow',
         rules: [
           { from: 'app',           allow: ['shared', 'module-public', 'module-present'] },
