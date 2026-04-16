@@ -50,6 +50,9 @@ export function queue(): Queue {
           retryLimit: opts?.retryLimit ?? 3,
           retryBackoff: true,
           expireInSeconds: opts?.expireInSeconds,
+          // Route exhausted-retry jobs to the dead-letter queue so
+          // attachDeadLetterRecorder() can persist them to JobDeadLetter.
+          deadLetter: 'dead-letter',
         });
       },
       raw() {
