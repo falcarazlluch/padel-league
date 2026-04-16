@@ -22,6 +22,7 @@ export default tseslint.config(
         projectService: {
           allowDefaultProject: [
             'src/worker/*.ts',
+            'src/worker/handlers/*.ts',
             'src/shared/*.ts',
             'vitest.config.ts',
             'vitest.integration.config.ts',
@@ -31,7 +32,7 @@ export default tseslint.config(
             'tests/integration/helpers/*.ts',
             'prisma/seed.ts',
           ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20,
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 30,
         },
         tsconfigRootDir: import.meta.dirname,
       },
