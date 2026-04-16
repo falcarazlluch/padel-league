@@ -1,4 +1,4 @@
-import { PgBoss } from 'pg-boss';
+import type { PgBoss } from 'pg-boss';
 import { logger } from '@/shared/logger';
 import { runWithContext } from '@/shared/logger/context';
 import { prisma } from '@/shared/db/client';
@@ -25,6 +25,10 @@ export async function registerHandler<N extends JobName>(
           const started = Date.now();
           try {
             log.info({ data }, 'job.start');
+            // Safe: EnvelopedData<N> = JobMap[N] & { __requestId?: string }.
+            // After destructuring __requestId, the remainder is structurally
+            // JobMap[N], but TypeScript cannot simplify Omit<T & U, K> → T in
+            // this generic context, so the double cast is required.
             await handler(data as unknown as JobMap[N]);
             log.info({ ms: Date.now() - started }, 'job.ok');
           } catch (err) {

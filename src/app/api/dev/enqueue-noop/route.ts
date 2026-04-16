@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
-import { env } from '@/shared/config/env';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
 
 export async function POST(): Promise<Response> {
-  if (env().NODE_ENV === 'production') {
+  if (process.env.NODE_ENV !== 'development') {
     return NextResponse.json({ code: 'NOT_FOUND' }, { status: 404 });
   }
   const q = queue();

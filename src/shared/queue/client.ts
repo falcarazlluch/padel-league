@@ -28,6 +28,8 @@ export function queue(): Queue {
     const boss = new PgBoss({
       connectionString,
       schema: 'pgboss',
+      // retentionDays does not exist in pg-boss v12 — retention is configured
+      // per-queue via boss.createQueue(name, { retentionSeconds }) if needed.
     });
     boss.on('error', (err: Error) => logger().error({ err }, 'pg-boss error'));
 

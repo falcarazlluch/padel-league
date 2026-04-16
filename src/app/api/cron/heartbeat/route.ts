@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { env } from '@/shared/config/env';
 import { queue } from '@/shared/queue/client';
@@ -8,9 +9,13 @@ function unauthorized() {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = req.headers.get('authorization');
+  const auth = req.headers.get('authorization') ?? '';
   const expected = `Bearer ${env().CRON_SECRET}`;
-  if (!auth || auth !== expected) {
+  const authBuf = Buffer.from(auth, 'utf8');
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const valid =
+    authBuf.length === expectedBuf.length && timingSafeEqual(authBuf, expectedBuf);
+  if (!valid) {
     return unauthorized();
   }
 
