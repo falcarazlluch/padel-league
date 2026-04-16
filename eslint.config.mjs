@@ -27,6 +27,7 @@ export default tseslint.config(
             'vitest.config.ts',
             'vitest.integration.config.ts',
             'tests/unit/shared/*.ts',
+            'tests/unit/shared/auth/*.ts',
             'tests/unit/*.ts',
             'tests/integration/*.ts',
             'tests/integration/helpers/*.ts',

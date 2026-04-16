@@ -28,6 +28,7 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "@prisma/client": "^5.22.0",
+    "jose": "^6.2.2",
     "next": "^15",
     "pg-boss": "^12.15.0",
     "pino": "^10.3.1",
