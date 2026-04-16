@@ -7,7 +7,7 @@ const ARGON2_OPTS = {
   memoryCost: 65536,
   timeCost: 3,
   parallelism: 4,
-  hashLength: 32,
+  outputLen: 32,
 } as const;
 
 async function main() {

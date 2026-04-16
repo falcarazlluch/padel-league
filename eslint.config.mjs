@@ -27,7 +27,6 @@ export default tseslint.config(
             'tests/unit/shared/*.ts',
             'tests/unit/*.ts',
             'tests/integration/*.ts',
-            'prisma.config.ts',
             'prisma/seed.ts',
           ],
         },
