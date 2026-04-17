@@ -1,0 +1,140 @@
+'use server';
+
+import { redirect } from 'next/navigation';
+import type { Route } from 'next';
+import { cookies } from 'next/headers';
+import { z } from 'zod';
+import { SESSION_COOKIE } from '@/shared/auth/session';
+import { getValidatedSession } from '@/shared/auth/session-cache';
+import { LeagueService, generateFixtures } from '@/modules/leagues';
+import { prisma } from '@/shared/db/client';
+import { isUserFacingError } from '@/shared/errors';
+
+async function getSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/login' as Route);
+  return getValidatedSession(token);
+}
+
+const createLeagueSchema = z.object({
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
+  description: z.string().max(500).optional(),
+  startDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de inicio inválida'),
+  endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de fin inválida'),
+});
+
+export async function createLeagueAction(
+  _prev: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  const parsed = createLeagueSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  }
+  const { name, description, startDate, endDate } = parsed.data;
+  if (new Date(endDate) <= new Date(startDate)) {
+    return { error: 'La fecha de fin debe ser posterior a la de inicio.' };
+  }
+  let slug: string;
+  try {
+    const league = await LeagueService.create({
+      name,
+      description,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      createdByUserId: user.id,
+    });
+    slug = league.slug;
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  redirect(`/ligas/${slug}` as Route);
+}
+
+const createTeamSchema = z.object({
+  leagueId: z.string().cuid(),
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(60),
+});
+
+export async function createTeamAction(
+  _prev: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  await getSession();
+  const parsed = createTeamSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  const { leagueId, name } = parsed.data;
+  try {
+    await LeagueService.createTeam({ leagueId, name });
+    return {};
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
+const addMemberSchema = z.object({
+  teamId: z.string().cuid(),
+  userEmail: z.string().email('Email inválido'),
+});
+
+export async function addTeamMemberAction(
+  _prev: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  await getSession();
+  const parsed = addMemberSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  const { teamId, userEmail } = parsed.data;
+
+  const user = await prisma.user.findUnique({ where: { email: userEmail } });
+  if (!user) return { error: 'No existe ningún usuario con ese email.' };
+
+  try {
+    await LeagueService.addTeamMember(teamId, user.id);
+    return {};
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
+export async function removeTeamMemberAction(teamId: string, userId: string): Promise<{ error?: string }> {
+  await getSession();
+  try {
+    await LeagueService.removeTeamMember(teamId, userId);
+    return {};
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
+export async function activateLeagueAction(leagueId: string): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await LeagueService.activateLeague(leagueId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  // generate fixtures after successful activation
+  const [teams, league] = await Promise.all([
+    prisma.team.findMany({ where: { leagueId } }),
+    prisma.league.findUnique({ where: { id: leagueId } }),
+  ]);
+  if (!league) return { error: 'Liga no encontrada.' };
+
+  const fixtures = generateFixtures(
+    teams.map((t) => t.id),
+    league.startDate,
+    league.defaultDeadlineDays,
+  );
+  await prisma.match.createMany({
+    data: fixtures.map((f) => ({ ...f, leagueId })),
+  });
+  return {};
+}
