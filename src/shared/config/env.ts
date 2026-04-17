@@ -21,11 +21,11 @@ const envSchema = z.object({
   RESEND_FROM_EMAIL: z.string().email(),
   EMAIL_REPLY_TO: z.string().email().optional(),
 
-  AI_PROVIDER: z.enum(['claude', 'openai']),
-  ANTHROPIC_API_KEY: z.string().min(1),
-  OPENAI_API_KEY: z.string().min(1),
-  AI_MODEL_CLAUDE: z.string().min(1),
-  AI_MODEL_OPENAI: z.string().min(1),
+  AI_PROVIDER: z.enum(['claude', 'openai']).optional(),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  AI_MODEL_CLAUDE: z.string().min(1).optional(),
+  AI_MODEL_OPENAI: z.string().min(1).optional(),
 
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_AUTH_TOKEN: z.string().optional(),
