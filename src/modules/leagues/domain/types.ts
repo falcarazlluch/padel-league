@@ -1,4 +1,4 @@
-import type { LeagueStatus, MatchFormat, LeagueMemberRole, MatchStatus } from '@prisma/client';
+import type { LeagueStatus, MatchFormat, MatchStatus } from '@prisma/client';
 
 export type LeagueRow = {
   id: string;
