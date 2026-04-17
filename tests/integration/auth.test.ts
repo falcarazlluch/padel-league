@@ -3,6 +3,7 @@ import { testPrisma, truncateAll } from './helpers/db';
 import { SignedTokenService } from '@/shared/auth/signed-tokens';
 import { PasswordService } from '@/shared/auth/password';
 import { SessionService } from '@/shared/auth/session';
+import type { AppError } from '@/shared/errors';
 import { SignedTokenPurpose } from '@prisma/client';
 
 const prisma = testPrisma();
@@ -42,11 +43,13 @@ describe('SignedTokenService — CAS concurrency', () => {
     ]);
 
     const successes = results.filter((r) => r.status === 'fulfilled');
-    const failures = results.filter((r) => r.status === 'rejected');
+    const failures = results.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    );
 
     expect(successes).toHaveLength(1);
     expect(failures).toHaveLength(1);
-    expect((failures[0] as PromiseRejectedResult).reason.code).toBe('TOKEN_INVALID');
+    expect((failures[0].reason as AppError).code).toBe('TOKEN_INVALID');
   });
 });
 

@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { randomUUID } from 'node:crypto';
 
 // Cookie name — inlined here because src/shared/auth/session.ts imports
 // next/headers and prisma, which are not Edge-compatible.
@@ -11,7 +10,7 @@ const PROTECTED_PREFIXES = ['/dashboard', '/perfil', '/admin'];
 const AUTH_ROUTES = ['/login', '/recuperar-password'];
 
 export function middleware(request: NextRequest): NextResponse {
-  const requestId = randomUUID();
+  const requestId = crypto.randomUUID();
   const response = NextResponse.next();
   response.headers.set('x-request-id', requestId);
 
