@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:/Users/ferralca/Desktop/Proyectos/Padel League\" status)",
+      "Bash(pnpm install *)",
+      "Bash(npm --version)",
+      "Read(//c/Users/ferralca/AppData/Roaming/npm//**)",
+      "Read(//c/Users/ferralca/AppData/Local/**)",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(\"/c/Users/ferralca/AppData/Roaming/npm/pnpm\" --version)",
+      "Bash(export PATH=\"/c/Users/ferralca/AppData/Roaming/npm:$PATH\")",
+      "Bash(pnpm --version)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(npx tsc *)",
+      "Bash(pnpm list *)"
+    ]
+  }
+}

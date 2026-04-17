@@ -3,6 +3,9 @@ import { logger } from '@/shared/logger';
 import { queue } from '@/shared/queue/client';
 import { registerHandler, attachDeadLetterRecorder } from '@/shared/queue/worker';
 import { noopHandler } from './handlers/noop';
+import { sendEmailHandler } from './handlers/send-email';
+import { sessionCleanupHandler } from './handlers/session-cleanup';
+import { anonymizeUserHandler } from './handlers/anonymize-user';
 
 async function main() {
   env();
@@ -15,6 +18,9 @@ async function main() {
   attachDeadLetterRecorder(boss);
 
   await registerHandler(boss, 'noop', noopHandler);
+  await registerHandler(boss, 'send-email', sendEmailHandler);
+  await registerHandler(boss, 'session-cleanup', sessionCleanupHandler);
+  await registerHandler(boss, 'anonymize-user', anonymizeUserHandler);
 
   log.info('worker.ready');
 
