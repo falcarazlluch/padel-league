@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "worker:dev": "tsx watch src/worker/index.ts",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && tsc -p tsconfig.worker.json",
     "start": "next start",
     "worker:start": "node dist/worker/index.js",
     "lint": "eslint . --max-warnings 0",
