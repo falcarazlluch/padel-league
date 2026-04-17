@@ -5,9 +5,23 @@ type FixtureMatch = {
 };
 
 export function generateFixtures(
-  _teamIds: string[],
-  _leagueStartDate: Date,
-  _defaultDeadlineDays: number,
+  teamIds: string[],
+  leagueStartDate: Date,
+  defaultDeadlineDays: number,
 ): FixtureMatch[] {
-  throw new Error('Not implemented yet');
+  const matches: FixtureMatch[] = [];
+  const deadline = new Date(leagueStartDate);
+  deadline.setDate(deadline.getDate() + defaultDeadlineDays);
+
+  for (let i = 0; i < teamIds.length; i++) {
+    for (let j = i + 1; j < teamIds.length; j++) {
+      matches.push({
+        teamAId: teamIds[i]!,
+        teamBId: teamIds[j]!,
+        deadlineAt: new Date(deadline),
+      });
+    }
+  }
+
+  return matches;
 }
