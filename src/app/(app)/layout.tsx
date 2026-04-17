@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { SESSION_COOKIE, SessionService } from '@/shared/auth/session';
+import { SESSION_COOKIE } from '@/shared/auth/session';
+import { getValidatedSession } from '@/shared/auth/session-cache';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -9,7 +10,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!token) redirect('/login');
 
   try {
-    await SessionService.validate(token);
+    await getValidatedSession(token);
   } catch {
     redirect('/login');
   }

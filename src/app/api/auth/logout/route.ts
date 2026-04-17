@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE, SessionService } from '@/shared/auth/session';
 import { prisma } from '@/shared/db/client';
@@ -26,5 +25,8 @@ export async function POST(): Promise<Response> {
     await SessionService.clearSessionCookie();
   }
 
-  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'));
+  return new Response(null, {
+    status: 303,
+    headers: { Location: '/login' },
+  });
 }

@@ -1,10 +1,13 @@
 import { cookies } from 'next/headers';
-import { SESSION_COOKIE, SessionService } from '@/shared/auth/session';
+import { redirect } from 'next/navigation';
+import { SESSION_COOKIE } from '@/shared/auth/session';
+import { getValidatedSession } from '@/shared/auth/session-cache';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)!.value;
-  const user = await SessionService.validate(token);
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/login');
+  const user = await getValidatedSession(token);
 
   return (
     <div>

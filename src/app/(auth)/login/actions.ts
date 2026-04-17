@@ -7,7 +7,7 @@ import { prisma } from '@/shared/db/client';
 import { PasswordService } from '@/shared/auth/password';
 import { SessionService } from '@/shared/auth/session';
 import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
-import { AuthenticationError } from '@/shared/errors';
+import { AuthenticationError, RateLimitError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 
 export async function loginAction(formData: FormData): Promise<{ error?: string }> {
@@ -53,12 +53,14 @@ export async function loginAction(formData: FormData): Promise<{ error?: string 
 
     logger().info({ userId: user.id }, 'auth.login.success');
   } catch (err) {
-    if (err instanceof AuthenticationError || (err as { code?: string }).code === 'RATE_LIMIT_EXCEEDED') {
+    if (err instanceof AuthenticationError || err instanceof RateLimitError) {
       return { error: (err as Error).message };
     }
     logger().error({ err }, 'login.unexpected');
     return { error: 'Error inesperado. Inténtalo de nuevo.' };
   }
 
-  redirect((next.startsWith('/') ? next : '/dashboard') as Route);
+  // Block protocol-relative URLs like //evil.com
+  const safeNext = /^\/[^/]/.test(next) ? next : '/dashboard';
+  redirect(safeNext as Route);
 }
