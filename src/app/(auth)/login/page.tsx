@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import type { Route } from 'next';
 import { loginAction } from './actions';
 
 export default async function LoginPage({
@@ -36,9 +38,9 @@ export default async function LoginPage({
           style={{ padding: '0.625rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>
           Entrar
         </button>
-        <a href="/recuperar-password" style={{ fontSize: '0.875rem', textAlign: 'center', color: '#2563eb' }}>
+        <Link href={'/recuperar-password' as Route} style={{ fontSize: '0.875rem', textAlign: 'center', color: '#2563eb' }}>
           ¿Olvidaste tu contraseña?
-        </a>
+        </Link>
       </form>
     </div>
   );
