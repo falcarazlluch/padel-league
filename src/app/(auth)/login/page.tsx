@@ -8,40 +8,53 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next = '/dashboard' } = await searchParams;
-
-  // loginAction returns { error?: string } for programmatic use; cast to satisfy
-  // the form action prop type which expects void | Promise<void>.
   const formAction = loginAction as unknown as (formData: FormData) => Promise<void>;
 
   return (
-    <div>
-      <h1 style={{ marginBottom: '1.5rem' }}>PadelLeague</h1>
-      <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">PadelLeague</h1>
+      <p className="text-sm text-gray-500 mb-6">Inicia sesión en tu cuenta</p>
+      <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next} />
         <div>
-          <label htmlFor="email" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
             Email
           </label>
-          <input id="email" name="email" type="email" required autoComplete="email"
-            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }}
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
         <div>
-          <label htmlFor="password" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
             Contraseña
           </label>
-          <input id="password" name="password" type="password" required autoComplete="current-password"
-            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }}
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        <button type="submit"
-          style={{ padding: '0.625rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>
+        <button
+          type="submit"
+          className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+        >
           Entrar
         </button>
-        <Link href={'/recuperar-password' as Route} style={{ fontSize: '0.875rem', textAlign: 'center', color: '#2563eb' }}>
+        <Link
+          href={'/recuperar-password' as Route}
+          className="text-sm text-center text-blue-600 hover:underline"
+        >
           ¿Olvidaste tu contraseña?
         </Link>
       </form>
-    </div>
+    </>
   );
 }

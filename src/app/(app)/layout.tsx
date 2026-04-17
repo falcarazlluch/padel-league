@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 
@@ -16,19 +18,31 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div>
-      <nav style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <a href="/dashboard" style={{ fontWeight: '700', textDecoration: 'none', color: '#111' }}>PadelLeague</a>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <a href="/perfil" style={{ fontSize: '0.875rem', color: '#374151' }}>Mi perfil</a>
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-6">
+          <Link href="/dashboard" className="font-bold text-gray-900 text-lg">
+            PadelLeague
+          </Link>
+          <Link href={'/ligas' as Route} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            Ligas
+          </Link>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link href="/perfil" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            Mi perfil
+          </Link>
           <form action="/api/auth/logout" method="post">
-            <button type="submit" style={{ fontSize: '0.875rem', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+            <button
+              type="submit"
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
               Cerrar sesión
             </button>
           </form>
         </div>
       </nav>
-      <main style={{ padding: '1.5rem' }}>{children}</main>
+      <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
     </div>
   );
 }
