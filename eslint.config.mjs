@@ -23,6 +23,7 @@ export default tseslint.config(
           allowDefaultProject: [
             'src/worker/*.ts',
             'src/worker/handlers/*.ts',
+            'src/worker/email-templates/*.tsx',
             'src/shared/*.ts',
             'vitest.config.ts',
             'vitest.integration.config.ts',
@@ -33,7 +34,7 @@ export default tseslint.config(
             'tests/integration/helpers/*.ts',
             'prisma/seed.ts',
           ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 30,
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 35,
         },
         tsconfigRootDir: import.meta.dirname,
       },
