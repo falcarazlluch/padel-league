@@ -180,9 +180,10 @@ export default async function LigaDetailPage({
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Partidos ({matches.length})</h2>
           <div className="space-y-2">
             {matches.map((match) => (
-              <div
+              <Link
                 key={match.id}
-                className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-4"
+                href={`/ligas/${slug}/partidos/${match.id}` as Route}
+                className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center gap-3 font-medium text-gray-900 min-w-0">
                   <span className="truncate">{match.teamA.name}</span>
@@ -199,7 +200,7 @@ export default async function LigaDetailPage({
                     {STATUS_LABEL[match.status]}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
