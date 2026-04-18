@@ -79,7 +79,7 @@ export type MatchDetailRow = {
   teamBId: string;
   teamA: { id: string; name: string; members: { userId: string; user: { name: string } }[] };
   teamB: { id: string; name: string; members: { userId: string; user: { name: string } }[] };
-  status: import('@prisma/client').MatchStatus;
+  status: MatchStatus;
   scheduledAt: Date | null;
   deadlineAt: Date;
   pendingResult: {

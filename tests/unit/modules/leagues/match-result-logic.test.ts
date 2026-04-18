@@ -34,6 +34,10 @@ describe('determineWinner', () => {
     ]);
     expect(result).toBe('tA');
   });
+
+  it('throws when sets array is empty', () => {
+    expect(() => determineWinner('tA', 'tB', [])).toThrow('determineWinner requires at least one set.');
+  });
 });
 
 describe('getSubmitterSide', () => {
