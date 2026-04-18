@@ -26,12 +26,12 @@ export const MatchService = {
 
     const pendingResult = match.results[0] ?? null;
     const submitterSide = pendingResult
-      ? (getSubmitterSide(
+      ? getSubmitterSide(
           pendingResult.submittedByUserId,
           match.teamA.members.map((m) => m.userId),
           match.teamB.members.map((m) => m.userId),
-        ) ?? 'A')
-      : 'A';
+        )
+      : null;
 
     return {
       id: match.id,
@@ -85,6 +85,9 @@ export const MatchService = {
       throw new DomainError('INVALID_SETS', 'Debe registrar al menos 2 sets.');
     if (input.sets.length > 5)
       throw new DomainError('INVALID_SETS', 'No puede registrar más de 5 sets.');
+
+    if (input.sets.some((s) => !Number.isInteger(s.gamesA) || s.gamesA < 0 || !Number.isInteger(s.gamesB) || s.gamesB < 0))
+      throw new DomainError('INVALID_SETS', 'Los juegos deben ser enteros no negativos.');
 
     const match = await prisma.match.findUnique({
       where: { id: matchId },
@@ -179,14 +182,16 @@ export const MatchService = {
       );
 
     await prisma.$transaction(async (tx) => {
-      await tx.matchResult.update({
-        where: { id: pendingResult.id },
+      const updated = await tx.matchResult.updateMany({
+        where: { id: pendingResult.id, status: 'PENDING' },
         data: {
           status: 'CONFIRMED',
           validatedByUserId: confirmingUserId,
           validatedAt: new Date(),
         },
       });
+      if (updated.count === 0)
+        throw new DomainError('RESULT_ALREADY_PROCESSED', 'El resultado ya fue procesado por otra operación concurrente.');
 
       await tx.match.update({
         where: { id: matchId },
@@ -244,14 +249,16 @@ export const MatchService = {
       );
 
     await prisma.$transaction(async (tx) => {
-      await tx.matchResult.update({
-        where: { id: pendingResult.id },
+      const updated = await tx.matchResult.updateMany({
+        where: { id: pendingResult.id, status: 'PENDING' },
         data: {
           status: 'REJECTED',
           rejectionReason: reason,
           rejectedAt: new Date(),
         },
       });
+      if (updated.count === 0)
+        throw new DomainError('RESULT_ALREADY_PROCESSED', 'El resultado ya fue procesado por otra operación concurrente.');
 
       await tx.match.update({
         where: { id: matchId },

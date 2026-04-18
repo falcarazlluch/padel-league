@@ -85,7 +85,7 @@ export type MatchDetailRow = {
   pendingResult: {
     id: string;
     submittedByUserId: string;
-    submitterSide: 'A' | 'B';
+    submitterSide: 'A' | 'B' | null;
     sets: { setNumber: number; gamesA: number; gamesB: number }[];
     winnerTeamId: string | null;
   } | null;
