@@ -66,3 +66,31 @@ export type CreateTeamInput = {
   leagueId: string;
   name: string;
 };
+
+export type SubmitResultInput = {
+  sets: { gamesA: number; gamesB: number }[];
+};
+
+export type MatchDetailRow = {
+  id: string;
+  leagueId: string;
+  leagueSlug: string;
+  teamAId: string;
+  teamBId: string;
+  teamA: { id: string; name: string; members: { userId: string; user: { name: string } }[] };
+  teamB: { id: string; name: string; members: { userId: string; user: { name: string } }[] };
+  status: import('@prisma/client').MatchStatus;
+  scheduledAt: Date | null;
+  deadlineAt: Date;
+  pendingResult: {
+    id: string;
+    submittedByUserId: string;
+    submitterSide: 'A' | 'B';
+    sets: { setNumber: number; gamesA: number; gamesB: number }[];
+    winnerTeamId: string | null;
+  } | null;
+  confirmedResult: {
+    sets: { setNumber: number; gamesA: number; gamesB: number }[];
+    winnerTeamId: string | null;
+  } | null;
+};
