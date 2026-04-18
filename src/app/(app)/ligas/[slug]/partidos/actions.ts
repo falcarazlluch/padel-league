@@ -31,22 +31,19 @@ export async function submitResultAction(
   if (!base.success) return { error: base.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   const { matchId, setsCount } = base.data;
-  const sets = Array.from({ length: setsCount }, (_, i) => ({
-    gamesA: Number(formData.get(`gamesA_${i}`) ?? ''),
-    gamesB: Number(formData.get(`gamesB_${i}`) ?? ''),
-  }));
-
-  const setsValid = sets.every(
-    (s) =>
-      Number.isInteger(s.gamesA) &&
-      Number.isInteger(s.gamesB) &&
-      s.gamesA >= 0 &&
-      s.gamesB >= 0,
-  );
-  if (!setsValid) return { error: 'Los marcadores de los sets son inválidos.' };
+  const rawSets: Array<{ gamesA: number; gamesB: number }> = [];
+  for (let i = 0; i < setsCount; i++) {
+    const rawA = formData.get(`gamesA_${i}`);
+    const rawB = formData.get(`gamesB_${i}`);
+    if (rawA === null || rawB === null)
+      return { error: 'Los marcadores de los sets son inválidos.' };
+    rawSets.push({ gamesA: Number(rawA), gamesB: Number(rawB) });
+  }
+  if (rawSets.some((s) => !Number.isInteger(s.gamesA) || s.gamesA < 0 || !Number.isInteger(s.gamesB) || s.gamesB < 0))
+    return { error: 'Los marcadores de los sets son inválidos.' };
 
   try {
-    await MatchService.submitResult(matchId, user.id, { sets });
+    await MatchService.submitResult(matchId, user.id, { sets: rawSets });
     return {};
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
