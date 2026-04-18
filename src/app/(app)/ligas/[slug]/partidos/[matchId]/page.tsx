@@ -1,0 +1,194 @@
+import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import type { Route } from 'next';
+import Link from 'next/link';
+import { SESSION_COOKIE } from '@/shared/auth/session';
+import { getValidatedSession } from '@/shared/auth/session-cache';
+import { MatchService } from '@/modules/leagues';
+import { SubmitResultForm } from './submit-result-form';
+import { ConfirmRejectPanel } from './confirm-reject-panel';
+
+const STATUS_LABEL: Record<string, string> = {
+  SCHEDULED: 'Pendiente',
+  DATE_PROPOSED: 'Fecha propuesta',
+  DATE_CONFIRMED: 'Fecha confirmada',
+  PENDING_VALIDATION: 'Resultado enviado',
+  CONFIRMED: 'Confirmado',
+  ADMIN_RESOLVED: 'Resuelto por admin',
+  DISPUTED: 'En disputa',
+  EXPIRED_UNPLAYED: 'No jugado',
+  CANCELLED: 'Cancelado',
+};
+
+const STATUS_CLASS: Record<string, string> = {
+  SCHEDULED: 'bg-gray-100 text-gray-600',
+  DATE_PROPOSED: 'bg-yellow-100 text-yellow-700',
+  DATE_CONFIRMED: 'bg-blue-100 text-blue-700',
+  PENDING_VALIDATION: 'bg-orange-100 text-orange-700',
+  CONFIRMED: 'bg-green-100 text-green-700',
+  ADMIN_RESOLVED: 'bg-purple-100 text-purple-700',
+  DISPUTED: 'bg-red-100 text-red-700',
+  EXPIRED_UNPLAYED: 'bg-gray-100 text-gray-400',
+  CANCELLED: 'bg-gray-100 text-gray-400',
+};
+
+export default async function MatchDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string; matchId: string }>;
+}) {
+  const { slug, matchId } = await params;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/login' as Route);
+
+  const currentUser = await getValidatedSession(token);
+  const match = await MatchService.getMatch(matchId).catch(() => null);
+  if (!match || match.leagueSlug !== slug) notFound();
+
+  const teamAIds = match.teamA.members.map((m) => m.userId);
+  const teamBIds = match.teamB.members.map((m) => m.userId);
+  const currentUserSide = teamAIds.includes(currentUser.id) ? 'A' : teamBIds.includes(currentUser.id) ? 'B' : null;
+  const isTeamMember = currentUserSide !== null;
+
+  const SUBMITTABLE = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'];
+  const canSubmit = isTeamMember && SUBMITTABLE.includes(match.status);
+
+  const canValidate =
+    match.status === 'PENDING_VALIDATION' &&
+    match.pendingResult !== null &&
+    currentUserSide !== null &&
+    match.pendingResult.submitterSide !== null &&
+    currentUserSide !== match.pendingResult.submitterSide;
+
+  const isAwaitingOwnConfirmation =
+    match.status === 'PENDING_VALIDATION' &&
+    match.pendingResult !== null &&
+    match.pendingResult.submitterSide !== null &&
+    currentUserSide === match.pendingResult.submitterSide;
+
+  return (
+    <div className="space-y-6 max-w-xl mx-auto">
+      {/* Back link */}
+      <Link
+        href={`/ligas/${slug}` as Route}
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+      >
+        ← Volver a la liga
+      </Link>
+
+      {/* Header */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 font-semibold text-gray-900 text-lg">
+            <span>{match.teamA.name}</span>
+            <span className="text-gray-400 font-normal text-sm">vs</span>
+            <span>{match.teamB.name}</span>
+          </div>
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_CLASS[match.status] ?? 'bg-gray-100 text-gray-600'}`}
+          >
+            {STATUS_LABEL[match.status] ?? match.status}
+          </span>
+        </div>
+        <p className="text-sm text-gray-400 mt-2">
+          Límite: {match.deadlineAt.toLocaleDateString('es-ES')}
+          {match.scheduledAt && (
+            <> · Jugado: {match.scheduledAt.toLocaleDateString('es-ES')}</>
+          )}
+        </p>
+      </div>
+
+      {/* Confirmed result */}
+      {match.confirmedResult && (
+        <div className="bg-white rounded-xl border border-green-200 p-5">
+          <h3 className="font-semibold text-gray-900 mb-3">Resultado final</h3>
+          <div className="space-y-2">
+            {match.confirmedResult.sets.map((s) => (
+              <div
+                key={s.setNumber}
+                className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-center"
+              >
+                <span
+                  className={`text-lg font-bold ${s.gamesA > s.gamesB ? 'text-green-600' : 'text-gray-400'}`}
+                >
+                  {s.gamesA}
+                </span>
+                <span className="text-xs text-gray-400">Set {s.setNumber}</span>
+                <span
+                  className={`text-lg font-bold ${s.gamesB > s.gamesA ? 'text-green-600' : 'text-gray-400'}`}
+                >
+                  {s.gamesB}
+                </span>
+              </div>
+            ))}
+          </div>
+          {match.confirmedResult.winnerTeamId ? (
+            <p className="text-sm text-green-700 font-medium mt-3 text-center">
+              Ganador:{' '}
+              {match.confirmedResult.winnerTeamId === match.teamAId
+                ? match.teamA.name
+                : match.teamB.name}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500 font-medium mt-3 text-center">Empate</p>
+          )}
+        </div>
+      )}
+
+      {/* Pending result awaiting validation */}
+      {match.pendingResult && match.status === 'PENDING_VALIDATION' && (
+        <div className="bg-white rounded-xl border border-orange-200 p-5 space-y-4">
+          <h3 className="font-semibold text-gray-900">
+            Resultado enviado — pendiente de validación
+          </h3>
+          <div className="space-y-2">
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-2 text-xs font-medium text-gray-500 text-center">
+              <span>{match.teamA.name}</span>
+              <span />
+              <span>{match.teamB.name}</span>
+            </div>
+            {match.pendingResult.sets.map((s) => (
+              <div
+                key={s.setNumber}
+                className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-center"
+              >
+                <span className="text-lg font-bold text-gray-900">{s.gamesA}</span>
+                <span className="text-xs text-gray-400">Set {s.setNumber}</span>
+                <span className="text-lg font-bold text-gray-900">{s.gamesB}</span>
+              </div>
+            ))}
+          </div>
+
+          {canValidate && <ConfirmRejectPanel matchId={match.id} />}
+
+          {isAwaitingOwnConfirmation && (
+            <p className="text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2">
+              Resultado enviado. Esperando confirmación del equipo rival.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Submit result form */}
+      {canSubmit && (
+        <SubmitResultForm
+          matchId={match.id}
+          teamAName={match.teamA.name}
+          teamBName={match.teamB.name}
+        />
+      )}
+
+      {/* Disputed state */}
+      {match.status === 'DISPUTED' && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+          <h3 className="font-semibold text-red-800 mb-1">Partido en disputa</h3>
+          <p className="text-sm text-red-600">
+            El resultado ha sido disputado. Un administrador resolverá la disputa.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
