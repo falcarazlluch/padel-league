@@ -43,7 +43,7 @@ export default async function MatchDetailPage({
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);
 
-  const currentUser = await getValidatedSession(token);
+  const currentUser = await getValidatedSession(token).catch(() => redirect('/login' as Route));
   const match = await MatchService.getMatch(matchId).catch(() => null);
   if (!match || match.leagueSlug !== slug) notFound();
 
@@ -65,6 +65,7 @@ export default async function MatchDetailPage({
   const isAwaitingOwnConfirmation =
     match.status === 'PENDING_VALIDATION' &&
     match.pendingResult !== null &&
+    currentUserSide !== null &&
     match.pendingResult.submitterSide !== null &&
     currentUserSide === match.pendingResult.submitterSide;
 
