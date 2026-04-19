@@ -89,6 +89,7 @@ export async function matchAutoApproveResultHandler(
 
   const matchUrl = `${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`;
   const q = queue();
+  await q.start();
   for (const member of allMembers) {
     await q.publish('send-email', {
       template: 'result-confirmed',
