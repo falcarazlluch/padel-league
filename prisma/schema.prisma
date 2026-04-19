@@ -324,6 +324,7 @@ model Match {
   confirmedResultId  String?      @unique @map("confirmed_result_id")
   winnerTeamId       String?      @map("winner_team_id")   // null si empate
   isTiebreaker       Boolean      @default(false) @map("is_tiebreaker")
+  round              Int?
 
   createdAt          DateTime     @default(now()) @map("created_at")
   updatedAt          DateTime     @updatedAt @map("updated_at")
