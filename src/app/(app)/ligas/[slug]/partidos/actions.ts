@@ -7,13 +7,59 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { MatchService } from '@/modules/leagues';
+import { NotificationService } from '@/modules/notifications';
 import { isUserFacingError } from '@/shared/errors';
+import { queue } from '@/shared/queue/client';
+import { env } from '@/shared/config/env';
+import { prisma } from '@/shared/db/client';
 
 async function getSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);
   return getValidatedSession(token);
+}
+
+type MatchMember = { userId: string; user: { email: string; name: string } };
+type MatchTeamInfo = {
+  teamA: { id: string; name: string; members: MatchMember[] };
+  teamB: { id: string; name: string; members: MatchMember[] };
+  leagueSlug: string;
+  winnerTeam: { name: string } | null;
+};
+
+async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null> {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      league: { select: { slug: true } },
+      teamA: { include: { members: { include: { user: { select: { email: true, name: true } } } } } },
+      teamB: { include: { members: { include: { user: { select: { email: true, name: true } } } } } },
+    },
+  });
+  if (!match) return null;
+
+  const winnerTeamId = match.winnerTeamId;
+  const winnerTeam = winnerTeamId
+    ? winnerTeamId === match.teamAId
+      ? { name: match.teamA.name }
+      : { name: match.teamB.name }
+    : null;
+
+  return {
+    teamA: {
+      id: match.teamA.id,
+      name: match.teamA.name,
+      members: match.teamA.members.map((m) => ({ userId: m.userId, user: { email: m.user.email, name: m.user.name } })),
+    },
+    teamB: {
+      id: match.teamB.id,
+      name: match.teamB.name,
+      members: match.teamB.members.map((m) => ({ userId: m.userId, user: { email: m.user.email, name: m.user.name } })),
+    },
+    leagueSlug: match.league.slug,
+    winnerTeam,
+  };
 }
 
 const submitResultSchema = z.object({
@@ -44,22 +90,99 @@ export async function submitResultAction(
 
   try {
     await MatchService.submitResult(matchId, user.id, { sets: rawSets });
-    return {};
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
+
+  try {
+    const info = await fetchMatchTeamInfo(matchId);
+    if (info) {
+      const submitterIsA = info.teamA.members.some((m) => m.userId === user.id);
+      const rivalTeam = submitterIsA ? info.teamB : info.teamA;
+      const submitterTeamName = submitterIsA ? info.teamA.name : info.teamB.name;
+      const matchUrl = `${env().APP_URL}/ligas/${info.leagueSlug}/partidos/${matchId}`;
+
+      await NotificationService.createMany(
+        rivalTeam.members.map((m) => ({
+          userId: m.userId,
+          type: 'RESULT_SUBMITTED' as const,
+          title: 'Resultado enviado — pendiente de confirmación',
+          body: `${submitterTeamName} ha enviado el resultado. Tienes 7 días para confirmar o disputar.`,
+          metadata: { matchId },
+        })),
+      );
+
+      const q = queue();
+      await q.start();
+      for (const member of rivalTeam.members) {
+        await q.publish('send-email', {
+          template: 'result-submitted',
+          to: member.user.email,
+          data: {
+            matchTeamA: info.teamA.name,
+            matchTeamB: info.teamB.name,
+            submitterTeam: submitterTeamName,
+            matchUrl,
+          },
+          dedupKey: `result-submitted-${matchId}-${member.userId}`,
+        });
+      }
+    }
+  } catch {
+    // notification/email side effects must not fail the main action
+  }
+
+  return {};
 }
 
 export async function confirmResultAction(matchId: string): Promise<{ error?: string }> {
   const user = await getSession();
   try {
     await MatchService.confirmResult(matchId, user.id);
-    return {};
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
+
+  try {
+    const info = await fetchMatchTeamInfo(matchId);
+    if (info) {
+      const confirmerIsA = info.teamA.members.some((m) => m.userId === user.id);
+      const submitterTeam = confirmerIsA ? info.teamB : info.teamA;
+      const matchUrl = `${env().APP_URL}/ligas/${info.leagueSlug}/partidos/${matchId}`;
+
+      await NotificationService.createMany(
+        submitterTeam.members.map((m) => ({
+          userId: m.userId,
+          type: 'RESULT_CONFIRMED' as const,
+          title: 'Resultado confirmado',
+          body: `El resultado del partido ha sido confirmado. ${info.winnerTeam ? `Ganador: ${info.winnerTeam.name}.` : 'Partido empatado.'}`,
+          metadata: { matchId },
+        })),
+      );
+
+      const q = queue();
+      await q.start();
+      for (const member of submitterTeam.members) {
+        await q.publish('send-email', {
+          template: 'result-confirmed',
+          to: member.user.email,
+          data: {
+            matchTeamA: info.teamA.name,
+            matchTeamB: info.teamB.name,
+            winnerTeamName: info.winnerTeam?.name ?? null,
+            matchUrl,
+          },
+          dedupKey: `result-confirmed-${matchId}-${member.userId}`,
+        });
+      }
+    }
+  } catch {
+    // notification/email side effects must not fail the main action
+  }
+
+  return {};
 }
 
 const disputeSchema = z.object({
@@ -77,9 +200,29 @@ export async function disputeResultAction(
 
   try {
     await MatchService.disputeResult(parsed.data.matchId, user.id, parsed.data.reason);
-    return {};
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
+
+  try {
+    const info = await fetchMatchTeamInfo(parsed.data.matchId);
+    if (info) {
+      const disputerIsA = info.teamA.members.some((m) => m.userId === user.id);
+      const submitterTeam = disputerIsA ? info.teamB : info.teamA;
+      await NotificationService.createMany(
+        submitterTeam.members.map((m) => ({
+          userId: m.userId,
+          type: 'RESULT_REJECTED' as const,
+          title: 'Resultado disputado',
+          body: 'El equipo rival ha disputado el resultado que enviaste. Un administrador revisará el caso.',
+          metadata: { matchId: parsed.data.matchId },
+        })),
+      );
+    }
+  } catch {
+    // notification side effects must not fail the main action
+  }
+
+  return {};
 }
