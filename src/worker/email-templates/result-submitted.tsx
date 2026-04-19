@@ -37,7 +37,7 @@ export function ResultSubmittedEmail({ matchTeamA, matchTeamB, submitterTeam, ma
         Ver resultado
       </a>
       <p style={{ marginTop: '1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
-        Si tienes dudas sobre el resultado, puedes disputarlo desde el panel de control.
+        Si tienes dudas, usa el botón de arriba para acceder al partido y confirmar o disputar el resultado.
       </p>
     </div>
   );
