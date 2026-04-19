@@ -42,8 +42,10 @@ export function generateFixtures(
       const a = circle[i];
       const b = circle[n - 1 - i];
       // Skip bye slots
-      if (a !== null && b !== null) {
-        matches.push({ teamAId: a as string, teamBId: b as string, deadlineAt: new Date(deadline), round });
+      if (a != null && b != null) {
+        const teamAId = a;
+        const teamBId = b;
+        matches.push({ teamAId, teamBId, deadlineAt: new Date(deadline), round });
       }
     }
     // Rotate: move last element of rotating to front

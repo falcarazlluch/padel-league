@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
-import { LeagueService, generateFixtures } from '@/modules/leagues';
+import { LeagueService } from '@/modules/leagues';
 import { prisma } from '@/shared/db/client';
 import { isUserFacingError } from '@/shared/errors';
 
@@ -121,20 +121,6 @@ export async function activateLeagueAction(leagueId: string): Promise<{ error?: 
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
-  // generate fixtures after successful activation
-  const [teams, league] = await Promise.all([
-    prisma.team.findMany({ where: { leagueId } }),
-    prisma.league.findUnique({ where: { id: leagueId } }),
-  ]);
-  if (!league) return { error: 'Liga no encontrada.' };
-
-  const fixtures = generateFixtures(
-    teams.map((t) => t.id),
-    league.startDate,
-    league.defaultDeadlineDays,
-  );
-  await prisma.match.createMany({
-    data: fixtures.map((f) => ({ ...f, leagueId })),
-  });
+  // DO NOT generate fixtures here — activateLeague handles it in its own transaction
   return {};
 }
