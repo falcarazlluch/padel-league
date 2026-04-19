@@ -32,6 +32,7 @@ export type MatchRow = {
   status: MatchStatus;
   scheduledAt: Date | null;
   deadlineAt: Date;
+  round: number | null;
   teamA: { id: string; name: string };
   teamB: { id: string; name: string };
 };
