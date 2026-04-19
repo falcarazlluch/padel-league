@@ -12,6 +12,7 @@ import { isUserFacingError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
+import { logger } from '@/shared/logger';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -129,8 +130,8 @@ export async function submitResultAction(
         });
       }
     }
-  } catch {
-    // notification/email side effects must not fail the main action
+  } catch (err) {
+    logger().warn({ err, matchId }, 'action.submit.side-effect.failed');
   }
 
   return {};
@@ -178,8 +179,8 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
         });
       }
     }
-  } catch {
-    // notification/email side effects must not fail the main action
+  } catch (err) {
+    logger().warn({ err, matchId }, 'action.confirm.side-effect.failed');
   }
 
   return {};
@@ -220,8 +221,8 @@ export async function disputeResultAction(
         })),
       );
     }
-  } catch {
-    // notification side effects must not fail the main action
+  } catch (err) {
+    logger().warn({ err, matchId: parsed.data.matchId }, 'action.dispute.side-effect.failed');
   }
 
   return {};
