@@ -91,10 +91,12 @@ export const SchedulingService = {
       throw new DomainError('CANNOT_ACCEPT_OWN_PROPOSAL', 'No puedes aceptar tu propia propuesta.');
 
     await prisma.$transaction(async (tx) => {
-      await tx.matchSchedulingProposal.update({
-        where: { id: proposal.id },
+      const updated = await tx.matchSchedulingProposal.updateMany({
+        where: { id: proposal.id, status: 'PROPOSED' },
         data: { status: 'ACCEPTED', respondedByUserId: acceptingUserId, respondedAt: new Date() },
       });
+      if (updated.count === 0)
+        throw new DomainError('PROPOSAL_ALREADY_PROCESSED', 'La propuesta ya fue procesada.');
       await tx.match.update({
         where: { id: matchId },
         data: { status: 'DATE_CONFIRMED', scheduledAt: proposal.proposedDate },
@@ -133,6 +135,10 @@ export const SchedulingService = {
     const teamBIds = match.teamB.members.map((m) => m.userId);
     const isTeamMember = teamAIds.includes(cancelingUserId) || teamBIds.includes(cancelingUserId);
     if (!isTeamMember) throw new AuthorizationError('NOT_TEAM_MEMBER', 'No eres miembro de este partido.');
+
+    const cancellableStatuses = ['DATE_PROPOSED', 'DATE_CONFIRMED'] as const;
+    if (!(cancellableStatuses as readonly string[]).includes(match.status))
+      throw new DomainError('MATCH_NOT_CANCELLABLE', 'Este partido no tiene propuesta activa que cancelar.');
 
     await prisma.$transaction(async (tx) => {
       await tx.matchSchedulingProposal.updateMany({
