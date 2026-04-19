@@ -326,6 +326,9 @@ export const MatchService = {
     // Determine proponent's team (team of the user who opened the dispute)
     const teamAIds = match.teamA.members.map((m) => m.userId);
     const proponentSide = getSubmitterSide(dispute.openedByUserId, teamAIds, match.teamB.members.map((m) => m.userId));
+    if (!proponentSide) {
+      throw new DomainError('DISPUTE_OPENER_NOT_FOUND', 'No se puede determinar el equipo del denunciante.');
+    }
     const proponentTeamId = proponentSide === 'A' ? match.teamAId : match.teamBId;
     const opponentTeamId = proponentSide === 'A' ? match.teamBId : match.teamAId;
 

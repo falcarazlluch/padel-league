@@ -22,9 +22,11 @@ async function getAdminSession() {
 const resolveSchema = z.object({
   disputeId: z.string().cuid(),
   resolution: z.enum(['AWARD_PROPONENT', 'AWARD_OPPONENT', 'BOTH_LOST', 'EXTEND_DEADLINE', 'DISMISS']),
-  adminNote: z.string().max(2000).optional(),
-  // datetime-local inputs don't include timezone offset, so we accept ISO strings without offset
-  newDeadlineAt: z.string().datetime({ offset: false }).optional(),
+  adminNote: z.string().max(2000).optional().transform((v) => (v === '' ? undefined : v)),
+  // datetime-local inputs produce strings like "2026-05-01T10:00" (no seconds, no Z).
+  // Zod's datetime() rejects those, so we accept any non-empty string and let Node parse it.
+  // Empty string from an unfilled input is normalised to undefined.
+  newDeadlineAt: z.string().optional().transform((v) => (v === '' || v === undefined ? undefined : v)),
 });
 
 export async function resolveDisputeAction(
@@ -37,6 +39,10 @@ export async function resolveDisputeAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   const { disputeId, resolution, adminNote, newDeadlineAt } = parsed.data;
+
+  if (resolution === 'EXTEND_DEADLINE' && !newDeadlineAt) {
+    return { error: 'Se requiere nueva fecha límite para ampliar el plazo.' };
+  }
 
   try {
     await MatchService.resolveDispute(

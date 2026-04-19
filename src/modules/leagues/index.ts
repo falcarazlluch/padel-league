@@ -11,4 +11,5 @@ export type {
   CreateLeagueInput,
   CreateTeamInput,
   SubmitResultInput,
+  ResolveDisputeInput,
 } from './domain/types';
