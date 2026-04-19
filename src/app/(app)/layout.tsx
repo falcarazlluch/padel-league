@@ -5,14 +5,16 @@ import type { ReactNode } from 'react';
 import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
+import { NotificationsBadge } from './notifications-badge';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login');
 
+  let currentUser;
   try {
-    await getValidatedSession(token);
+    currentUser = await getValidatedSession(token);
   } catch {
     redirect('/login');
   }
@@ -27,8 +29,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href={'/ligas' as Route} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
             Ligas
           </Link>
+          {currentUser.role === 'SUPER_ADMIN' && (
+            <Link href={'/admin/disputas' as Route} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+              Disputas
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-4">
+          <NotificationsBadge />
           <Link href="/perfil" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
             Mi perfil
           </Link>
