@@ -27,24 +27,28 @@ export async function POST(req: Request): Promise<Response> {
   const noopId = await q.publish('noop', { ping: `heartbeat-${Date.now()}` });
   log.info({ jobId: noopId }, 'cron.heartbeat.enqueued');
 
-  // Finalize leagues whose endDate has passed
-  const leaguesToFinalize = await prisma.league.findMany({
-    where: { endDate: { lte: new Date() }, status: 'ACTIVE' },
-    select: { id: true },
-  });
+  // Finalize leagues whose endDate has passed — isolated so a DB error never fails the heartbeat
+  let finalizeIds: string[] = [];
+  try {
+    const leaguesToFinalize = await prisma.league.findMany({
+      where: { endDate: { lte: new Date() }, status: 'ACTIVE' },
+      select: { id: true },
+    });
 
-  const finalizeIds: string[] = [];
-  for (const league of leaguesToFinalize) {
-    const jobId = await q.publish(
-      'league-finalize',
-      { leagueId: league.id },
-      { singletonKey: `league-finalize-${league.id}` },
-    );
-    if (jobId) finalizeIds.push(league.id);
-  }
+    for (const league of leaguesToFinalize) {
+      const jobId = await q.publish(
+        'league-finalize',
+        { leagueId: league.id },
+        { singletonKey: `league-finalize-${league.id}` },
+      );
+      if (jobId) finalizeIds.push(league.id);
+    }
 
-  if (finalizeIds.length > 0) {
-    log.info({ count: finalizeIds.length, leagueIds: finalizeIds }, 'cron.league-finalize.enqueued');
+    if (finalizeIds.length > 0) {
+      log.info({ count: finalizeIds.length, leagueIds: finalizeIds }, 'cron.league-finalize.enqueued');
+    }
+  } catch (err) {
+    log.warn({ err }, 'cron.league-finalize.error');
   }
 
   return NextResponse.json({ ok: true, jobId: noopId, leaguesToFinalize: finalizeIds.length });
