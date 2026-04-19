@@ -28,7 +28,7 @@ export async function POST(req: Request): Promise<Response> {
   log.info({ jobId: noopId }, 'cron.heartbeat.enqueued');
 
   // Finalize leagues whose endDate has passed — isolated so a DB error never fails the heartbeat
-  let finalizeIds: string[] = [];
+  const finalizeIds: string[] = [];
   try {
     const leaguesToFinalize = await prisma.league.findMany({
       where: { endDate: { lte: new Date() }, status: 'ACTIVE' },

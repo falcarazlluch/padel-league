@@ -1,4 +1,4 @@
-import type { LeagueStatus, MatchFormat, MatchStatus } from '@prisma/client';
+import type { LeagueStatus, MatchFormat, MatchStatus, DisputeResolution } from '@prisma/client';
 
 export type LeagueRow = {
   id: string;
@@ -96,7 +96,7 @@ export type MatchDetailRow = {
 };
 
 export type ResolveDisputeInput = {
-  resolution: import('@prisma/client').DisputeResolution;
+  resolution: DisputeResolution;
   adminNote?: string;
   newDeadlineAt?: Date;
 };

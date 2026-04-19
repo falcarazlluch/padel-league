@@ -12,7 +12,7 @@ export function NotificationsBadge() {
 
   const fetchUnread = useCallback(() => {
     fetch('/api/notifications/unread')
-      .then((r) => (r.ok ? (r.json() as Promise<UnreadData>) : Promise.reject()))
+      .then((r) => (r.ok ? (r.json() as Promise<UnreadData>) : Promise.reject(new Error('fetch failed'))))
       .then(setData)
       .catch(() => undefined);
   }, []);
