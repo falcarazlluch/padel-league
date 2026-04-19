@@ -216,6 +216,9 @@ export const MatchService = {
         },
       });
     });
+    // NOTE: The match-auto-approve-result job (singletonKey auto-approve-{resultId}) is not cancelled here.
+    // It will execute at T+7d but the handler's PENDING guard will safely no-op. A full fix
+    // requires storing the job ID on MatchResult (schema change tracked as future work).
   },
 
   async disputeResult(
@@ -296,6 +299,9 @@ export const MatchService = {
         },
       });
     });
+    // NOTE: The match-auto-approve-result job (singletonKey auto-approve-{resultId}) is not cancelled here.
+    // It will execute at T+7d but the handler's PENDING guard will safely no-op. A full fix
+    // requires storing the job ID on MatchResult (schema change tracked as future work).
   },
 
   async resolveDispute(
@@ -346,16 +352,22 @@ export const MatchService = {
         },
       });
 
+      // Find the disputed result to preserve set data in standings
+      const rejectedResult = await tx.matchResult.findFirst({
+        where: { matchId: match.id, status: 'REJECTED' },
+        orderBy: { submittedAt: 'desc' },
+      });
+
       // Update the match based on resolution
       if (resolution === 'AWARD_PROPONENT') {
         await tx.match.update({
           where: { id: match.id },
-          data: { status: 'ADMIN_RESOLVED', winnerTeamId: proponentTeamId },
+          data: { status: 'ADMIN_RESOLVED', winnerTeamId: proponentTeamId, confirmedResultId: rejectedResult?.id ?? null },
         });
       } else if (resolution === 'AWARD_OPPONENT') {
         await tx.match.update({
           where: { id: match.id },
-          data: { status: 'ADMIN_RESOLVED', winnerTeamId: opponentTeamId },
+          data: { status: 'ADMIN_RESOLVED', winnerTeamId: opponentTeamId, confirmedResultId: rejectedResult?.id ?? null },
         });
       } else if (resolution === 'BOTH_LOST') {
         await tx.match.update({
@@ -372,7 +384,7 @@ export const MatchService = {
         // DISMISS: close dispute, treat as draw (winnerTeamId = null)
         await tx.match.update({
           where: { id: match.id },
-          data: { status: 'ADMIN_RESOLVED', winnerTeamId: null },
+          data: { status: 'ADMIN_RESOLVED', winnerTeamId: null, confirmedResultId: rejectedResult?.id ?? null },
         });
       }
 
