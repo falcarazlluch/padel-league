@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
+import { queue } from '@/shared/queue/client';
 import { determineWinner, getSubmitterSide } from './match-result-logic';
 import type { SubmitResultInput, MatchDetailRow } from '../domain/types';
 
@@ -117,13 +118,13 @@ export const MatchService = {
 
     const winnerTeamId = determineWinner(match.teamAId, match.teamBId, input.sets);
 
-    await prisma.$transaction(async (tx) => {
+    const newResult = await prisma.$transaction(async (tx) => {
       await tx.matchResult.updateMany({
         where: { matchId, status: 'PENDING' },
         data: { status: 'SUPERSEDED' },
       });
 
-      await tx.matchResult.create({
+      const created = await tx.matchResult.create({
         data: {
           matchId,
           submittedByUserId: submittingUserId,
@@ -142,7 +143,19 @@ export const MatchService = {
         where: { id: matchId },
         data: { status: 'PENDING_VALIDATION' },
       });
+
+      return created;
     });
+
+    // Enqueue auto-approve job: fires in 7 days if rival doesn't confirm
+    const startAfter = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const q = queue();
+    await q.start();
+    await q.publish(
+      'match-auto-approve-result',
+      { matchResultId: newResult.id },
+      { startAfter, singletonKey: `auto-approve-${newResult.id}` },
+    );
   },
 
   async confirmResult(matchId: string, confirmingUserId: string): Promise<void> {

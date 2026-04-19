@@ -6,6 +6,7 @@ import { noopHandler } from './handlers/noop';
 import { sendEmailHandler } from './handlers/send-email';
 import { sessionCleanupHandler } from './handlers/session-cleanup';
 import { anonymizeUserHandler } from './handlers/anonymize-user';
+import { matchAutoApproveResultHandler } from './handlers/match-auto-approve-result';
 
 async function main() {
   env();
@@ -21,6 +22,7 @@ async function main() {
   await registerHandler(boss, 'send-email', sendEmailHandler);
   await registerHandler(boss, 'session-cleanup', sessionCleanupHandler);
   await registerHandler(boss, 'anonymize-user', anonymizeUserHandler);
+  await registerHandler(boss, 'match-auto-approve-result', matchAutoApproveResultHandler);
 
   log.info('worker.ready');
 
