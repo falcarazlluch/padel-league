@@ -5,6 +5,8 @@ import { prisma } from '@/shared/db/client';
 import { logger } from '@/shared/logger';
 import { InvitationEmail, invitationSubject } from '../email-templates/invitation';
 import { PasswordResetEmail, passwordResetSubject } from '../email-templates/password-reset';
+import { ResultSubmittedEmail, resultSubmittedSubject } from '../email-templates/result-submitted';
+import { ResultConfirmedEmail, resultConfirmedSubject } from '../email-templates/result-confirmed';
 import type { JobMap } from '@/shared/queue/jobs';
 
 type EmailData = JobMap['send-email']['data'];
@@ -33,6 +35,30 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
           React.createElement(PasswordResetEmail, {
             name: str(data['name'], 'Jugador'),
             resetUrl: str(data['resetUrl'], ''),
+          }),
+        ),
+      };
+    case 'result-submitted':
+      return {
+        subject: resultSubmittedSubject,
+        html: renderToStaticMarkup(
+          React.createElement(ResultSubmittedEmail, {
+            matchTeamA: str(data['matchTeamA'], '?'),
+            matchTeamB: str(data['matchTeamB'], '?'),
+            submitterTeam: str(data['submitterTeam'], '?'),
+            matchUrl: str(data['matchUrl'], ''),
+          }),
+        ),
+      };
+    case 'result-confirmed':
+      return {
+        subject: resultConfirmedSubject,
+        html: renderToStaticMarkup(
+          React.createElement(ResultConfirmedEmail, {
+            matchTeamA: str(data['matchTeamA'], '?'),
+            matchTeamB: str(data['matchTeamB'], '?'),
+            winnerTeamName: typeof data['winnerTeamName'] === 'string' ? data['winnerTeamName'] : null,
+            matchUrl: str(data['matchUrl'], ''),
           }),
         ),
       };
