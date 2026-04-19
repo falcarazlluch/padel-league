@@ -3,6 +3,7 @@ import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors'
 import { queue } from '@/shared/queue/client';
 import { determineWinner, getSubmitterSide } from './match-result-logic';
 import type { SubmitResultInput, MatchDetailRow } from '../domain/types';
+import type { DisputeResolution } from '@prisma/client';
 
 const SUBMITTABLE_STATUSES = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'] as const;
 type SubmittableStatus = (typeof SUBMITTABLE_STATUSES)[number];
@@ -292,6 +293,93 @@ export const MatchService = {
               gamesB: s.gamesB,
             })),
           },
+        },
+      });
+    });
+  },
+
+  async resolveDispute(
+    disputeId: string,
+    adminUserId: string,
+    resolution: DisputeResolution,
+    adminNote?: string,
+    newDeadlineAt?: Date,
+  ): Promise<void> {
+    const dispute = await prisma.dispute.findUnique({
+      where: { id: disputeId },
+      include: {
+        match: {
+          include: {
+            teamA: { include: { members: true } },
+            teamB: { include: { members: true } },
+          },
+        },
+      },
+    });
+
+    if (!dispute) throw new NotFoundError('DISPUTE_NOT_FOUND', 'Disputa no encontrada.');
+    if (dispute.status === 'RESOLVED')
+      throw new DomainError('DISPUTE_ALREADY_RESOLVED', 'Esta disputa ya fue resuelta.');
+
+    const match = dispute.match;
+
+    // Determine proponent's team (team of the user who opened the dispute)
+    const teamAIds = match.teamA.members.map((m) => m.userId);
+    const proponentSide = getSubmitterSide(dispute.openedByUserId, teamAIds, match.teamB.members.map((m) => m.userId));
+    const proponentTeamId = proponentSide === 'A' ? match.teamAId : match.teamBId;
+    const opponentTeamId = proponentSide === 'A' ? match.teamBId : match.teamAId;
+
+    await prisma.$transaction(async (tx) => {
+      // Resolve the dispute record
+      await tx.dispute.update({
+        where: { id: disputeId },
+        data: {
+          status: 'RESOLVED',
+          resolution,
+          adminNote: adminNote ?? null,
+          newDeadlineAt: resolution === 'EXTEND_DEADLINE' ? newDeadlineAt : null,
+          resolvedByUserId: adminUserId,
+          resolvedAt: new Date(),
+        },
+      });
+
+      // Update the match based on resolution
+      if (resolution === 'AWARD_PROPONENT') {
+        await tx.match.update({
+          where: { id: match.id },
+          data: { status: 'ADMIN_RESOLVED', winnerTeamId: proponentTeamId },
+        });
+      } else if (resolution === 'AWARD_OPPONENT') {
+        await tx.match.update({
+          where: { id: match.id },
+          data: { status: 'ADMIN_RESOLVED', winnerTeamId: opponentTeamId },
+        });
+      } else if (resolution === 'BOTH_LOST') {
+        await tx.match.update({
+          where: { id: match.id },
+          data: { status: 'EXPIRED_UNPLAYED', winnerTeamId: null },
+        });
+      } else if (resolution === 'EXTEND_DEADLINE') {
+        if (!newDeadlineAt) throw new DomainError('MISSING_DEADLINE', 'Se requiere nueva fecha límite para extender.');
+        await tx.match.update({
+          where: { id: match.id },
+          data: { status: 'SCHEDULED', deadlineAt: newDeadlineAt },
+        });
+      } else {
+        // DISMISS: close dispute, treat as draw (winnerTeamId = null)
+        await tx.match.update({
+          where: { id: match.id },
+          data: { status: 'ADMIN_RESOLVED', winnerTeamId: null },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: adminUserId,
+          action: 'dispute.resolved',
+          targetType: 'Dispute',
+          targetId: disputeId,
+          metadata: { resolution, matchId: match.id, adminNote: adminNote ?? null },
         },
       });
     });

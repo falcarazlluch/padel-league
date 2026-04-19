@@ -94,3 +94,9 @@ export type MatchDetailRow = {
     winnerTeamId: string | null;
   } | null;
 };
+
+export type ResolveDisputeInput = {
+  resolution: import('@prisma/client').DisputeResolution;
+  adminNote?: string;
+  newDeadlineAt?: Date;
+};
