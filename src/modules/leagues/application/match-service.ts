@@ -16,6 +16,11 @@ export const MatchService = {
         league: { select: { id: true, slug: true } },
         teamA: { include: { members: { include: { user: { select: { name: true } } } } } },
         teamB: { include: { members: { include: { user: { select: { name: true } } } } } },
+        schedulingProposals: {
+          where: { status: 'PROPOSED' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
         results: {
           where: { status: 'PENDING' },
           include: { sets: { orderBy: { setNumber: 'asc' } } },
@@ -60,6 +65,14 @@ export const MatchService = {
       status: match.status,
       scheduledAt: match.scheduledAt,
       deadlineAt: match.deadlineAt,
+      round: match.round,
+      activeProposal: match.schedulingProposals[0]
+        ? {
+            id: match.schedulingProposals[0].id,
+            proposedByUserId: match.schedulingProposals[0].proposedByUserId,
+            proposedDate: match.schedulingProposals[0].proposedDate,
+          }
+        : null,
       pendingResult: pendingResult
         ? {
             id: pendingResult.id,

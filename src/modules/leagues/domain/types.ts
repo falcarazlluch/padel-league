@@ -83,6 +83,12 @@ export type MatchDetailRow = {
   status: MatchStatus;
   scheduledAt: Date | null;
   deadlineAt: Date;
+  round: number | null;
+  activeProposal: {
+    id: string;
+    proposedByUserId: string;
+    proposedDate: Date;
+  } | null;
   pendingResult: {
     id: string;
     submittedByUserId: string;
