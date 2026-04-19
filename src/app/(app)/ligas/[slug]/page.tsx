@@ -30,9 +30,8 @@ export default async function LigaDetailPage({
   ]);
   if (!league) notFound();
 
-  const [teams, matches] = await Promise.all([
+  const [teams] = await Promise.all([
     LeagueService.getTeams(league.id),
-    LeagueService.getMatches(league.id),
   ]);
 
   // Load confirmed + admin-resolved matches for standings calculation
