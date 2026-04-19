@@ -190,8 +190,10 @@ export default async function MatchDetailPage({
         <ScheduleSection
           matchId={match.id}
           slug={slug}
+          matchStatus={match.status}
           proposalState={proposalState}
           proposedDate={match.activeProposal?.proposedDate ?? null}
+          scheduledAt={match.scheduledAt ?? null}
           isTeamMember={isTeamMember}
         />
       )}

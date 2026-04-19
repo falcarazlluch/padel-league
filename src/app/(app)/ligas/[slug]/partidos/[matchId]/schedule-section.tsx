@@ -1,24 +1,37 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { proposeDate, acceptProposal, cancelProposal } from './actions';
+import { proposeDate, acceptProposal } from './actions';
 
 type Props = {
   matchId: string;
   slug: string;
+  matchStatus: string;
   // 'none' = no proposal, 'mine' = I proposed, 'rival' = rival proposed
   proposalState: 'none' | 'mine' | 'rival';
   proposedDate: Date | null;
+  scheduledAt: Date | null;
   isTeamMember: boolean;
 };
 
-export function ScheduleSection({ matchId, slug, proposalState, proposedDate, isTeamMember }: Props) {
+export function ScheduleSection({ matchId, slug, matchStatus, proposalState, proposedDate, scheduledAt, isTeamMember }: Props) {
   const [showForm, setShowForm] = useState(proposalState === 'none');
   const [proposeState, proposeAction, proposePending] = useActionState(proposeDate, null);
   const [acceptState, acceptAction, acceptPending] = useActionState(acceptProposal, null);
-  const [cancelState, cancelAction, cancelPending] = useActionState(cancelProposal, null);
 
   if (!isTeamMember) return null;
+
+  // DATE_CONFIRMED: show read-only confirmed date
+  if (matchStatus === 'DATE_CONFIRMED' && scheduledAt) {
+    const confirmedDateStr = scheduledAt.toLocaleDateString('es-ES', {
+      weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+        <p className="text-sm text-green-700 font-medium">✅ Partido programado: {confirmedDateStr}</p>
+      </div>
+    );
+  }
 
   const dateStr = proposedDate
     ? proposedDate.toLocaleDateString('es-ES', {
@@ -83,21 +96,7 @@ export function ScheduleSection({ matchId, slug, proposalState, proposedDate, is
             >
               Cambiar propuesta
             </button>
-            <form action={cancelAction}>
-              <input type="hidden" name="matchId" value={matchId} />
-              <input type="hidden" name="slug" value={slug} />
-              <button
-                type="submit"
-                disabled={cancelPending}
-                className="text-red-600 text-sm hover:underline"
-              >
-                {cancelPending ? 'Retirando...' : 'Retirar propuesta'}
-              </button>
-            </form>
           </div>
-          {cancelState && 'error' in cancelState && (
-            <p className="text-sm text-red-600">{cancelState.error}</p>
-          )}
         </div>
       )}
 

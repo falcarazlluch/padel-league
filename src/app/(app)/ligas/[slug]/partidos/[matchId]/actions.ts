@@ -1,11 +1,21 @@
 'use server';
 
+import { redirect } from 'next/navigation';
+import type { Route } from 'next';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { SchedulingService } from '@/modules/leagues';
+import { isUserFacingError } from '@/shared/errors';
+
+async function getSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/login' as Route);
+  return getValidatedSession(token);
+}
 
 const proposeDateSchema = z.object({
   matchId: z.string().cuid(),
@@ -19,11 +29,7 @@ const proposeDateSchema = z.object({
 type ActionResult = { error: string } | { success: true };
 
 export async function proposeDate(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return { error: 'No autenticado.' };
-  const user = await getValidatedSession(token).catch(() => null);
-  if (!user) return { error: 'No autenticado.' };
+  const user = await getSession();
 
   const parsed = proposeDateSchema.safeParse({
     matchId: formData.get('matchId'),
@@ -38,8 +44,8 @@ export async function proposeDate(_prev: ActionResult | null, formData: FormData
     revalidatePath('/partidos');
     return { success: true };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error interno.';
-    return { error: message };
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
   }
 }
 
@@ -49,11 +55,7 @@ const acceptSchema = z.object({
 });
 
 export async function acceptProposal(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return { error: 'No autenticado.' };
-  const user = await getValidatedSession(token).catch(() => null);
-  if (!user) return { error: 'No autenticado.' };
+  const user = await getSession();
 
   const parsed = acceptSchema.safeParse({
     matchId: formData.get('matchId'),
@@ -67,17 +69,13 @@ export async function acceptProposal(_prev: ActionResult | null, formData: FormD
     revalidatePath('/partidos');
     return { success: true };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error interno.';
-    return { error: message };
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
   }
 }
 
 export async function cancelProposal(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return { error: 'No autenticado.' };
-  const user = await getValidatedSession(token).catch(() => null);
-  if (!user) return { error: 'No autenticado.' };
+  const user = await getSession();
 
   const parsed = acceptSchema.safeParse({
     matchId: formData.get('matchId'),
@@ -91,7 +89,7 @@ export async function cancelProposal(_prev: ActionResult | null, formData: FormD
     revalidatePath('/partidos');
     return { success: true };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error interno.';
-    return { error: message };
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
   }
 }
