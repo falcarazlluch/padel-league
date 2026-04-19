@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { ReactNode } from 'react';
 import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
@@ -21,31 +22,49 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="font-bold text-gray-900 text-lg">
-            PadelLeague
+      <nav className="bg-brand-navy px-6 py-2.5 flex items-center justify-between sticky top-0 z-10 shadow-md">
+        <div className="flex items-center gap-8">
+          <Link href="/dashboard" className="flex items-center shrink-0">
+            <Image
+              src="/logo.png"
+              alt="Padel League"
+              width={120}
+              height={48}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </Link>
-          <Link href={'/ligas' as Route} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-            Ligas
-          </Link>
-          {currentUser.role === 'SUPER_ADMIN' && (
-            <Link href={'/admin/disputas' as Route} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-              Disputas
+          <div className="flex items-center gap-6">
+            <Link
+              href={'/ligas' as Route}
+              className="text-sm font-medium text-white/80 hover:text-white transition-colors"
+            >
+              Ligas
             </Link>
-          )}
+            {currentUser.role === 'SUPER_ADMIN' && (
+              <Link
+                href={'/admin/disputas' as Route}
+                className="text-sm font-medium text-brand-yellow/90 hover:text-brand-yellow transition-colors"
+              >
+                Disputas
+              </Link>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <NotificationsBadge />
-          <Link href="/perfil" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+          <Link
+            href="/perfil"
+            className="text-sm font-medium text-white/80 hover:text-white transition-colors"
+          >
             Mi perfil
           </Link>
           <form action="/api/auth/logout" method="post">
             <button
               type="submit"
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="text-sm font-medium text-white/60 hover:text-white/90 transition-colors"
             >
-              Cerrar sesión
+              Salir
             </button>
           </form>
         </div>

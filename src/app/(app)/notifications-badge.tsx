@@ -52,12 +52,12 @@ export function NotificationsBadge() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative text-sm text-gray-600 hover:text-gray-900 transition-colors px-1"
+        className="relative text-sm font-medium text-white/80 hover:text-white transition-colors px-1"
         aria-label={`Notificaciones${count > 0 ? ` (${count} sin leer)` : ''}`}
       >
-        Notificaciones
+        🔔
         {count > 0 && (
-          <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full font-bold px-0.5">
+          <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-brand-yellow text-brand-navy text-[10px] flex items-center justify-center rounded-full font-bold px-0.5">
             {count > 9 ? '9+' : count}
           </span>
         )}

@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+@theme {
+  /* Padel League brand colors */
+  --color-brand-navy: #0D1E45;
+  --color-brand-navy-light: #1A3268;
+  --color-brand-blue: #5BB8D4;
+  --color-brand-blue-light: #87CEE8;
+  --color-brand-yellow: #F9C920;
+  --color-brand-yellow-dark: #E0B218;
+  --color-brand-green: #3BB143;
+  --color-brand-green-dark: #2D8E35;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
