@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 type UnreadItem = { id: string; type: string; title: string; body: string; createdAt: string };
 type UnreadData = { count: number; items: UnreadItem[] };
@@ -10,18 +10,18 @@ export function NotificationsBadge() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const fetchUnread = () => {
+  const fetchUnread = useCallback(() => {
     fetch('/api/notifications/unread')
       .then((r) => (r.ok ? (r.json() as Promise<UnreadData>) : Promise.reject()))
       .then(setData)
       .catch(() => undefined);
-  };
+  }, []);
 
   useEffect(() => {
     fetchUnread();
     const id = setInterval(fetchUnread, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [fetchUnread]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -70,7 +70,7 @@ export function NotificationsBadge() {
               Notificaciones{count > 0 ? ` (${count})` : ''}
             </span>
           </div>
-          {data?.items.length === 0 || !data ? (
+          {!data || data.items.length === 0 ? (
             <p className="px-4 py-6 text-sm text-gray-400 text-center">Sin notificaciones nuevas</p>
           ) : (
             <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
