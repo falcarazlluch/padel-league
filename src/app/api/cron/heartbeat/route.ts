@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { env } from '@/shared/config/env';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
+import { prisma } from '@/shared/db/client';
 
 function unauthorized() {
   return NextResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 });
@@ -21,7 +22,30 @@ export async function POST(req: Request): Promise<Response> {
 
   const q = queue();
   await q.start();
-  const id = await q.publish('noop', { ping: `heartbeat-${Date.now()}` });
-  logger().info({ jobId: id }, 'cron.heartbeat.enqueued');
-  return NextResponse.json({ ok: true, jobId: id });
+  const log = logger();
+
+  const noopId = await q.publish('noop', { ping: `heartbeat-${Date.now()}` });
+  log.info({ jobId: noopId }, 'cron.heartbeat.enqueued');
+
+  // Finalize leagues whose endDate has passed
+  const leaguesToFinalize = await prisma.league.findMany({
+    where: { endDate: { lte: new Date() }, status: 'ACTIVE' },
+    select: { id: true },
+  });
+
+  const finalizeIds: string[] = [];
+  for (const league of leaguesToFinalize) {
+    const jobId = await q.publish(
+      'league-finalize',
+      { leagueId: league.id },
+      { singletonKey: `league-finalize-${league.id}` },
+    );
+    if (jobId) finalizeIds.push(league.id);
+  }
+
+  if (finalizeIds.length > 0) {
+    log.info({ count: finalizeIds.length, leagueIds: finalizeIds }, 'cron.league-finalize.enqueued');
+  }
+
+  return NextResponse.json({ ok: true, jobId: noopId, leaguesToFinalize: finalizeIds.length });
 }

@@ -56,21 +56,19 @@ export default async function LigaDetailPage({
     LeagueService.getMatches(league.id),
   ]);
 
-  // Load confirmed matches for standings calculation
+  // Load confirmed + admin-resolved matches for standings calculation
   const confirmedMatches = await prisma.match.findMany({
-    where: { leagueId: league.id, status: 'CONFIRMED' },
+    where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] } },
     include: { confirmedResult: { include: { sets: true } } },
   });
 
   const teamNamesMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
-  const standingMatches = confirmedMatches
-    .filter((m) => m.confirmedResult)
-    .map((m) => ({
-      teamAId: m.teamAId,
-      teamBId: m.teamBId,
-      winnerTeamId: m.winnerTeamId,
-      sets: m.confirmedResult!.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })),
-    }));
+  const standingMatches = confirmedMatches.map((m) => ({
+    teamAId: m.teamAId,
+    teamBId: m.teamBId,
+    winnerTeamId: m.winnerTeamId,
+    sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+  }));
 
   const standings = calculateStandings(teamNamesMap, standingMatches);
 
