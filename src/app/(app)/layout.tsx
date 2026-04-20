@@ -25,14 +25,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <nav className="bg-brand-navy px-6 py-2.5 flex items-center justify-between sticky top-0 z-10 shadow-md">
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center shrink-0">
-            <Image
-              src="/logo.png"
-              alt="Padel League"
-              width={120}
-              height={48}
-              className="h-10 w-auto object-contain"
-              priority
-            />
+            <div className="bg-white rounded-lg px-2 py-1">
+              <Image
+                src="/logo.png"
+                alt="Padel League"
+                width={120}
+                height={48}
+                className="h-8 w-auto object-contain"
+                priority
+              />
+            </div>
           </Link>
           <div className="flex items-center gap-6">
             <Link
