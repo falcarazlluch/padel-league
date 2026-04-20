@@ -14,12 +14,11 @@ type Props = {
   teamBName: string;
   status: MatchStatus;
   scheduledAt: string | null;   // ISO string
-  deadlineAt: string;           // ISO string
   proposalState: 'none' | 'mine' | 'rival';
   proposedDate: string | null;  // ISO string
   winnerTeamId: string | null;
   teamAId: string;
-  teamBId: string;
+  daysToDeadline: number;
 };
 
 function cardStyle(status: MatchStatus, proposalState: 'none' | 'mine' | 'rival'): string {
@@ -32,8 +31,8 @@ function cardStyle(status: MatchStatus, proposalState: 'none' | 'mine' | 'rival'
 
 export function MatchCardMisPartidos({
   matchId, leagueSlug, leagueName, teamAName, teamBName,
-  status, scheduledAt, deadlineAt, proposalState, proposedDate,
-  winnerTeamId, teamAId, teamBId,
+  status, scheduledAt, proposalState, proposedDate,
+  winnerTeamId, teamAId, daysToDeadline,
 }: Props) {
   const [acceptResult, acceptAction, acceptPending] = useActionState(acceptProposalFromList, null);
 
@@ -51,8 +50,6 @@ export function MatchCardMisPartidos({
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
       })
     : null;
-
-  const daysToDeadline = Math.ceil((new Date(deadlineAt).getTime() - Date.now()) / 86_400_000);
 
   return (
     <div className={`rounded-xl border p-4 space-y-2 ${cardStyle(status, proposalState)}`}>

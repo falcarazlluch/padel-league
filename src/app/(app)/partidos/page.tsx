@@ -43,6 +43,8 @@ export default async function MisPartidosPage() {
   const scheduledMatches = matches.filter((m) => m.status === 'SCHEDULED');
   const expiredMatches = matches.filter((m) => m.status === 'EXPIRED_UNPLAYED');
 
+  const now = Date.now();
+
   function buildCardProps(m: (typeof matches)[number]) {
     const teamAIds = m.teamA.members.map((tm) => tm.userId);
 
@@ -63,10 +65,9 @@ export default async function MisPartidosPage() {
       teamAName: m.teamA.name,
       teamBName: m.teamB.name,
       teamAId: m.teamAId,
-      teamBId: m.teamBId,
       status: m.status,
       scheduledAt: m.scheduledAt?.toISOString() ?? null,
-      deadlineAt: m.deadlineAt.toISOString(),
+      daysToDeadline: Math.ceil((m.deadlineAt.getTime() - now) / 86_400_000),
       proposalState,
       proposedDate,
       winnerTeamId: m.winnerTeamId,
