@@ -90,6 +90,11 @@ enum JoinRequestStatus {
   REJECTED
 }
 
+enum IndependentMatchType {
+  OPEN
+  TEAM_CHALLENGE
+}
+
 enum ParticipantStatus {
   INVITED
   ACCEPTED
@@ -258,6 +263,7 @@ model League {
   members              LeagueMember[]
   teams                Team[]
   matches              Match[]
+  independentMatches   IndependentMatch[] @relation("IndependentMatchLeague")
 
   @@index([status])
   @@index([startDate, endDate])
@@ -289,7 +295,8 @@ model Team {
   members      TeamMember[]
   homeMatches  Match[]      @relation("TeamA")
   awayMatches  Match[]      @relation("TeamB")
-  wonMatches   MatchResult[] @relation("MatchWinner")
+  wonMatches                   MatchResult[] @relation("MatchWinner")
+  challengedIndependentMatches IndependentMatch[] @relation("ChallengedTeam")
 
   @@unique([leagueId, name])
   @@map("teams")
@@ -442,19 +449,26 @@ model MatchCommentary {
 // ─── PARTIDOS INDEPENDIENTES ─────────────────────────────────────────────
 
 model IndependentMatch {
-  id                String                   @id @default(cuid())
-  organizerId       String                   @map("organizer_id")
-  scheduledAt       DateTime                 @map("scheduled_at")
-  location          String?
-  description       String?
-  maxPlayers        Int                      @default(4) @map("max_players")
-  status            IndependentMatchStatus   @default(OPEN)
-  createdAt         DateTime                 @default(now()) @map("created_at")
-  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  id               String                 @id @default(cuid())
+  organizerId      String                 @map("organizer_id")
+  name             String
+  type             IndependentMatchType   @default(OPEN)
+  challengedTeamId String?                @map("challenged_team_id")
+  leagueId         String?                @map("league_id")
+  scheduledAt      DateTime?              @map("scheduled_at")
+  location         String?
+  description      String?
+  maxPlayers       Int                    @default(4) @map("max_players")
+  status           IndependentMatchStatus @default(OPEN)
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
 
-  organizer         User                              @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
-  participants      IndependentMatchParticipant[]
-  joinRequests      IndependentMatchJoinRequest[]
+  organizer      User                              @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  challengedTeam Team?                             @relation("ChallengedTeam", fields: [challengedTeamId], references: [id], onDelete: Restrict)
+  league         League?                           @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
+  participants   IndependentMatchParticipant[]
+  joinRequests   IndependentMatchJoinRequest[]
+  invitations    IndependentMatchInvitation[]
 
   @@index([status, scheduledAt])
   @@map("independent_matches")
@@ -489,6 +503,21 @@ model IndependentMatchJoinRequest {
 
   @@index([independentMatchId, status])
   @@map("independent_match_join_requests")
+}
+
+model IndependentMatchInvitation {
+  id         String    @id @default(cuid())
+  matchId    String    @map("match_id")
+  email      String    @db.Citext
+  expiresAt  DateTime  @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  match IndependentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, email])
+  @@index([matchId])
+  @@map("independent_match_invitations")
 }
 
 // ─── INFRA COMÚN ─────────────────────────────────────────────────────────
