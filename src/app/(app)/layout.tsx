@@ -33,6 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                 height={48}
                 className="h-8 w-auto object-contain"
                 priority
+                unoptimized
               />
             </div>
           </Link>
