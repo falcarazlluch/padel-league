@@ -7,10 +7,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       style={{ background: 'linear-gradient(135deg, #0D1E45 0%, #1A3268 60%, #0D1E45 100%)' }}
     >
       <div className="w-full max-w-sm">
-        <div className="flex justify-center mb-8">
-          <img src="/logo.png" alt="Padel League" className="h-20 w-auto object-contain drop-shadow-lg" />
-        </div>
         <div className="bg-white rounded-2xl shadow-xl border border-white/10 p-8">
+          <div className="flex justify-center mb-6">
+            <img src="/logo.png" alt="Padel League" className="w-4/5 h-auto object-contain" />
+          </div>
           {children}
         </div>
       </div>
