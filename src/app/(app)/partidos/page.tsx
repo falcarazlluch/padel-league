@@ -36,9 +36,9 @@ export default async function MisPartidosPage() {
     orderBy: { deadlineAt: 'asc' },
   });
 
-  const confirmedMatches = matches.filter((m) =>
-    ['DATE_CONFIRMED', 'CONFIRMED', 'ADMIN_RESOLVED'].includes(m.status)
-  );
+  const confirmedMatches = matches
+    .filter((m) => ['DATE_CONFIRMED', 'CONFIRMED', 'ADMIN_RESOLVED'].includes(m.status))
+    .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
   const proposedMatches = matches.filter((m) => m.status === 'DATE_PROPOSED');
   const scheduledMatches = matches.filter((m) => m.status === 'SCHEDULED');
   const expiredMatches = matches.filter((m) => m.status === 'EXPIRED_UNPLAYED');
