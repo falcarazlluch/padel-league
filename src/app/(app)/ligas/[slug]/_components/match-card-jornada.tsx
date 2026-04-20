@@ -24,7 +24,7 @@ function singleCardBg(status: MatchStatus): string {
 }
 
 export function MatchCardJornada({
-  matchId, slug, teamAId, teamBId, teamAName, teamBName,
+  matchId, slug, teamAId, teamAName, teamBName,
   status, scheduledAt, winnerTeamId, sets,
 }: MatchCardProps) {
   const isFinished = status === 'CONFIRMED' || status === 'ADMIN_RESOLVED';

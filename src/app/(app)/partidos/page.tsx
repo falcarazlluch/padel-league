@@ -43,6 +43,7 @@ export default async function MisPartidosPage() {
   const scheduledMatches = matches.filter((m) => m.status === 'SCHEDULED');
   const expiredMatches = matches.filter((m) => m.status === 'EXPIRED_UNPLAYED');
 
+  // eslint-disable-next-line react-hooks/purity -- Server Component, Date.now() is safe here
   const now = Date.now();
 
   function buildCardProps(m: (typeof matches)[number]) {
