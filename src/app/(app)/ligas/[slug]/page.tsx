@@ -9,38 +9,17 @@ import { LeagueService, calculateStandings } from '@/modules/leagues';
 import { prisma } from '@/shared/db/client';
 import { ActivateLeagueButton } from './activate-button';
 import { AddMemberForm } from './add-member-form';
-import type { MatchStatus } from '@prisma/client';
-
-const STATUS_LABEL: Record<MatchStatus, string> = {
-  SCHEDULED: 'Pendiente',
-  DATE_PROPOSED: 'Fecha propuesta',
-  DATE_CONFIRMED: 'Fecha confirmada',
-  PENDING_VALIDATION: 'Resultado enviado',
-  CONFIRMED: 'Confirmado',
-  ADMIN_RESOLVED: 'Resuelto admin',
-  DISPUTED: 'En disputa',
-  EXPIRED_UNPLAYED: 'No jugado',
-  CANCELLED: 'Cancelado',
-};
-
-const STATUS_CLASS: Record<MatchStatus, string> = {
-  SCHEDULED: 'bg-gray-100 text-gray-600',
-  DATE_PROPOSED: 'bg-yellow-100 text-yellow-700',
-  DATE_CONFIRMED: 'bg-blue-100 text-blue-700',
-  PENDING_VALIDATION: 'bg-orange-100 text-orange-700',
-  CONFIRMED: 'bg-green-100 text-green-700',
-  ADMIN_RESOLVED: 'bg-purple-100 text-purple-700',
-  DISPUTED: 'bg-red-100 text-red-700',
-  EXPIRED_UNPLAYED: 'bg-gray-100 text-gray-400',
-  CANCELLED: 'bg-gray-100 text-gray-400',
-};
+import { PartidosTab } from './_components/partidos-tab';
 
 export default async function LigaDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tab?: string; jornada?: string }>;
 }) {
   const { slug } = await params;
+  const { tab, jornada } = await searchParams;
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);
@@ -51,9 +30,8 @@ export default async function LigaDetailPage({
   ]);
   if (!league) notFound();
 
-  const [teams, matches] = await Promise.all([
+  const [teams] = await Promise.all([
     LeagueService.getTeams(league.id),
-    LeagueService.getMatches(league.id),
   ]);
 
   // Load confirmed + admin-resolved matches for standings calculation
@@ -75,6 +53,31 @@ export default async function LigaDetailPage({
   const isLeagueAdmin = await prisma.leagueMember.findFirst({
     where: { leagueId: league.id, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
   });
+
+  // Fetch matches with confirmed sets for the Partidos tab
+  const matchesWithSets = await prisma.match.findMany({
+    where: { leagueId: league.id },
+    include: {
+      teamA: { select: { id: true, name: true } },
+      teamB: { select: { id: true, name: true } },
+      confirmedResult: { include: { sets: { orderBy: { setNumber: 'asc' } } } },
+    },
+    orderBy: [{ round: 'asc' }, { deadlineAt: 'asc' }],
+  });
+
+  const matchesForJornada = matchesWithSets.map((m) => ({
+    id: m.id,
+    teamAId: m.teamAId,
+    teamBId: m.teamBId,
+    teamA: m.teamA,
+    teamB: m.teamB,
+    status: m.status,
+    scheduledAt: m.scheduledAt,
+    deadlineAt: m.deadlineAt,
+    round: m.round,
+    winnerTeamId: m.winnerTeamId,
+    confirmedSets: m.confirmedResult?.sets ?? [],
+  }));
 
   return (
     <div className="space-y-8">
@@ -133,74 +136,72 @@ export default async function LigaDetailPage({
         )}
       </section>
 
-      {/* Clasificación — only if there are teams */}
+      {/* Tabs: Clasificación / Partidos */}
       {teams.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Clasificación</h2>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Equipo</th>
-                  <th className="text-center px-3 py-3 font-medium text-gray-600">PJ</th>
-                  <th className="text-center px-3 py-3 font-medium text-gray-600">G</th>
-                  <th className="text-center px-3 py-3 font-medium text-gray-600">E</th>
-                  <th className="text-center px-3 py-3 font-medium text-gray-600">P</th>
-                  <th className="text-center px-3 py-3 font-medium text-gray-600">Sets</th>
-                  <th className="text-center px-3 py-3 font-medium text-gray-600 font-bold">Pts</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {standings.map((entry, idx) => (
-                  <tr key={entry.teamId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400 font-medium">{idx + 1}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{entry.teamName}</td>
-                    <td className="px-3 py-3 text-center text-gray-600">{entry.played}</td>
-                    <td className="px-3 py-3 text-center text-green-600">{entry.won}</td>
-                    <td className="px-3 py-3 text-center text-gray-500">{entry.drawn}</td>
-                    <td className="px-3 py-3 text-center text-red-500">{entry.lost}</td>
-                    <td className="px-3 py-3 text-center text-gray-500">
-                      {entry.setsDiff > 0 ? `+${entry.setsDiff}` : entry.setsDiff}
-                    </td>
-                    <td className="px-3 py-3 text-center font-bold text-gray-900">{entry.points}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex border-b border-gray-200 mb-4">
+            <Link
+              href={`/ligas/${slug}` as Route}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab !== 'partidos'
+                  ? 'border-brand-navy text-brand-navy'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Clasificación
+            </Link>
+            <Link
+              href={`/ligas/${slug}?tab=partidos` as Route}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === 'partidos'
+                  ? 'border-brand-navy text-brand-navy'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Partidos
+            </Link>
           </div>
-        </section>
-      )}
 
-      {/* Partidos */}
-      {matches.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Partidos ({matches.length})</h2>
-          <div className="space-y-2">
-            {matches.map((match) => (
-              <Link
-                key={match.id}
-                href={`/ligas/${slug}/partidos/${match.id}` as Route}
-                className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center gap-3 font-medium text-gray-900 min-w-0">
-                  <span className="truncate">{match.teamA.name}</span>
-                  <span className="text-gray-400 text-xs shrink-0">vs</span>
-                  <span className="truncate">{match.teamB.name}</span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  {match.scheduledAt && (
-                    <span className="text-xs text-gray-400">
-                      {match.scheduledAt.toLocaleDateString('es-ES')}
-                    </span>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLASS[match.status]}`}>
-                    {STATUS_LABEL[match.status]}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          {tab === 'partidos' ? (
+            <PartidosTab
+              slug={slug}
+              matches={matchesForJornada}
+              activeJornada={jornada ? parseInt(jornada, 10) : null}
+            />
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Equipo</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">PJ</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">G</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">E</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">P</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Sets</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600 font-bold">Pts</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {standings.map((entry, idx) => (
+                    <tr key={entry.teamId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-400 font-medium">{idx + 1}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{entry.teamName}</td>
+                      <td className="px-3 py-3 text-center text-gray-600">{entry.played}</td>
+                      <td className="px-3 py-3 text-center text-green-600">{entry.won}</td>
+                      <td className="px-3 py-3 text-center text-gray-500">{entry.drawn}</td>
+                      <td className="px-3 py-3 text-center text-red-500">{entry.lost}</td>
+                      <td className="px-3 py-3 text-center text-gray-500">
+                        {entry.setsDiff > 0 ? `+${entry.setsDiff}` : entry.setsDiff}
+                      </td>
+                      <td className="px-3 py-3 text-center font-bold text-gray-900">{entry.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
     </div>

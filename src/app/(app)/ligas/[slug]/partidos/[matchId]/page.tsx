@@ -8,6 +8,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { MatchService } from '@/modules/leagues';
 import { SubmitResultForm } from './submit-result-form';
 import { ConfirmRejectPanel } from './confirm-reject-panel';
+import { ScheduleSection } from './schedule-section';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -54,6 +55,18 @@ export default async function MatchDetailPage({
 
   const SUBMITTABLE = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'];
   const canSubmit = isTeamMember && SUBMITTABLE.includes(match.status);
+
+  const SCHEDULABLE_STATUSES = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'];
+  const isSchedulable = SCHEDULABLE_STATUSES.includes(match.status);
+
+  let proposalState: 'none' | 'mine' | 'rival' = 'none';
+  if (match.activeProposal) {
+    const proposerOnTeamA = match.teamA.members.some(
+      (m) => m.userId === match.activeProposal!.proposedByUserId,
+    );
+    const currentUserOnTeamA = currentUserSide === 'A';
+    proposalState = proposerOnTeamA === currentUserOnTeamA ? 'mine' : 'rival';
+  }
 
   const canValidate =
     match.status === 'PENDING_VALIDATION' &&
@@ -170,6 +183,19 @@ export default async function MatchDetailPage({
             </p>
           )}
         </div>
+      )}
+
+      {/* Schedule section */}
+      {isSchedulable && (
+        <ScheduleSection
+          matchId={match.id}
+          slug={slug}
+          matchStatus={match.status}
+          proposalState={proposalState}
+          proposedDate={match.activeProposal?.proposedDate ?? null}
+          scheduledAt={match.scheduledAt ?? null}
+          isTeamMember={isTeamMember}
+        />
       )}
 
       {/* Submit result form */}

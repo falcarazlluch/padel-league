@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/client';
 import { ConflictError, NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import type { CreateLeagueInput, CreateTeamInput, LeagueRow, TeamRow, MatchRow } from '../domain/types';
+import { generateFixtures } from './fixture-generator';
 
 function toSlug(name: string): string {
   return name
@@ -62,7 +63,7 @@ export const LeagueService = {
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
       },
-      orderBy: { deadlineAt: 'asc' },
+      orderBy: [{ round: 'asc' }, { deadlineAt: 'asc' }],
     });
   },
 
@@ -124,6 +125,25 @@ export const LeagueService = {
       throw new DomainError('TEAM_SIZE_INVALID', `Los siguientes equipos no tienen exactamente 2 jugadores: ${names}.`);
     }
 
-    await prisma.league.update({ where: { id: leagueId }, data: { status: 'ACTIVE' } });
+    await prisma.$transaction(async (tx) => {
+      // Guard: skip fixture generation if matches already exist (idempotency)
+      const existingCount = await tx.match.count({ where: { leagueId } });
+      if (existingCount === 0) {
+        const teamIds = league.teams.map((t) => t.id);
+        const fixtures = generateFixtures(teamIds, league.startDate, league.defaultDeadlineDays);
+        if (fixtures.length > 0) {
+          await tx.match.createMany({
+            data: fixtures.map((f) => ({
+              leagueId,
+              teamAId: f.teamAId,
+              teamBId: f.teamBId,
+              deadlineAt: f.deadlineAt,
+              round: f.round,
+            })),
+          });
+        }
+      }
+      await tx.league.update({ where: { id: leagueId }, data: { status: 'ACTIVE' } });
+    });
   },
 } as const;
