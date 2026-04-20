@@ -2,9 +2,12 @@
 CREATE TYPE "IndependentMatchType" AS ENUM ('OPEN', 'TEAM_CHALLENGE');
 
 -- AlterTable: make scheduledAt nullable, add name/type/challengedTeamId/leagueId
+-- NOTE: independent_matches had no rows at the time this migration was written.
+-- The DEFAULT 'Partido sin nombre' backfills any pre-existing rows; it is dropped
+-- immediately so new rows must always supply a name.
 ALTER TABLE "independent_matches"
   ALTER COLUMN "scheduled_at" DROP NOT NULL,
-  ADD COLUMN "name" TEXT NOT NULL DEFAULT '',
+  ADD COLUMN "name" TEXT NOT NULL DEFAULT 'Partido sin nombre',
   ADD COLUMN "type" "IndependentMatchType" NOT NULL DEFAULT 'OPEN',
   ADD COLUMN "challenged_team_id" TEXT,
   ADD COLUMN "league_id" TEXT;
