@@ -23,7 +23,8 @@ const proposeDateSchema = z.object({
   proposedAt: z
     .string()
     .min(1, 'Selecciona una fecha y hora.')
-    .transform((v) => new Date(v)),
+    .transform((v) => new Date(v))
+    .refine((d) => !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
 });
 
 type ActionResult = { error: string } | { success: true };
@@ -74,22 +75,6 @@ export async function acceptProposal(_prev: ActionResult | null, formData: FormD
   }
 }
 
-export async function cancelProposal(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const user = await getSession();
-
-  const parsed = acceptSchema.safeParse({
-    matchId: formData.get('matchId'),
-    slug: formData.get('slug'),
-  });
-  if (!parsed.success) return { error: 'Datos inválidos.' };
-
-  try {
-    await SchedulingService.cancelProposal(parsed.data.matchId, user.id);
-    revalidatePath(`/ligas/${parsed.data.slug}/partidos/${parsed.data.matchId}`);
-    revalidatePath('/partidos');
-    return { success: true };
-  } catch (err: unknown) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
-  }
-}
+// cancelProposal is intentionally not exposed as a UI action.
+// The "Cambiar propuesta" flow calls proposeDate directly, which supersedes any prior proposal atomically.
+// SchedulingService.cancelProposal remains available for admin use or future flows.
