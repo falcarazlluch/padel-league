@@ -20,7 +20,6 @@ type Props = {
   winnerTeamId: string | null;
   teamAId: string;
   teamBId: string;
-  currentUserTeamId: string;
 };
 
 function cardStyle(status: MatchStatus, proposalState: 'none' | 'mine' | 'rival'): string {
@@ -85,6 +84,9 @@ export function MatchCardMisPartidos({
             : 'Empate'}
         </p>
       )}
+      {status === 'EXPIRED_UNPLAYED' && (
+        <p className="text-xs text-gray-500">Partido no jugado</p>
+      )}
 
       {status === 'SCHEDULED' && (
         <Link
@@ -111,7 +113,7 @@ export function MatchCardMisPartidos({
             href={matchHref}
             className="border border-gray-300 text-gray-600 text-xs rounded px-3 py-1 hover:bg-white"
           >
-            Otra fecha
+            Proponer otra
           </Link>
           {acceptResult && 'error' in acceptResult && (
             <span className="text-xs text-red-600">{acceptResult.error}</span>

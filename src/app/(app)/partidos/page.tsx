@@ -36,13 +36,15 @@ export default async function MisPartidosPage() {
     orderBy: { deadlineAt: 'asc' },
   });
 
-  const FINISHED = ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'];
-  const activeMatches = matches.filter((m) => !FINISHED.includes(m.status));
-  const finishedMatches = matches.filter((m) => FINISHED.includes(m.status));
+  const confirmedMatches = matches.filter((m) =>
+    ['DATE_CONFIRMED', 'CONFIRMED', 'ADMIN_RESOLVED'].includes(m.status)
+  );
+  const proposedMatches = matches.filter((m) => m.status === 'DATE_PROPOSED');
+  const scheduledMatches = matches.filter((m) => m.status === 'SCHEDULED');
+  const expiredMatches = matches.filter((m) => m.status === 'EXPIRED_UNPLAYED');
 
   function buildCardProps(m: (typeof matches)[number]) {
     const teamAIds = m.teamA.members.map((tm) => tm.userId);
-    const currentUserTeamId = teamAIds.includes(user.id) ? m.teamAId : m.teamBId;
 
     let proposalState: 'none' | 'mine' | 'rival' = 'none';
     let proposedDate: string | null = null;
@@ -68,7 +70,6 @@ export default async function MisPartidosPage() {
       proposalState,
       proposedDate,
       winnerTeamId: m.winnerTeamId,
-      currentUserTeamId,
     };
   }
 
@@ -80,22 +81,48 @@ export default async function MisPartidosPage() {
         <p className="text-gray-500 text-sm">No tienes partidos asignados todavía.</p>
       )}
 
-      {activeMatches.length > 0 && (
+      {/* Confirmados */}
+      {confirmedMatches.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Pendientes</h2>
-          {activeMatches.map((m) => (
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Confirmados</h2>
+          {confirmedMatches.map((m) => (
             <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
           ))}
         </section>
       )}
 
-      {finishedMatches.length > 0 && (
+      {/* Pendiente de confirmar */}
+      {proposedMatches.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Jugados</h2>
-          {finishedMatches.map((m) => (
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Pendiente de confirmar</h2>
+          {proposedMatches.map((m) => (
             <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
           ))}
         </section>
+      )}
+
+      {/* Sin programar */}
+      {scheduledMatches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Sin programar</h2>
+          {scheduledMatches.map((m) => (
+            <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
+          ))}
+        </section>
+      )}
+
+      {/* No jugados — collapsed by default */}
+      {expiredMatches.length > 0 && (
+        <details className="group">
+          <summary className="cursor-pointer text-sm font-semibold text-gray-400 uppercase tracking-wide select-none">
+            No jugados ({expiredMatches.length})
+          </summary>
+          <div className="space-y-3 mt-3">
+            {expiredMatches.map((m) => (
+              <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );
