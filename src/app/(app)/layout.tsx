@@ -41,6 +41,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             >
               Ligas
             </Link>
+            <Link
+              href={'/partidos' as Route}
+              className="text-sm font-medium text-white/80 hover:text-white transition-colors"
+            >
+              Mis partidos
+            </Link>
             {currentUser.role === 'SUPER_ADMIN' && (
               <Link
                 href={'/admin/disputas' as Route}
