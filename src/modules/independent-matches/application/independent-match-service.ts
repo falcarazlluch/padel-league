@@ -193,9 +193,7 @@ export const IndependentMatchService = {
     const request = await prisma.independentMatchJoinRequest.findUnique({
       where: { id: requestId },
       include: {
-        match: {
-          include: { participants: { where: { status: 'ACCEPTED' } } },
-        },
+        match: { select: { organizerId: true, maxPlayers: true, name: true, id: true } },
       },
     });
     if (!request) throw new NotFoundError('REQUEST_NOT_FOUND', 'Solicitud no encontrada.');
@@ -204,13 +202,15 @@ export const IndependentMatchService = {
     if (request.status !== 'PENDING')
       throw new DomainError('REQUEST_NOT_PENDING', 'Esta solicitud ya fue procesada.');
 
-    const available = calculateAvailableSlots(request.match.maxPlayers, request.match.participants.length);
-    if (available === 0) throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
-
-    const newCount = request.match.participants.length + 1;
-    const isFull = newCount >= request.match.maxPlayers;
-
     await prisma.$transaction(async (tx) => {
+      const confirmedCount = await tx.independentMatchParticipant.count({
+        where: { independentMatchId: request.independentMatchId, status: 'ACCEPTED' },
+      });
+      if (confirmedCount >= request.match.maxPlayers)
+        throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
+
+      const isFull = confirmedCount + 1 >= request.match.maxPlayers;
+
       await tx.independentMatchJoinRequest.update({
         where: { id: requestId },
         data: { status: 'APPROVED', respondedByUserId: organizerId, respondedAt: new Date() },
