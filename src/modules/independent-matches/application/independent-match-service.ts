@@ -283,7 +283,7 @@ export const IndependentMatchService = {
     const invitation = existing
       ? await prisma.independentMatchInvitation.update({
           where: { id: existing.id },
-          data: { expiresAt, acceptedAt: null, createdAt: new Date() },
+          data: { expiresAt, acceptedAt: null },
         })
       : await prisma.independentMatchInvitation.create({
           data: { matchId, email, expiresAt },
@@ -318,10 +318,16 @@ export const IndependentMatchService = {
       return match.id;
     }
 
-    const newCount = match.participants.length + 1;
-    const isFull = newCount >= match.maxPlayers;
-
     await prisma.$transaction(async (tx) => {
+      // Authoritative count inside transaction — race-safe
+      const confirmedCount = await tx.independentMatchParticipant.count({
+        where: { independentMatchId: match.id, status: 'ACCEPTED' },
+      });
+      if (confirmedCount >= match.maxPlayers)
+        throw new DomainError('MATCH_FULL', 'Este partido ya está completo.');
+
+      const isFull = confirmedCount + 1 >= match.maxPlayers;
+
       await tx.independentMatchInvitation.update({
         where: { id: invitation.id },
         data: { acceptedAt: new Date() },
