@@ -346,4 +346,126 @@ export const IndependentMatchService = {
 
     return match.id;
   },
+
+  async acceptChallenge(matchId: string, userId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        challengedTeam: { include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } } },
+        organizer: { select: { id: true, name: true } },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.type !== 'TEAM_CHALLENGE') throw new DomainError('NOT_CHALLENGE', 'Este partido no es un reto.');
+    if (match.status !== 'PENDING_APPROVAL')
+      throw new ConflictError('CHALLENGE_ALREADY_RESOLVED', 'Este reto ya fue respondido.');
+    if (!match.challengedTeam)
+      throw new DomainError('NO_CHALLENGED_TEAM', 'Equipo retado no encontrado.');
+
+    const isChallengedMember = match.challengedTeam.members.some((m) => m.userId === userId);
+    if (!isChallengedMember)
+      throw new AuthorizationError('NOT_CHALLENGED_MEMBER', 'Solo un miembro del equipo retado puede aceptar.');
+
+    // Get organizer team members
+    const organizerTeam = await prisma.team.findFirst({
+      where: {
+        leagueId: match.leagueId!,
+        members: { some: { userId: match.organizerId } },
+        id: { not: match.challengedTeamId! },
+      },
+      include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
+    });
+
+    const allParticipantUserIds = [
+      ...match.challengedTeam.members.map((m) => m.userId),
+      ...(organizerTeam?.members.map((m) => m.userId) ?? [match.organizerId]),
+    ];
+
+    await prisma.$transaction(async (tx) => {
+      await tx.independentMatch.update({
+        where: { id: matchId },
+        data: { status: 'CONFIRMED' },
+      });
+      await tx.independentMatchParticipant.createMany({
+        data: allParticipantUserIds.map((uid) => ({
+          independentMatchId: matchId,
+          userId: uid,
+          status: 'ACCEPTED' as const,
+        })),
+        skipDuplicates: true,
+      });
+    });
+
+    // Notify organizer
+    NotificationService.create({
+      userId: match.organizerId,
+      type: 'INDEPENDENT_MATCH_CONFIRMED',
+      title: 'Reto aceptado',
+      body: `${match.challengedTeam.name} aceptó tu reto "${match.name}".`,
+      metadata: { matchId },
+    }).catch(() => undefined);
+  },
+
+  async rejectChallenge(matchId: string, userId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        challengedTeam: { include: { members: { select: { userId: true } } } },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.type !== 'TEAM_CHALLENGE') throw new DomainError('NOT_CHALLENGE', 'Este partido no es un reto.');
+    if (match.status !== 'PENDING_APPROVAL')
+      throw new ConflictError('CHALLENGE_ALREADY_RESOLVED', 'Este reto ya fue respondido.');
+
+    const isChallengedMember = match.challengedTeam?.members.some((m) => m.userId === userId);
+    if (!isChallengedMember)
+      throw new AuthorizationError('NOT_CHALLENGED_MEMBER', 'Solo un miembro del equipo retado puede rechazar.');
+
+    await prisma.independentMatch.update({
+      where: { id: matchId },
+      data: { status: 'REJECTED' },
+    });
+
+    NotificationService.create({
+      userId: match.organizerId,
+      type: 'INDEPENDENT_MATCH_CANCELLED',
+      title: 'Reto rechazado',
+      body: `Tu reto "${match.name}" fue rechazado.`,
+      metadata: { matchId },
+    }).catch(() => undefined);
+  },
+
+  async cancelMatch(matchId: string, organizerId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.organizerId !== organizerId)
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede cancelar el partido.');
+    if (match.status === 'CANCELLED')
+      throw new DomainError('ALREADY_CANCELLED', 'El partido ya está cancelado.');
+
+    await prisma.independentMatch.update({
+      where: { id: matchId },
+      data: { status: 'CANCELLED' },
+    });
+
+    const otherParticipantIds = match.participants
+      .map((p) => p.userId)
+      .filter((id) => id !== organizerId);
+
+    if (otherParticipantIds.length > 0) {
+      NotificationService.createMany(
+        otherParticipantIds.map((userId) => ({
+          userId,
+          type: 'INDEPENDENT_MATCH_CANCELLED' as const,
+          title: 'Partido cancelado',
+          body: `El partido "${match.name}" ha sido cancelado.`,
+          metadata: { matchId },
+        })),
+      ).catch(() => undefined);
+    }
+  },
 } as const;
