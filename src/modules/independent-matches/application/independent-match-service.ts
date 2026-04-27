@@ -3,6 +3,7 @@ import {
   NotFoundError,
   AuthorizationError,
   DomainError,
+  ConflictError,
 } from '@/shared/errors';
 import { NotificationService } from '@/modules/notifications';
 import type {
@@ -154,5 +155,100 @@ export const IndependentMatchService = {
       },
     });
     return teams;
+  },
+
+  async requestToJoin(matchId: string, userId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: { where: { status: 'ACCEPTED' } },
+        joinRequests: { where: { userId, status: 'PENDING' } },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.type !== 'OPEN') throw new DomainError('NOT_OPEN_MATCH', 'Solo puedes unirte a partidos abiertos.');
+    if (match.status !== 'OPEN') throw new DomainError('MATCH_NOT_OPEN', 'Este partido ya no admite solicitudes.');
+    if (match.organizerId === userId) throw new DomainError('IS_ORGANIZER', 'Eres el organizador de este partido.');
+    if (match.participants.some((p) => p.userId === userId))
+      throw new ConflictError('ALREADY_PARTICIPANT', 'Ya eres participante de este partido.');
+    if (match.joinRequests.length > 0)
+      throw new ConflictError('REQUEST_EXISTS', 'Ya tienes una solicitud pendiente.');
+    if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
+      throw new DomainError('MATCH_FULL', 'Este partido ya está completo.');
+
+    await prisma.independentMatchJoinRequest.create({
+      data: { independentMatchId: matchId, userId },
+    });
+
+    NotificationService.create({
+      userId: match.organizerId,
+      type: 'INDEPENDENT_MATCH_JOIN_REQUEST',
+      title: 'Nueva solicitud para tu partido',
+      body: 'Alguien quiere unirse a tu partido.',
+      metadata: { matchId },
+    }).catch(() => undefined);
+  },
+
+  async approveJoinRequest(requestId: string, organizerId: string): Promise<void> {
+    const request = await prisma.independentMatchJoinRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        match: {
+          include: { participants: { where: { status: 'ACCEPTED' } } },
+        },
+      },
+    });
+    if (!request) throw new NotFoundError('REQUEST_NOT_FOUND', 'Solicitud no encontrada.');
+    if (request.match.organizerId !== organizerId)
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede aprobar solicitudes.');
+    if (request.status !== 'PENDING')
+      throw new DomainError('REQUEST_NOT_PENDING', 'Esta solicitud ya fue procesada.');
+
+    const available = calculateAvailableSlots(request.match.maxPlayers, request.match.participants.length);
+    if (available === 0) throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
+
+    const newCount = request.match.participants.length + 1;
+    const isFull = newCount >= request.match.maxPlayers;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.independentMatchJoinRequest.update({
+        where: { id: requestId },
+        data: { status: 'APPROVED', respondedByUserId: organizerId, respondedAt: new Date() },
+      });
+      await tx.independentMatchParticipant.create({
+        data: { independentMatchId: request.independentMatchId, userId: request.userId, status: 'ACCEPTED' },
+      });
+      if (isFull) {
+        await tx.independentMatch.update({
+          where: { id: request.independentMatchId },
+          data: { status: 'CONFIRMED' },
+        });
+      }
+    });
+
+    NotificationService.create({
+      userId: request.userId,
+      type: 'INDEPENDENT_MATCH_CONFIRMED',
+      title: 'Solicitud aprobada',
+      body: `Te has unido al partido "${request.match.name}".`,
+      metadata: { matchId: request.independentMatchId },
+    }).catch(() => undefined);
+  },
+
+  async rejectJoinRequest(requestId: string, organizerId: string): Promise<void> {
+    const request = await prisma.independentMatchJoinRequest.findUnique({
+      where: { id: requestId },
+      include: { match: { select: { organizerId: true } } },
+    });
+    if (!request) throw new NotFoundError('REQUEST_NOT_FOUND', 'Solicitud no encontrada.');
+    if (request.match.organizerId !== organizerId)
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede rechazar solicitudes.');
+    if (request.status !== 'PENDING')
+      throw new DomainError('REQUEST_NOT_PENDING', 'Esta solicitud ya fue procesada.');
+
+    await prisma.independentMatchJoinRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED', respondedByUserId: organizerId, respondedAt: new Date() },
+    });
   },
 } as const;
