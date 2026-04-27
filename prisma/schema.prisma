@@ -297,6 +297,7 @@ model Team {
   awayMatches  Match[]      @relation("TeamB")
   wonMatches                   MatchResult[] @relation("MatchWinner")
   challengedIndependentMatches IndependentMatch[] @relation("ChallengedTeam")
+  organizerIndependentMatches  IndependentMatch[] @relation("OrganizerTeam")
 
   @@unique([leagueId, name])
   @@map("teams")
@@ -454,6 +455,7 @@ model IndependentMatch {
   name             String
   type             IndependentMatchType   @default(OPEN)
   challengedTeamId String?                @map("challenged_team_id")
+  organizerTeamId  String?                @map("organizer_team_id")
   leagueId         String?                @map("league_id")
   scheduledAt      DateTime?              @map("scheduled_at")
   location         String?
@@ -465,6 +467,7 @@ model IndependentMatch {
 
   organizer      User                              @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
   challengedTeam Team?                             @relation("ChallengedTeam", fields: [challengedTeamId], references: [id], onDelete: Restrict)
+  organizerTeam  Team?                             @relation("OrganizerTeam", fields: [organizerTeamId], references: [id], onDelete: Restrict)
   league         League?                           @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
   participants   IndependentMatchParticipant[]
   joinRequests   IndependentMatchJoinRequest[]

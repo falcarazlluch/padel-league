@@ -88,6 +88,7 @@ export const IndependentMatchService = {
         organizerId: input.organizerId,
         name: input.name,
         type: 'TEAM_CHALLENGE',
+        organizerTeamId: input.organizerTeamId,
         challengedTeamId: input.challengedTeamId,
         leagueId: input.leagueId,
         scheduledAt: input.scheduledAt ?? null,
@@ -372,26 +373,29 @@ export const IndependentMatchService = {
     if (!isChallengedMember)
       throw new AuthorizationError('NOT_CHALLENGED_MEMBER', 'Solo un miembro del equipo retado puede aceptar.');
 
-    // Get organizer team members
-    const organizerTeam = await prisma.team.findFirst({
-      where: {
-        leagueId: match.leagueId!,
-        members: { some: { userId: match.organizerId } },
-        id: { not: match.challengedTeamId! },
-      },
+    // Get organizer team members — deterministic via stored organizerTeamId
+    if (!match.organizerTeamId)
+      throw new DomainError('ORGANIZER_TEAM_NOT_FOUND', 'No se encontró el equipo organizador.');
+
+    const organizerTeam = await prisma.team.findUnique({
+      where: { id: match.organizerTeamId },
       include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
     });
+    if (!organizerTeam)
+      throw new DomainError('ORGANIZER_TEAM_NOT_FOUND', 'No se encontró el equipo organizador.');
 
     const allParticipantUserIds = [
       ...match.challengedTeam.members.map((m) => m.userId),
-      ...(organizerTeam?.members.map((m) => m.userId) ?? [match.organizerId]),
+      ...organizerTeam.members.map((m) => m.userId),
     ];
 
     await prisma.$transaction(async (tx) => {
-      await tx.independentMatch.update({
-        where: { id: matchId },
+      const updated = await tx.independentMatch.updateMany({
+        where: { id: matchId, status: 'PENDING_APPROVAL' },
         data: { status: 'CONFIRMED' },
       });
+      if (updated.count === 0)
+        throw new ConflictError('CHALLENGE_ALREADY_RESOLVED', 'Este reto ya fue respondido.');
       await tx.independentMatchParticipant.createMany({
         data: allParticipantUserIds.map((uid) => ({
           independentMatchId: matchId,
