@@ -3,7 +3,6 @@ import {
   NotFoundError,
   AuthorizationError,
   DomainError,
-  ConflictError,
 } from '@/shared/errors';
 import { NotificationService } from '@/modules/notifications';
 import type {
@@ -14,8 +13,6 @@ import type {
   TeamForChallenge,
 } from '../domain/types';
 
-// ConflictError is imported for future use in Task 3+ (join/invite flows)
-void ConflictError;
 
 const MATCH_DETAIL_INCLUDE = {
   organizer: { select: { id: true, name: true } },
@@ -79,6 +76,8 @@ export const IndependentMatchService = {
       throw new DomainError('TEAMS_DIFF_LEAGUE', 'Los equipos deben pertenecer a la misma liga.');
     if (input.organizerTeamId === input.challengedTeamId)
       throw new DomainError('SAME_TEAM', 'No puedes retar a tu propio equipo.');
+    if (input.leagueId !== organizerTeam.leagueId)
+      throw new DomainError('LEAGUE_MISMATCH', 'leagueId no coincide con el equipo.');
     if (!organizerTeam.members.some((m) => m.userId === input.organizerId))
       throw new AuthorizationError('NOT_TEAM_MEMBER', 'No eres miembro del equipo organizador.');
 

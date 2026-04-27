@@ -13,6 +13,7 @@ export type IndependentMatchRow = {
   maxPlayers: number;
   status: IndependentMatchStatus;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 export type IndependentMatchDetail = IndependentMatchRow & {
