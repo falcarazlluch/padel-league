@@ -7,6 +7,9 @@ import { InvitationEmail, invitationSubject } from '../email-templates/invitatio
 import { PasswordResetEmail, passwordResetSubject } from '../email-templates/password-reset';
 import { ResultSubmittedEmail, resultSubmittedSubject } from '../email-templates/result-submitted';
 import { ResultConfirmedEmail, resultConfirmedSubject } from '../email-templates/result-confirmed';
+import { IndMatchInviteEmail, indMatchInviteSubject } from '../email-templates/ind-match-invite';
+import { IndMatchChallengeEmail, indMatchChallengeSubject } from '../email-templates/ind-match-challenge';
+import { IndMatchChallengeResponseEmail, indMatchChallengeResponseSubject } from '../email-templates/ind-match-challenge-response';
 import type { JobMap } from '@/shared/queue/jobs';
 
 type EmailData = JobMap['send-email']['data'];
@@ -58,6 +61,44 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
             matchTeamA: str(data['matchTeamA'], '?'),
             matchTeamB: str(data['matchTeamB'], '?'),
             winnerTeamName: typeof data['winnerTeamName'] === 'string' ? data['winnerTeamName'] : null,
+            matchUrl: str(data['matchUrl'], ''),
+          }),
+        ),
+      };
+    case 'ind-match-invite':
+      return {
+        subject: indMatchInviteSubject,
+        html: renderToStaticMarkup(
+          React.createElement(IndMatchInviteEmail, {
+            organizerName: str(data['organizerName'], 'Organizador'),
+            matchName: str(data['matchName'], 'Partido'),
+            matchUrl: str(data['matchUrl'], ''),
+            scheduledAt: typeof data['scheduledAt'] === 'string' ? data['scheduledAt'] : undefined,
+            location: typeof data['location'] === 'string' ? data['location'] : undefined,
+          }),
+        ),
+      };
+    case 'ind-match-challenge':
+      return {
+        subject: indMatchChallengeSubject,
+        html: renderToStaticMarkup(
+          React.createElement(IndMatchChallengeEmail, {
+            organizerTeamName: str(data['organizerTeamName'], 'Equipo'),
+            matchName: str(data['matchName'], 'Reto'),
+            matchUrl: str(data['matchUrl'], ''),
+            scheduledAt: typeof data['scheduledAt'] === 'string' ? data['scheduledAt'] : undefined,
+            location: typeof data['location'] === 'string' ? data['location'] : undefined,
+          }),
+        ),
+      };
+    case 'ind-match-challenge-response':
+      return {
+        subject: indMatchChallengeResponseSubject(data['accepted'] === true),
+        html: renderToStaticMarkup(
+          React.createElement(IndMatchChallengeResponseEmail, {
+            challengedTeamName: str(data['challengedTeamName'], 'Equipo'),
+            matchName: str(data['matchName'], 'Reto'),
+            accepted: data['accepted'] === true,
             matchUrl: str(data['matchUrl'], ''),
           }),
         ),
