@@ -84,12 +84,14 @@ export default async function LigaDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{league.name}</h1>
-          {league.description && <p className="text-gray-500 mt-1">{league.description}</p>}
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Liga</p>
+          <h1 className="text-2xl font-extrabold text-brand-navy">{league.name}</h1>
+          {league.description && <p className="text-slate-500 mt-1">{league.description}</p>}
+          <p className="text-sm text-slate-400 mt-1">
             {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
           </p>
         </div>
+        {/* admin/activate button stays here if present */}
         {isLeagueAdmin && league.status === 'DRAFT' && (
           <ActivateLeagueButton leagueId={league.id} />
         )}
@@ -102,7 +104,7 @@ export default async function LigaDetailPage({
           {isLeagueAdmin && league.status === 'DRAFT' && (
             <Link
               href={`/ligas/${slug}/equipos/nueva` as Route}
-              className="text-sm px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="text-sm px-3 py-1.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white font-semibold rounded-xl shadow-sm hover:opacity-90 transition-opacity"
             >
               Añadir equipo
             </Link>
@@ -113,12 +115,12 @@ export default async function LigaDetailPage({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {teams.map((team) => (
-              <div key={team.id} className="bg-white rounded-lg border border-gray-200 p-4">
+              <div key={team.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4">
                 <h3 className="font-medium text-gray-900 mb-3">{team.name}</h3>
                 <ul className="space-y-1.5">
                   {team.members.map((m) => (
                     <li key={m.userId} className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-medium shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs flex items-center justify-center font-semibold shrink-0">
                         {m.user.name[0]?.toUpperCase()}
                       </span>
                       {m.user.name}
@@ -144,8 +146,8 @@ export default async function LigaDetailPage({
               href={`/ligas/${slug}` as Route}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab !== 'partidos'
-                  ? 'border-brand-navy text-brand-navy'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-brand-yellow text-brand-navy font-bold'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
               Clasificación
@@ -154,8 +156,8 @@ export default async function LigaDetailPage({
               href={`/ligas/${slug}?tab=partidos` as Route}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === 'partidos'
-                  ? 'border-brand-navy text-brand-navy'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-brand-yellow text-brand-navy font-bold'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
               Partidos

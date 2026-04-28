@@ -20,15 +20,15 @@ export function NuevoEquipoForm({ leagueId, slug }: { leagueId: string; slug: st
   );
 
   return (
-    <form action={formAction} className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col gap-4">
+    <form action={formAction} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 flex flex-col gap-4">
       <input type="hidden" name="leagueId" value={leagueId} />
       {state.error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
           {state.error}
         </div>
       )}
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
           Nombre del equipo <span className="text-red-500">*</span>
         </label>
         <input
@@ -37,21 +37,21 @@ export function NuevoEquipoForm({ leagueId, slug }: { leagueId: string; slug: st
           type="text"
           required
           placeholder="Ej: Los Cañones"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
         />
       </div>
       <div className="flex gap-3 pt-2">
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          className="flex-1 px-4 py-2.5 bg-white border border-gray-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={pending}
-          className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-60 transition-colors"
+          className="flex-1 px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-60 transition-opacity"
         >
           {pending ? 'Creando...' : 'Crear equipo'}
         </button>
