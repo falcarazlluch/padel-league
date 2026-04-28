@@ -72,14 +72,18 @@ export default async function JugarDetailPage({
 
       <div>
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">{match.name}</h1>
+          <div>
+            <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">
+              {match.type === 'TEAM_CHALLENGE' ? 'Reto de equipos' : 'Partido abierto'}
+            </p>
+            <h1 className="text-2xl font-extrabold text-brand-navy">{match.name}</h1>
+          </div>
           <span className={`shrink-0 text-xs font-medium px-2 py-1 rounded ${statusStyle(match.status)}`}>
             {statusLabel(match.status)}
           </span>
         </div>
-        <p className="text-sm text-gray-500 mt-1">
-          {match.type === 'TEAM_CHALLENGE' ? 'Reto de equipo' : 'Partido abierto'} · Organiza{' '}
-          <strong>{match.organizer.name}</strong>
+        <p className="text-sm text-slate-400 mt-1">
+          Organiza <strong className="text-brand-navy">{match.organizer.name}</strong>
         </p>
         {match.scheduledAt && (
           <p className="text-sm text-gray-600 mt-1">
@@ -107,7 +111,7 @@ export default async function JugarDetailPage({
           <ul className="space-y-1">
             {match.participants.map((p) => (
               <li key={p.userId} className="text-sm text-gray-700 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-medium shrink-0">
+                <span className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs flex items-center justify-center font-semibold shrink-0">
                   {p.user.name[0]?.toUpperCase()}
                 </span>
                 {p.user.name}
@@ -122,7 +126,7 @@ export default async function JugarDetailPage({
         <JoinRequestButton matchId={id} />
       )}
       {hasPendingRequest && (
-        <p className="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2">
+        <p className="text-sm text-amber-700 bg-gradient-to-r from-yellow-50 to-amber-100 border border-amber-200 rounded-xl px-4 py-2">
           Tu solicitud está pendiente de aprobación.
         </p>
       )}
@@ -153,7 +157,7 @@ export default async function JugarDetailPage({
             <form action={cancelMatch}>
               <input type="hidden" name="matchId" value={id} />
               <button type="submit"
-                className="text-sm text-red-600 hover:text-red-800 transition-colors"
+                className="text-sm bg-red-50 border border-red-200 text-red-600 font-semibold rounded-xl px-4 py-2 hover:bg-red-100 transition-colors"
                 onClick={(e) => { if (!confirm('¿Seguro que quieres cancelar este partido?')) e.preventDefault(); }}>
                 Cancelar partido
               </button>
@@ -175,8 +179,10 @@ function statusLabel(status: string): string {
 
 function statusStyle(status: string): string {
   const map: Record<string, string> = {
-    OPEN: 'bg-green-50 text-green-700', PENDING_APPROVAL: 'bg-yellow-50 text-yellow-700',
-    CONFIRMED: 'bg-blue-50 text-blue-700', REJECTED: 'bg-red-50 text-red-700',
+    OPEN: 'bg-gradient-to-r from-blue-50 to-sky-100 text-blue-700',
+    PENDING_APPROVAL: 'bg-gradient-to-r from-yellow-50 to-amber-100 text-amber-700',
+    CONFIRMED: 'bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700',
+    REJECTED: 'bg-gradient-to-r from-red-50 to-rose-100 text-red-600',
     CANCELLED: 'bg-gray-100 text-gray-500',
   };
   return map[status] ?? 'bg-gray-100 text-gray-500';

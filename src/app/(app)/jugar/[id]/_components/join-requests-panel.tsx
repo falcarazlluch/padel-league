@@ -8,8 +8,8 @@ type ActionResult = { error: string } | { success: true } | null;
 export function JoinRequestsPanel({ requests, matchId }: { requests: Request[]; matchId: string }) {
   if (requests.length === 0) return null;
   return (
-    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-yellow-800 mb-3">Solicitudes pendientes ({requests.length})</h3>
+    <div className="bg-gradient-to-r from-yellow-50 to-amber-100 border border-amber-200 rounded-2xl p-4">
+      <h3 className="text-sm font-semibold text-amber-800 mb-3">Solicitudes pendientes ({requests.length})</h3>
       <ul className="space-y-2">
         {requests.map((req) => <RequestRow key={req.id} request={req} matchId={matchId} />)}
       </ul>
@@ -28,13 +28,13 @@ function RequestRow({ request, matchId }: { request: Request; matchId: string })
           <input type="hidden" name="requestId" value={request.id} />
           <input type="hidden" name="matchId" value={matchId} />
           <button type="submit" disabled={approvePending || rejectPending}
-            className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50">Aprobar</button>
+            className="text-xs px-3 py-1.5 bg-gradient-to-br from-emerald-500 to-green-600 text-white font-bold rounded-full hover:opacity-90 disabled:opacity-50 transition-opacity">Aprobar</button>
         </form>
         <form action={rejectAction}>
           <input type="hidden" name="requestId" value={request.id} />
           <input type="hidden" name="matchId" value={matchId} />
           <button type="submit" disabled={approvePending || rejectPending}
-            className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">Rechazar</button>
+            className="text-xs px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-gray-50 disabled:opacity-50 transition-colors">Rechazar</button>
         </form>
       </div>
       {approveState && 'error' in approveState && <p className="text-xs text-red-600">{approveState.error}</p>}
