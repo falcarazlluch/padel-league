@@ -27,7 +27,7 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       {isSuperAdmin && (
         <Link
           href={'/admin/disputas' as Route}
-          className="text-sm font-medium text-brand-yellow/90 hover:text-brand-yellow transition-colors"
+          className={linkClass(pathname.startsWith('/admin/disputas'))}
         >
           Disputas
         </Link>
