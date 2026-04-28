@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
+import { logger } from '@/shared/logger';
 import { determineWinner, getSubmitterSide } from './match-result-logic';
 import type { SubmitResultInput, MatchDetailRow } from '../domain/types';
 import type { DisputeResolution } from '@prisma/client';
@@ -234,7 +235,7 @@ export const MatchService = {
     void queue()
       .start()
       .then(() => queue().publish('generate-match-commentary', { matchId, type: 'RECAP' }))
-      .catch(() => undefined);
+      .catch((err) => logger().warn({ err, matchId }, 'commentary.enqueue.failed'));
 
     // NOTE: The match-auto-approve-result job (singletonKey auto-approve-{resultId}) is not cancelled here.
     // It will execute at T+7d but the handler's PENDING guard will safely no-op. A full fix
@@ -421,10 +422,16 @@ export const MatchService = {
 
     // Fire-and-forget: enqueue commentary recap generation for ADMIN_RESOLVED outcomes.
     if (resolution === 'AWARD_PROPONENT' || resolution === 'AWARD_OPPONENT' || resolution === 'DISMISS') {
-      void queue()
-        .start()
-        .then(() => queue().publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' }))
-        .catch(() => undefined);
+      const updatedMatch = await prisma.match.findUnique({
+        where: { id: match.id },
+        select: { confirmedResultId: true },
+      });
+      if (updatedMatch?.confirmedResultId) {
+        void queue()
+          .start()
+          .then(() => queue().publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' }))
+          .catch((err) => logger().warn({ err, matchId: match.id }, 'commentary.enqueue.failed'));
+      }
     }
   },
 } as const;

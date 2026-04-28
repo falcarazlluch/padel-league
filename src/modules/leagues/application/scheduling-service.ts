@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import { NotificationService } from '@/modules/notifications/application/notification-service';
 import { queue } from '@/shared/queue/client';
+import { logger } from '@/shared/logger';
 
 export const SchedulingService = {
   async proposeDate(matchId: string, proposingUserId: string, proposedAt: Date): Promise<void> {
@@ -108,7 +109,7 @@ export const SchedulingService = {
     void queue()
       .start()
       .then(() => queue().publish('generate-match-commentary', { matchId, type: 'PREVIEW' }))
-      .catch(() => undefined);
+      .catch((err) => logger().warn({ err, matchId }, 'commentary.enqueue.failed'));
 
     // Notify the proposing team
     const proposerIds = proposerOnTeamA ? teamAIds : teamBIds;

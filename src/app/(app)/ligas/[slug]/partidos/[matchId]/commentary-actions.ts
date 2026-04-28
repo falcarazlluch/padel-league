@@ -44,7 +44,7 @@ export async function regenerateCommentaryAction(
     });
     if (!commentary) return { error: 'Crónica no encontrada.' };
 
-    // Authorization check (fail fast — handler also enforces via service)
+    // Authorization check: queue is trusted, so we only gate auth here at the action boundary
     const isAdmin = await prisma.leagueMember.findFirst({
       where: {
         userId: user.id,
