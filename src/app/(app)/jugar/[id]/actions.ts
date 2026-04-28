@@ -13,6 +13,7 @@ import { isUserFacingError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
+import { NotificationService } from '@/modules/notifications';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -82,51 +83,51 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   try {
-    const { invitationId } = await IndependentMatchService.inviteByEmail(
+    const { invitationId, isNew } = await IndependentMatchService.inviteByEmail(
       parsed.data.matchId,
       user.id,
       parsed.data.email,
     );
 
-    const token = await SignedTokenService.issue({
-      purpose: SignedTokenPurpose.INDEPENDENT_MATCH_INVITE,
-      subjectId: invitationId,
-      ttlSeconds: 7 * 24 * 60 * 60,
-    });
+    if (isNew) {
+      const token = await SignedTokenService.issue({
+        purpose: SignedTokenPurpose.INDEPENDENT_MATCH_INVITE,
+        subjectId: invitationId,
+        ttlSeconds: 7 * 24 * 60 * 60,
+      });
 
-    const matchUrl = `${env().APP_URL}/jugar/${parsed.data.matchId}?token=${token}`;
+      const matchUrl = `${env().APP_URL}/jugar/${parsed.data.matchId}?token=${token}`;
 
-    const match = await prisma.independentMatch.findUnique({
-      where: { id: parsed.data.matchId },
-      include: { organizer: { select: { name: true } } },
-    });
+      const match = await prisma.independentMatch.findUnique({
+        where: { id: parsed.data.matchId },
+        include: { organizer: { select: { name: true } } },
+      });
 
-    const q = queue();
-    await q.start();
-    await q.publish('send-email', {
-      template: 'ind-match-invite',
-      to: parsed.data.email,
-      data: {
-        organizerName: match?.organizer.name ?? 'Organizador',
-        matchName: match?.name ?? 'Partido',
-        matchUrl,
-        scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
-        location: match?.location ?? undefined,
-      },
-      dedupKey: `ind-invite-${invitationId}`,
-    });
-
-    const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-    if (existingUser) {
-      await prisma.notification.create({
+      const q = queue();
+      await q.start();
+      await q.publish('send-email', {
+        template: 'ind-match-invite',
+        to: parsed.data.email,
         data: {
+          organizerName: match?.organizer.name ?? 'Organizador',
+          matchName: match?.name ?? 'Partido',
+          matchUrl,
+          scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
+          location: match?.location ?? undefined,
+        },
+        dedupKey: `ind-invite-${invitationId}`,
+      });
+
+      const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+      if (existingUser) {
+        await NotificationService.create({
           userId: existingUser.id,
           type: 'INDEPENDENT_MATCH_INVITE',
           title: 'Invitación a partido',
           body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}".`,
           metadata: { matchId: parsed.data.matchId },
-        },
-      });
+        });
+      }
     }
 
     revalidatePath(`/jugar/${parsed.data.matchId}`);
@@ -191,7 +192,14 @@ export async function cancelMatch(formData: FormData): Promise<void> {
   const user = await getSession();
   const matchId = formData.get('matchId');
   if (typeof matchId !== 'string') return;
-  await IndependentMatchService.cancelMatch(matchId, user.id);
+
+  try {
+    await IndependentMatchService.cancelMatch(matchId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return; // silently absorb — page reload will show updated state
+    throw err;
+  }
+
   revalidatePath(`/jugar/${matchId}`);
   revalidatePath('/jugar');
   redirect('/jugar' as Route);
