@@ -455,7 +455,6 @@ model MatchCommentary {
   editor User?  @relation("CommentaryEditor", fields: [editedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([matchId, type])
-  @@index([matchId])
   @@map("match_commentaries")
 }
 

@@ -13,10 +13,7 @@ ALTER TABLE "match_commentaries"
 -- Drop default after the ADD (table empty so default never used; future inserts must provide type)
 ALTER TABLE "match_commentaries" ALTER COLUMN "type" DROP DEFAULT;
 
--- CreateIndex
-CREATE INDEX "match_commentaries_match_id_idx" ON "match_commentaries"("match_id");
-
--- AddUniqueConstraint
+-- AddUniqueConstraint (composite unique creates a btree on (match_id, type); leading column covers match_id-only queries)
 ALTER TABLE "match_commentaries"
   ADD CONSTRAINT "match_commentaries_match_id_type_key" UNIQUE ("match_id", "type");
 
