@@ -6,6 +6,8 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { calculateStandings } from '@/modules/leagues';
+import { MatchCommentaryService } from '@/modules/match-commentary';
+import { CommentaryFeedCard } from '../ligas/[slug]/_components/commentary-feed-card';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -13,7 +15,7 @@ export default async function DashboardPage() {
   if (!token) redirect('/login');
   const user = await getValidatedSession(token);
 
-  const [leagueCount, matchCount, userLeagues, recentResults] = await Promise.all([
+  const [leagueCount, matchCount, userLeagues, recentCommentaries] = await Promise.all([
     prisma.league.count({ where: { status: 'ACTIVE' } }),
     prisma.match.count({
       where: {
@@ -40,20 +42,7 @@ export default async function DashboardPage() {
       },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.match.findMany({
-      where: {
-        status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] },
-        league: { teams: { some: { members: { some: { userId: user.id } } } } },
-      },
-      include: {
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
-        league: { select: { id: true, slug: true, name: true } },
-        confirmedResult: { include: { sets: { orderBy: { setNumber: 'asc' } } } },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 5,
-    }),
+    MatchCommentaryService.listForUser(user.id, 5),
   ]);
 
   // Compute standings for each user league in parallel
@@ -182,43 +171,15 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {recentResults.length > 0 && (
+      {recentCommentaries.length > 0 && (
         <section>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Últimos resultados</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Últimas crónicas</p>
           <ul className="space-y-2">
-            {recentResults.map((m) => {
-              const setsA = m.confirmedResult?.sets.filter((s) => s.gamesA > s.gamesB).length ?? 0;
-              const setsB = m.confirmedResult?.sets.filter((s) => s.gamesB > s.gamesA).length ?? 0;
-              const aWon = m.winnerTeamId === m.teamAId;
-              const bWon = m.winnerTeamId === m.teamBId;
-              return (
-                <li key={m.id}>
-                  <Link
-                    href={`/ligas/${m.league.slug}/partidos/${m.id}` as Route}
-                    className="block bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 text-sm">
-                          <span className={`truncate ${aWon ? 'font-bold text-brand-navy' : 'text-slate-600'}`}>
-                            {m.teamA.name}
-                          </span>
-                          <span className="shrink-0 font-mono text-sm font-bold text-brand-navy">
-                            {setsA} – {setsB}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 text-sm mt-1">
-                          <span className={`truncate ${bWon ? 'font-bold text-brand-navy' : 'text-slate-600'}`}>
-                            {m.teamB.name}
-                          </span>
-                        </div>
-                        <p className="text-xs text-brand-blue mt-2 truncate">{m.league.name}</p>
-                      </div>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
+            {recentCommentaries.map((c) => (
+              <li key={c.id}>
+                <CommentaryFeedCard item={c} showLeague={true} />
+              </li>
+            ))}
           </ul>
         </section>
       )}

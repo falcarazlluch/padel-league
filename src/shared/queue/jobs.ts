@@ -8,7 +8,11 @@ export type JobMap = {
   };
   'match-auto-approve-result': { matchResultId: string };
   'match-reminder': { matchId: string; kind: 'initial' | 'mid' | 'final' };
-  'generate-match-commentary': { matchId: string };
+  'generate-match-commentary': {
+    matchId: string;
+    type: 'PREVIEW' | 'RECAP';
+    regenerate?: boolean;
+  };
   'league-finalize': { leagueId: string };
   'session-cleanup': Record<string, never>;
   'anonymize-user': { userId: string };

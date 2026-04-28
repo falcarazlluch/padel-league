@@ -142,6 +142,11 @@ enum AICommentaryProvider {
   OPENAI
 }
 
+enum CommentaryType {
+  PREVIEW
+  RECAP
+}
+
 // ─── IDENTIDAD Y AUTH ──────────────────────────────────────────────────────
 
 model User {
@@ -180,6 +185,7 @@ model User {
   independentMatches    IndependentMatch[]   @relation("IndependentOrganizer")
   indParticipations     IndependentMatchParticipant[]
   indJoinRequests       IndependentMatchJoinRequest[]
+  editedCommentaries    MatchCommentary[]    @relation("CommentaryEditor")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -344,7 +350,7 @@ model Match {
   results            MatchResult[]              @relation("MatchResults")
   schedulingProposals MatchSchedulingProposal[]
   dispute            Dispute?
-  commentary         MatchCommentary?
+  commentaries       MatchCommentary[]
 
   @@index([leagueId, status])
   @@index([deadlineAt])
@@ -434,16 +440,21 @@ model Dispute {
 
 model MatchCommentary {
   id                 String                @id @default(cuid())
-  matchId            String                @unique @map("match_id")
+  matchId            String                @map("match_id")
+  type               CommentaryType
   provider           AICommentaryProvider
   content            String
   generatedAt        DateTime              @default(now()) @map("generated_at")
   regeneratedCount   Int                   @default(0) @map("regenerated_count")
   rejectedForSafety  Boolean               @default(false) @map("rejected_for_safety")
   promptVersion      String                @default("v1") @map("prompt_version")
+  editedAt           DateTime?             @map("edited_at")
+  editedByUserId     String?               @map("edited_by_user_id")
 
-  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  editor User?  @relation("CommentaryEditor", fields: [editedByUserId], references: [id], onDelete: Restrict)
 
+  @@unique([matchId, type])
   @@map("match_commentaries")
 }
 

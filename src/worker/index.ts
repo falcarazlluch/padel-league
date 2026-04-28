@@ -8,6 +8,7 @@ import { sessionCleanupHandler } from './handlers/session-cleanup';
 import { anonymizeUserHandler } from './handlers/anonymize-user';
 import { matchAutoApproveResultHandler } from './handlers/match-auto-approve-result';
 import { leagueFinalizeHandler } from './handlers/league-finalize';
+import { generateMatchCommentaryHandler } from './handlers/generate-match-commentary';
 
 async function main() {
   env();
@@ -24,6 +25,7 @@ async function main() {
   await registerHandler(boss, 'session-cleanup', sessionCleanupHandler);
   await registerHandler(boss, 'anonymize-user', anonymizeUserHandler);
   await registerHandler(boss, 'match-auto-approve-result', matchAutoApproveResultHandler);
+  await registerHandler(boss, 'generate-match-commentary', generateMatchCommentaryHandler);
   await registerHandler(boss, 'league-finalize', leagueFinalizeHandler);
 
   log.info('worker.ready');

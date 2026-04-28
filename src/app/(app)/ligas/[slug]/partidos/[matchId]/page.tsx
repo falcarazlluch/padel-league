@@ -6,9 +6,12 @@ import Link from 'next/link';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { MatchService } from '@/modules/leagues';
+import { MatchCommentaryService } from '@/modules/match-commentary';
+import { prisma } from '@/shared/db/client';
 import { SubmitResultForm } from './submit-result-form';
 import { ConfirmRejectPanel } from './confirm-reject-panel';
 import { ScheduleSection } from './schedule-section';
+import { CommentaryAdminActions } from './_components/commentary-admin-actions';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -47,6 +50,13 @@ export default async function MatchDetailPage({
   const currentUser = await getValidatedSession(token).catch(() => redirect('/login' as Route));
   const match = await MatchService.getMatch(matchId).catch(() => null);
   if (!match || match.leagueSlug !== slug) notFound();
+
+  const [commentaries, isLeagueAdmin] = await Promise.all([
+    MatchCommentaryService.getByMatch(matchId),
+    prisma.leagueMember.findFirst({
+      where: { leagueId: match.leagueId, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
+    }).then((m) => !!m),
+  ]);
 
   const teamAIds = match.teamA.members.map((m) => m.userId);
   const teamBIds = match.teamB.members.map((m) => m.userId);
@@ -97,6 +107,58 @@ export default async function MatchDetailPage({
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Partido</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">{match.teamA.name} vs {match.teamB.name}</h1>
       </div>
+
+      {/* AI Commentaries */}
+      {(commentaries.preview || commentaries.recap) && (
+        <section className="space-y-3">
+          {commentaries.preview && (
+            <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+              <header className="flex items-baseline justify-between mb-2">
+                <h2 className="text-xs font-bold text-brand-blue uppercase tracking-widest" title="Generado por IA">
+                  ✨ Previa
+                </h2>
+                <time className="text-xs text-slate-400">
+                  {commentaries.preview.generatedAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </time>
+              </header>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                {commentaries.preview.content}
+              </p>
+              {isLeagueAdmin && (
+                <CommentaryAdminActions
+                  commentaryId={commentaries.preview.id}
+                  matchId={matchId}
+                  slug={slug}
+                  currentContent={commentaries.preview.content}
+                />
+              )}
+            </article>
+          )}
+          {commentaries.recap && (
+            <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+              <header className="flex items-baseline justify-between mb-2">
+                <h2 className="text-xs font-bold text-brand-blue uppercase tracking-widest" title="Generado por IA">
+                  ✨ Crónica
+                </h2>
+                <time className="text-xs text-slate-400">
+                  {commentaries.recap.generatedAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </time>
+              </header>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                {commentaries.recap.content}
+              </p>
+              {isLeagueAdmin && (
+                <CommentaryAdminActions
+                  commentaryId={commentaries.recap.id}
+                  matchId={matchId}
+                  slug={slug}
+                  currentContent={commentaries.recap.content}
+                />
+              )}
+            </article>
+          )}
+        </section>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">

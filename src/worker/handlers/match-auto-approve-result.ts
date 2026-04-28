@@ -104,5 +104,7 @@ export async function matchAutoApproveResultHandler(
     });
   }
 
+  await q.publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' });
+
   log.info({ matchResultId, matchId: match.id }, 'auto-approve.done');
 }
