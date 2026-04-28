@@ -229,6 +229,13 @@ export const MatchService = {
         },
       });
     });
+
+    // Fire-and-forget: enqueue commentary recap generation.
+    void queue()
+      .start()
+      .then(() => queue().publish('generate-match-commentary', { matchId, type: 'RECAP' }))
+      .catch(() => undefined);
+
     // NOTE: The match-auto-approve-result job (singletonKey auto-approve-{resultId}) is not cancelled here.
     // It will execute at T+7d but the handler's PENDING guard will safely no-op. A full fix
     // requires storing the job ID on MatchResult (schema change tracked as future work).
@@ -411,5 +418,13 @@ export const MatchService = {
         },
       });
     });
+
+    // Fire-and-forget: enqueue commentary recap generation for ADMIN_RESOLVED outcomes.
+    if (resolution === 'AWARD_PROPONENT' || resolution === 'AWARD_OPPONENT' || resolution === 'DISMISS') {
+      void queue()
+        .start()
+        .then(() => queue().publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' }))
+        .catch(() => undefined);
+    }
   },
 } as const;
