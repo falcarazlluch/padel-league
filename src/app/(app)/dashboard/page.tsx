@@ -28,53 +28,38 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Bienvenido, {user.name}</h1>
-        <p className="text-sm text-gray-500 mt-1">Panel de control de Padel League</p>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Panel de control</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">Bienvenido, {user.name}</h1>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-brand-navy flex items-center justify-center shrink-0">
-            <span className="text-2xl">🏆</span>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900">{leagueCount}</p>
-            <p className="text-sm text-gray-500">Liga{leagueCount !== 1 ? 's' : ''} activa{leagueCount !== 1 ? 's' : ''}</p>
-          </div>
+        <div className="bg-gradient-to-br from-brand-navy to-brand-navy-light rounded-2xl p-5 shadow-lg">
+          <p className="text-2xl font-extrabold text-brand-yellow">{leagueCount}</p>
+          <p className="text-xs text-white/70 mt-1">Liga{leagueCount !== 1 ? 's' : ''} activa{leagueCount !== 1 ? 's' : ''}</p>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-brand-yellow flex items-center justify-center shrink-0">
-            <span className="text-2xl">⏳</span>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900">{matchCount}</p>
-            <p className="text-sm text-gray-500">Resultado{matchCount !== 1 ? 's' : ''} pendiente{matchCount !== 1 ? 's' : ''}</p>
-          </div>
+        <div className="bg-gradient-to-br from-brand-blue to-brand-blue-light rounded-2xl p-5 shadow-lg">
+          <p className="text-2xl font-extrabold text-white">{matchCount}</p>
+          <p className="text-xs text-white/80 mt-1">Resultado{matchCount !== 1 ? 's' : ''} pendiente{matchCount !== 1 ? 's' : ''}</p>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-brand-green flex items-center justify-center shrink-0">
-            <span className="text-2xl">🎾</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Mis partidos</p>
-            <p className="text-xs text-gray-500">Ver mis próximos partidos</p>
-          </div>
+        <div className="bg-white rounded-2xl p-5 shadow-md border border-slate-200/80">
+          <p className="text-sm font-bold text-brand-navy">Mis partidos</p>
+          <p className="text-xs text-slate-400 mt-1">Ver mis próximos partidos</p>
         </div>
       </div>
 
       <div className="flex gap-3">
         <Link
           href={'/ligas' as Route}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-navy text-white text-sm font-semibold rounded-lg hover:bg-brand-navy-light transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
         >
           Ver ligas
         </Link>
         {user.role === 'SUPER_ADMIN' && (
           <Link
             href={'/admin/usuarios/invitar' as Route}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
           >
             Invitar jugador
           </Link>
