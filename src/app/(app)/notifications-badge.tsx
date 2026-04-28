@@ -64,7 +64,7 @@ export function NotificationsBadge() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200/80 rounded-2xl shadow-lg z-50">
+        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-80 sm:max-w-none bg-white border border-slate-200/80 rounded-2xl shadow-lg z-50">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900">
               Notificaciones{count > 0 ? ` (${count})` : ''}
