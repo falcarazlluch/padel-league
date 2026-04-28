@@ -26,9 +26,7 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  const close = () => setOpen(false);
 
   return (
     <div ref={ref} className="md:hidden relative">
@@ -56,22 +54,22 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
       {open && (
         <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-xs bg-white border border-slate-200/80 rounded-2xl shadow-lg z-50 overflow-hidden">
-          <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))}>
+          <Link href={'/ligas' as Route} onClick={close} className={linkClass(pathname.startsWith('/ligas'))}>
             Ligas
           </Link>
-          <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))}>
+          <Link href={'/partidos' as Route} onClick={close} className={linkClass(pathname.startsWith('/partidos'))}>
             Mis partidos
           </Link>
-          <Link href={'/jugar' as Route} className={linkClass(pathname.startsWith('/jugar'))}>
+          <Link href={'/jugar' as Route} onClick={close} className={linkClass(pathname.startsWith('/jugar'))}>
             Jugar
           </Link>
           {isSuperAdmin && (
-            <Link href={'/admin/disputas' as Route} className={linkClass(pathname.startsWith('/admin/disputas'))}>
+            <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
               Disputas
             </Link>
           )}
           <div className="border-t border-gray-100" />
-          <Link href={'/perfil' as Route} className={linkClass(pathname.startsWith('/perfil'))}>
+          <Link href={'/perfil' as Route} onClick={close} className={linkClass(pathname.startsWith('/perfil'))}>
             Mi perfil
           </Link>
           <form action="/api/auth/logout" method="post">
