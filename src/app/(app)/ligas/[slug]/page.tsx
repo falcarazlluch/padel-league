@@ -171,7 +171,7 @@ export default async function LigaDetailPage({
               activeJornada={jornada ? parseInt(jornada, 10) : null}
             />
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
