@@ -1,0 +1,37 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import type { Route } from 'next';
+
+function linkClass(active: boolean) {
+  return active
+    ? 'text-sm font-semibold bg-brand-yellow/20 text-brand-yellow border border-brand-yellow/30 px-3 py-1 rounded-full transition-colors'
+    : 'text-sm font-medium text-white/70 hover:text-white transition-colors';
+}
+
+export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const pathname = usePathname();
+
+  return (
+    <div className="flex items-center gap-6">
+      <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))}>
+        Ligas
+      </Link>
+      <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))}>
+        Mis partidos
+      </Link>
+      <Link href={'/jugar' as Route} className={linkClass(pathname.startsWith('/jugar'))}>
+        Jugar
+      </Link>
+      {isSuperAdmin && (
+        <Link
+          href={'/admin/disputas' as Route}
+          className="text-sm font-medium text-brand-yellow/90 hover:text-brand-yellow transition-colors"
+        >
+          Disputas
+        </Link>
+      )}
+    </div>
+  );
+}
