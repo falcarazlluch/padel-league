@@ -33,8 +33,7 @@ const createOpenSchema = z.object({
   description: z.string().max(500).optional(),
   maxPlayers: z.coerce
     .number()
-    .refine((n) => n === 2 || n === 4, { message: 'El máximo de jugadores debe ser 2 o 4.' })
-    .transform((n) => n as 2 | 4),
+    .refine((n): n is 2 | 4 => n === 2 || n === 4, { message: 'El máximo de jugadores debe ser 2 o 4.' }),
 });
 
 export async function createOpenMatch(

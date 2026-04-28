@@ -13,7 +13,7 @@ export function IndMatchChallengeResponseEmail({ challengedTeamName, matchName, 
       <h1>{accepted ? 'Reto aceptado' : 'Reto rechazado'}</h1>
       <p>
         El equipo <strong>{challengedTeamName}</strong> ha{' '}
-        {accepted ? 'aceptado' : 'rechazado'} tu reto <strong>"{matchName}"</strong>.
+        {accepted ? 'aceptado' : 'rechazado'} tu reto <strong>&ldquo;{matchName}&rdquo;</strong>.
       </p>
       {accepted && (
         <a
