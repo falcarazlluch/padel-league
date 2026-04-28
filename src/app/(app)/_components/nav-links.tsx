@@ -15,19 +15,20 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   return (
     <div className="flex items-center gap-6">
-      <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))}>
+      <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))} aria-current={pathname.startsWith('/ligas') ? 'page' : undefined}>
         Ligas
       </Link>
-      <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))}>
+      <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))} aria-current={pathname.startsWith('/partidos') ? 'page' : undefined}>
         Mis partidos
       </Link>
-      <Link href={'/jugar' as Route} className={linkClass(pathname.startsWith('/jugar'))}>
+      <Link href={'/jugar' as Route} className={linkClass(pathname.startsWith('/jugar'))} aria-current={pathname.startsWith('/jugar') ? 'page' : undefined}>
         Jugar
       </Link>
       {isSuperAdmin && (
         <Link
           href={'/admin/disputas' as Route}
           className={linkClass(pathname.startsWith('/admin/disputas'))}
+          aria-current={pathname.startsWith('/admin/disputas') ? 'page' : undefined}
         >
           Disputas
         </Link>
