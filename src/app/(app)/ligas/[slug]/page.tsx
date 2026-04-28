@@ -10,6 +10,8 @@ import { prisma } from '@/shared/db/client';
 import { ActivateLeagueButton } from './activate-button';
 import { AddMemberForm } from './add-member-form';
 import { PartidosTab } from './_components/partidos-tab';
+import { MatchCommentaryService } from '@/modules/match-commentary';
+import { CommentaryFeedCard } from './_components/commentary-feed-card';
 
 export default async function LigaDetailPage({
   params,
@@ -79,6 +81,10 @@ export default async function LigaDetailPage({
     confirmedSets: m.confirmedResult?.sets ?? [],
   }));
 
+  const cronicas = tab === 'cronicas'
+    ? await MatchCommentaryService.listForLeague(league.id, 20)
+    : [];
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -138,14 +144,14 @@ export default async function LigaDetailPage({
         )}
       </section>
 
-      {/* Tabs: Clasificación / Partidos */}
+      {/* Tabs: Clasificación / Partidos / Crónicas */}
       {teams.length > 0 && (
         <section>
           <div className="flex border-b border-gray-200 mb-4">
             <Link
               href={`/ligas/${slug}` as Route}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                tab !== 'partidos'
+                tab !== 'partidos' && tab !== 'cronicas'
                   ? 'border-brand-yellow text-brand-navy font-bold'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
@@ -162,15 +168,39 @@ export default async function LigaDetailPage({
             >
               Partidos
             </Link>
+            <Link
+              href={`/ligas/${slug}?tab=cronicas` as Route}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === 'cronicas'
+                  ? 'border-brand-yellow text-brand-navy font-bold'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              Crónicas
+            </Link>
           </div>
 
-          {tab === 'partidos' ? (
+          {tab === 'partidos' && (
             <PartidosTab
               slug={slug}
               matches={matchesForJornada}
               activeJornada={jornada ? parseInt(jornada, 10) : null}
             />
-          ) : (
+          )}
+
+          {tab === 'cronicas' && (
+            cronicas.length === 0 ? (
+              <p className="text-sm text-slate-400">Aún no hay crónicas en esta liga.</p>
+            ) : (
+              <div className="space-y-3">
+                {cronicas.map((c) => (
+                  <CommentaryFeedCard key={c.id} item={c} showLeague={false} />
+                ))}
+              </div>
+            )
+          )}
+
+          {tab !== 'partidos' && tab !== 'cronicas' && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
