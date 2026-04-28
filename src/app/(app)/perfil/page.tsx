@@ -10,57 +10,60 @@ export default async function PerfilPage() {
   const user = await getValidatedSession(token);
 
   return (
-    <div style={{ maxWidth: '560px' }}>
-      <h1>Mi perfil</h1>
+    <div className="max-w-xl space-y-6">
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Mi cuenta</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">Perfil</h1>
+      </div>
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Datos personales</h2>
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos personales</h2>
         <form
           action={updateProfileAction as unknown as (formData: FormData) => Promise<void>}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          className="space-y-4"
         >
           <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Nombre</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
             <input name="name" type="text" required defaultValue={user.name}
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }} />
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
             <input type="email" defaultValue={user.email} disabled
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '4px', background: '#f9fafb', color: '#6b7280', boxSizing: 'border-box' }} />
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-400 cursor-not-allowed" />
           </div>
           <button type="submit"
-            style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', alignSelf: 'flex-start' }}>
+            className="px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity">
             Guardar
           </button>
         </form>
       </section>
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Cambiar contraseña</h2>
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cambiar contraseña</h2>
         <form
           action={changePasswordAction as unknown as (formData: FormData) => Promise<void>}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          className="space-y-4"
         >
           <input name="currentPassword" type="password" required placeholder="Contraseña actual"
-            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }} />
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
           <input name="newPassword" type="password" required placeholder="Nueva contraseña (mín. 10 chars)"
-            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }} />
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
           <button type="submit"
-            style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', alignSelf: 'flex-start' }}>
+            className="px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity">
             Cambiar contraseña
           </button>
         </form>
       </section>
 
-      <section>
-        <h2 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Sesiones</h2>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sesiones</h2>
+        <p className="text-sm text-slate-400">
           Cierra sesión en todos tus dispositivos.
         </p>
         <form action={revokeAllSessionsAction}>
           <button type="submit"
-            style={{ padding: '0.5rem 1rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            className="px-4 py-2.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl hover:bg-red-100 transition-colors">
             Cerrar todas las sesiones
           </button>
         </form>

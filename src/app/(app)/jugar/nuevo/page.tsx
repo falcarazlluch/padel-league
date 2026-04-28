@@ -18,7 +18,10 @@ export default async function NuevoPartidoPage() {
 
   return (
     <div className="max-w-lg">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Crear partido</h1>
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Crear partido</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy mb-6">Nuevo partido</h1>
+      </div>
       <NuevoPartidoForm userTeams={userTeams} />
     </div>
   );

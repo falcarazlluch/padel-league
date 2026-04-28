@@ -5,24 +5,30 @@ export default function InviteUserPage() {
   const formAction = inviteUserAction as unknown as (formData: FormData) => Promise<void>;
 
   return (
-    <div style={{ maxWidth: '480px' }}>
-      <h1>Invitar usuario</h1>
-      <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div>
-          <label htmlFor="email" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Email *</label>
-          <input id="email" name="email" type="email" required
-            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }} />
-        </div>
-        <div>
-          <label htmlFor="name" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Nombre (opcional)</label>
-          <input id="name" name="name" type="text"
-            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }} />
-        </div>
-        <button type="submit"
-          style={{ padding: '0.625rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>
-          Enviar invitación
-        </button>
-      </form>
+    <div className="max-w-lg space-y-6">
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Administración</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">Invitar jugador</h1>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+        <form action={formAction} className="space-y-4">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
+            <input id="email" name="email" type="email" required
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
+          </div>
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">Nombre (opcional)</label>
+            <input id="name" name="name" type="text"
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
+          </div>
+          <button type="submit"
+            className="w-full px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity">
+            Enviar invitación
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

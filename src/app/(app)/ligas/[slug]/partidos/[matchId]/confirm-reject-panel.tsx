@@ -41,13 +41,13 @@ export function ConfirmRejectPanel({ matchId }: { matchId: string }) {
           <button
             onClick={handleConfirm}
             disabled={isPendingConfirm}
-            className="flex-1 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
+            className="flex-1 py-2.5 bg-gradient-to-br from-emerald-500 to-green-600 text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {isPendingConfirm ? 'Confirmando...' : 'Confirmar resultado'}
           </button>
           <button
             onClick={() => setShowDisputeForm(true)}
-            className="flex-1 py-2.5 bg-red-50 text-red-700 border border-red-200 text-sm font-semibold rounded-lg hover:bg-red-100 transition-colors"
+            className="flex-1 py-2.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl hover:bg-red-100 transition-colors"
           >
             Disputar
           </button>
@@ -68,7 +68,7 @@ export function ConfirmRejectPanel({ matchId }: { matchId: string }) {
               maxLength={1000}
               rows={3}
               placeholder="Describe el problema con el resultado enviado..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all resize-none"
             />
           </div>
           {disputeState.error && (
@@ -78,14 +78,14 @@ export function ConfirmRejectPanel({ matchId }: { matchId: string }) {
             <button
               type="button"
               onClick={() => setShowDisputeForm(false)}
-              className="flex-1 py-2 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2 bg-white border border-gray-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={disputePending}
-              className="flex-1 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-60 transition-colors"
+              className="flex-1 py-2 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl hover:bg-red-100 disabled:opacity-50 transition-colors"
             >
               {disputePending ? 'Enviando...' : 'Enviar disputa'}
             </button>

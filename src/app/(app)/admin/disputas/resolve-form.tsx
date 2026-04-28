@@ -24,11 +24,11 @@ export function ResolveDisputeForm({ disputeId }: { disputeId: string }) {
 
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Resolución</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Resolución</label>
           <select
             name="resolution"
             required
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           >
             <option value="">Seleccionar...</option>
             <option value="AWARD_PROPONENT">Dar la razón al denunciante</option>
@@ -40,23 +40,23 @@ export function ResolveDisputeForm({ disputeId }: { disputeId: string }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Nueva fecha límite (solo si amplías plazo)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Nueva fecha límite (solo si amplías plazo)</label>
           <input
             type="datetime-local"
             name="newDeadlineAt"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Nota del administrador (opcional)</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Nota del administrador (opcional)</label>
         <textarea
           name="adminNote"
           rows={2}
           maxLength={2000}
           placeholder="Explicación de la resolución para los jugadores..."
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all resize-none"
         />
       </div>
 
@@ -67,7 +67,7 @@ export function ResolveDisputeForm({ disputeId }: { disputeId: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-60 transition-colors"
+        className="px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {pending ? 'Resolviendo...' : 'Resolver disputa'}
       </button>

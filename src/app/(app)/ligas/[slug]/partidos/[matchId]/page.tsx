@@ -23,15 +23,15 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_CLASS: Record<string, string> = {
-  SCHEDULED: 'bg-gray-100 text-gray-600',
-  DATE_PROPOSED: 'bg-yellow-100 text-yellow-700',
-  DATE_CONFIRMED: 'bg-blue-100 text-blue-700',
-  PENDING_VALIDATION: 'bg-orange-100 text-orange-700',
-  CONFIRMED: 'bg-green-100 text-green-700',
-  ADMIN_RESOLVED: 'bg-purple-100 text-purple-700',
-  DISPUTED: 'bg-red-100 text-red-700',
-  EXPIRED_UNPLAYED: 'bg-gray-100 text-gray-400',
-  CANCELLED: 'bg-gray-100 text-gray-400',
+  SCHEDULED: 'bg-gray-100 text-gray-500',
+  DATE_PROPOSED: 'bg-gradient-to-r from-yellow-50 to-amber-100 text-amber-700',
+  DATE_CONFIRMED: 'bg-gradient-to-r from-blue-50 to-sky-100 text-blue-700',
+  PENDING_VALIDATION: 'bg-gradient-to-r from-yellow-50 to-amber-100 text-amber-700',
+  CONFIRMED: 'bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700',
+  ADMIN_RESOLVED: 'bg-gradient-to-r from-blue-50 to-sky-100 text-blue-700',
+  DISPUTED: 'bg-gradient-to-r from-red-50 to-rose-100 text-red-600',
+  EXPIRED_UNPLAYED: 'bg-gray-100 text-gray-500',
+  CANCELLED: 'bg-gray-100 text-gray-500',
 };
 
 export default async function MatchDetailPage({
@@ -93,20 +93,25 @@ export default async function MatchDetailPage({
       </Link>
 
       {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Partido</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">{match.teamA.name} vs {match.teamB.name}</h1>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 font-semibold text-gray-900 text-lg">
+          <div className="flex items-center gap-3 font-bold text-brand-navy text-lg">
             <span>{match.teamA.name}</span>
-            <span className="text-gray-400 font-normal text-sm">vs</span>
+            <span className="text-slate-400 font-normal text-sm">vs</span>
             <span>{match.teamB.name}</span>
           </div>
           <span
-            className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_CLASS[match.status] ?? 'bg-gray-100 text-gray-600'}`}
+            className={`text-xs px-2.5 py-1 rounded-full font-bold ${STATUS_CLASS[match.status] ?? 'bg-gray-100 text-gray-500'}`}
           >
             {STATUS_LABEL[match.status] ?? match.status}
           </span>
         </div>
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-slate-400 mt-2">
           Límite: {match.deadlineAt.toLocaleDateString('es-ES')}
           {match.scheduledAt && (
             <> · Jugado: {match.scheduledAt.toLocaleDateString('es-ES')}</>
@@ -116,8 +121,8 @@ export default async function MatchDetailPage({
 
       {/* Confirmed result */}
       {match.confirmedResult && (
-        <div className="bg-white rounded-xl border border-green-200 p-5">
-          <h3 className="font-semibold text-gray-900 mb-3">Resultado final</h3>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+          <h3 className="font-bold text-brand-navy mb-3">Resultado final</h3>
           <div className="space-y-2">
             {match.confirmedResult.sets.map((s) => (
               <div
@@ -153,8 +158,8 @@ export default async function MatchDetailPage({
 
       {/* Pending result awaiting validation */}
       {match.pendingResult && match.status === 'PENDING_VALIDATION' && (
-        <div className="bg-white rounded-xl border border-orange-200 p-5 space-y-4">
-          <h3 className="font-semibold text-gray-900">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+          <h3 className="font-bold text-brand-navy">
             Resultado enviado — pendiente de validación
           </h3>
           <div className="space-y-2">
@@ -209,8 +214,8 @@ export default async function MatchDetailPage({
 
       {/* Disputed state */}
       {match.status === 'DISPUTED' && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-          <h3 className="font-semibold text-red-800 mb-1">Partido en disputa</h3>
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+          <h3 className="font-bold text-red-800 mb-1">Partido en disputa</h3>
           <p className="text-sm text-red-600">
             El resultado ha sido disputado. Un administrador resolverá la disputa.
           </p>

@@ -9,7 +9,10 @@ export default async function NuevoEquipoPage({ params }: { params: Promise<{ sl
 
   return (
     <div className="max-w-sm">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Nuevo equipo</h1>
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Liga</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy mb-6">Nuevo equipo</h1>
+      </div>
       <NuevoEquipoForm leagueId={league.id} slug={slug} />
     </div>
   );

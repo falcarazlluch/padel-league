@@ -27,12 +27,12 @@ export function AddMemberForm({ teamId }: { teamId: string }) {
           type="email"
           required
           placeholder="Email del jugador"
-          className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 min-w-0 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
         />
         <button
           type="submit"
           disabled={pending}
-          className="px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 disabled:opacity-60 transition-colors shrink-0"
+          className="px-3 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity shrink-0"
         >
           {pending ? '...' : 'Añadir'}
         </button>
