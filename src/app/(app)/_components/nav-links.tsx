@@ -1,0 +1,38 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import type { Route } from 'next';
+
+function linkClass(active: boolean) {
+  return active
+    ? 'text-sm font-semibold bg-brand-yellow/20 text-brand-yellow border border-brand-yellow/30 px-3 py-1 rounded-full transition-colors'
+    : 'text-sm font-medium text-white/70 hover:text-white transition-colors';
+}
+
+export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const pathname = usePathname();
+
+  return (
+    <div className="flex items-center gap-6">
+      <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))} aria-current={pathname.startsWith('/ligas') ? 'page' : undefined}>
+        Ligas
+      </Link>
+      <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))} aria-current={pathname.startsWith('/partidos') ? 'page' : undefined}>
+        Mis partidos
+      </Link>
+      <Link href={'/jugar' as Route} className={linkClass(pathname.startsWith('/jugar'))} aria-current={pathname.startsWith('/jugar') ? 'page' : undefined}>
+        Jugar
+      </Link>
+      {isSuperAdmin && (
+        <Link
+          href={'/admin/disputas' as Route}
+          className={linkClass(pathname.startsWith('/admin/disputas'))}
+          aria-current={pathname.startsWith('/admin/disputas') ? 'page' : undefined}
+        >
+          Disputas
+        </Link>
+      )}
+    </div>
+  );
+}

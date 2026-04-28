@@ -27,7 +27,7 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
       weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
     });
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+      <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
         <p className="text-sm text-green-700 font-medium">✅ Partido programado: {confirmedDateStr}</p>
       </div>
     );
@@ -42,15 +42,15 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
   // Success: collapse form
   if (proposeState && 'success' in proposeState) {
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
         <p className="text-sm text-blue-700 font-medium">✅ Propuesta enviada. Esperando respuesta del rival.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-      <h3 className="font-semibold text-gray-900">📅 Programar partido</h3>
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+      <h3 className="font-bold text-brand-navy">📅 Programar partido</h3>
 
       {/* Rival proposed — show accept / counter */}
       {proposalState === 'rival' && !showForm && (
@@ -68,14 +68,14 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
               <button
                 type="submit"
                 disabled={acceptPending}
-                className="bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-to-br from-emerald-500 to-green-600 text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
                 {acceptPending ? 'Confirmando...' : '✓ Confirmar fecha'}
               </button>
             </form>
             <button
               onClick={() => setShowForm(true)}
-              className="border border-gray-300 text-gray-700 rounded-lg px-4 py-2 text-sm hover:bg-gray-50"
+              className="px-4 py-2 bg-white border border-gray-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
             >
               Proponer otra fecha
             </button>
@@ -92,7 +92,7 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
           <div className="flex gap-3">
             <button
               onClick={() => setShowForm(true)}
-              className="border border-gray-300 text-gray-700 rounded-lg px-4 py-2 text-sm hover:bg-gray-50"
+              className="px-4 py-2 bg-white border border-gray-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
             >
               Cambiar propuesta
             </button>
@@ -106,14 +106,14 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
           <input type="hidden" name="matchId" value={matchId} />
           <input type="hidden" name="slug" value={slug} />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Fecha y hora propuesta
             </label>
             <input
               type="datetime-local"
               name="proposedAt"
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
             />
           </div>
           {proposeState && 'error' in proposeState && (
@@ -123,7 +123,7 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
             <button
               type="submit"
               disabled={proposePending}
-              className="bg-brand-navy text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-navy-light disabled:opacity-50"
+              className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {proposePending ? 'Enviando...' : 'Proponer fecha'}
             </button>
@@ -131,7 +131,7 @@ export function ScheduleSection({ matchId, slug, matchStatus, proposalState, pro
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="border border-gray-300 text-gray-700 rounded-lg px-4 py-2 text-sm hover:bg-gray-50"
+                className="px-4 py-2 bg-white border border-gray-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
               >
                 Cancelar
               </button>

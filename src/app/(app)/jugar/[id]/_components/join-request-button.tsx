@@ -14,7 +14,7 @@ export function JoinRequestButton({ matchId }: { matchId: string }) {
       <input type="hidden" name="matchId" value={matchId} />
       {state && 'error' in state && <p className="text-sm text-red-600 mb-2">{state.error}</p>}
       <button type="submit" disabled={pending}
-        className="px-4 py-2 bg-brand-navy text-white text-sm font-medium rounded-lg hover:bg-brand-navy/90 disabled:opacity-50 transition-colors">
+        className="px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity">
         {pending ? 'Enviando...' : 'Unirme a este partido'}
       </button>
     </form>

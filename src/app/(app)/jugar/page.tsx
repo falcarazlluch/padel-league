@@ -29,10 +29,13 @@ export default async function JugarPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Jugar</h1>
+        <div>
+          <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Partidos</p>
+          <h1 className="text-2xl font-extrabold text-brand-navy">Jugar</h1>
+        </div>
         <Link
           href={'/jugar/nuevo' as Route}
-          className="text-sm px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          className="text-sm px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
         >
           Crear partido
         </Link>
@@ -44,8 +47,8 @@ export default async function JugarPage({
           href={'/jugar' as Route}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             isTablon
-              ? 'border-brand-navy text-brand-navy'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              ? 'border-brand-yellow text-brand-navy font-bold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
           Tablón ({openMatches.filter((m) => calculateAvailableSlots(m.maxPlayers, m.confirmedCount) > 0).length})
@@ -54,8 +57,8 @@ export default async function JugarPage({
           href={'/jugar?tab=mis' as Route}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             !isTablon
-              ? 'border-brand-navy text-brand-navy'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              ? 'border-brand-yellow text-brand-navy font-bold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
           Mis partidos ({myMatches.length})
@@ -65,7 +68,7 @@ export default async function JugarPage({
       {isTablon ? (
         <section>
           {openMatches.length === 0 ? (
-            <p className="text-gray-500 text-sm">No hay partidos abiertos en este momento.</p>
+            <p className="text-slate-400 text-sm">No hay partidos abiertos en este momento.</p>
           ) : (
             <ul className="space-y-3">
               {openMatches.map((m) => {
@@ -74,13 +77,13 @@ export default async function JugarPage({
                   <li key={m.id}>
                     <Link
                       href={`/jugar/${m.id}` as Route}
-                      className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
+                      className="block p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{m.name}</p>
+                          <p className="font-bold text-brand-navy truncate">{m.name}</p>
                           {m.scheduledAt && (
-                            <p className="text-sm text-gray-500 mt-0.5">
+                            <p className="text-sm text-slate-400 mt-0.5">
                               {new Date(m.scheduledAt).toLocaleDateString('es-ES', {
                                 weekday: 'short',
                                 day: 'numeric',
@@ -91,14 +94,14 @@ export default async function JugarPage({
                             </p>
                           )}
                           {m.location && (
-                            <p className="text-sm text-gray-500 truncate">{m.location}</p>
+                            <p className="text-sm text-slate-400 truncate">{m.location}</p>
                           )}
                         </div>
                         <span
-                          className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+                          className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
                             available === 0
                               ? 'bg-gray-100 text-gray-500'
-                              : 'bg-green-50 text-green-700'
+                              : 'bg-emerald-50 text-emerald-700'
                           }`}
                         >
                           {available === 0 ? 'Completo' : `${available} libre${available !== 1 ? 's' : ''}`}
@@ -114,43 +117,23 @@ export default async function JugarPage({
       ) : (
         <section>
           {myMatches.length === 0 ? (
-            <p className="text-gray-500 text-sm">No tienes partidos activos.</p>
+            <p className="text-slate-400 text-sm">No tienes partidos activos.</p>
           ) : (
             <ul className="space-y-3">
               {myMatches.map((m) => (
                 <li key={m.id}>
                   <Link
                     href={`/jugar/${m.id}` as Route}
-                    className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
+                    className="block p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{m.name}</p>
-                        <p className="text-xs text-gray-400 uppercase tracking-wide mt-0.5">
+                        <p className="font-bold text-brand-navy truncate">{m.name}</p>
+                        <p className="text-xs text-slate-400 uppercase tracking-wide mt-0.5">
                           {m.type === 'OPEN' ? 'Abierto' : 'Reto de equipos'}
                         </p>
                       </div>
-                      <span
-                        className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-                          m.status === 'CONFIRMED'
-                            ? 'bg-green-50 text-green-700'
-                            : m.status === 'PENDING_APPROVAL'
-                            ? 'bg-yellow-50 text-yellow-700'
-                            : m.status === 'CANCELLED' || m.status === 'REJECTED'
-                            ? 'bg-red-50 text-red-600'
-                            : 'bg-blue-50 text-blue-700'
-                        }`}
-                      >
-                        {m.status === 'CONFIRMED'
-                          ? 'Confirmado'
-                          : m.status === 'PENDING_APPROVAL'
-                          ? 'Pendiente'
-                          : m.status === 'CANCELLED'
-                          ? 'Cancelado'
-                          : m.status === 'REJECTED'
-                          ? 'Rechazado'
-                          : 'Abierto'}
-                      </span>
+                      <StatusBadge status={m.status} />
                     </div>
                   </Link>
                 </li>
@@ -161,4 +144,16 @@ export default async function JugarPage({
       )}
     </div>
   );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; className: string }> = {
+    OPEN: { label: 'Abierto', className: 'bg-gradient-to-r from-blue-50 to-sky-100 text-blue-700' },
+    PENDING_APPROVAL: { label: 'Pendiente', className: 'bg-gradient-to-r from-yellow-50 to-amber-100 text-amber-700' },
+    CONFIRMED: { label: 'Confirmado', className: 'bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700' },
+    REJECTED: { label: 'Rechazado', className: 'bg-gradient-to-r from-red-50 to-rose-100 text-red-600' },
+    CANCELLED: { label: 'Cancelado', className: 'bg-gray-100 text-gray-500' },
+  };
+  const { label, className } = map[status] ?? { label: status, className: 'bg-gray-100 text-gray-500' };
+  return <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${className}`}>{label}</span>;
 }

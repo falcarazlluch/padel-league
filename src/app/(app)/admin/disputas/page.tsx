@@ -37,35 +37,39 @@ export default async function DisputasAdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Disputas abiertas</h1>
-        <p className="text-gray-500 mt-1">{disputes.length} disputa{disputes.length !== 1 ? 's' : ''} pendiente{disputes.length !== 1 ? 's' : ''}</p>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Administración</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">Disputas abiertas</h1>
+        <p className="text-sm text-slate-400 mt-0.5">{disputes.length} disputa{disputes.length !== 1 ? 's' : ''} pendiente{disputes.length !== 1 ? 's' : ''}</p>
       </div>
 
       {disputes.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-8 text-center text-gray-400">
           No hay disputas abiertas.
         </div>
       ) : (
         <div className="space-y-4">
           {disputes.map((dispute) => (
-            <div key={dispute.id} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div key={dispute.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="font-semibold text-gray-900">
+                  <p className="font-semibold text-brand-navy">
                     {dispute.match.teamA.name} vs {dispute.match.teamB.name}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-slate-400">
                     Liga: {dispute.match.league.name} · Abierta por {dispute.opener.name} ({dispute.opener.email})
                   </p>
-                  <p className="text-sm text-gray-400 mt-0.5">
+                  <p className="text-sm text-slate-400 mt-0.5">
                     {new Date(dispute.createdAt).toLocaleDateString('es-ES')}
                   </p>
                 </div>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-red-50 to-rose-100 text-red-600">
+                  Abierta
+                </span>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 mb-1">Motivo:</p>
-                <p className="text-sm text-gray-600">{dispute.reason}</p>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Motivo</p>
+                <p className="text-sm text-slate-600">{dispute.reason}</p>
               </div>
 
               <ResolveDisputeForm disputeId={dispute.id} />

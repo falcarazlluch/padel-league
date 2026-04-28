@@ -3,10 +3,10 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { ReactNode } from 'react';
-import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { NotificationsBadge } from './notifications-badge';
+import { NavLinks } from './_components/nav-links';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -21,61 +21,34 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-brand-navy px-6 py-1 flex items-center justify-between sticky top-0 z-10 shadow-md overflow-visible">
+    <div className="min-h-screen" style={{ background: 'linear-gradient(160deg,#e8eef8 0%,#f0f4fb 40%,#f5f7fa 100%)' }}>
+      <nav aria-label="Navegación principal" className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-6 py-1 flex items-center justify-between sticky top-0 z-10 shadow-md overflow-visible">
         <div className="flex items-center gap-8">
-          <Link href="/dashboard" className="flex items-center shrink-0 -mb-4">
+          <Link href="/dashboard" className="flex items-center shrink-0 -mb-6">
             <Image
               src="/logo.png"
               alt="Padel League"
-              width={200}
-              height={80}
-              className="h-16 w-auto object-contain drop-shadow-lg"
+              width={220}
+              height={88}
+              className="h-[5.5rem] w-auto object-contain drop-shadow-lg"
               priority
               unoptimized
             />
           </Link>
-          <div className="flex items-center gap-6">
-            <Link
-              href={'/ligas' as Route}
-              className="text-sm font-medium text-white/80 hover:text-white transition-colors"
-            >
-              Ligas
-            </Link>
-            <Link
-              href={'/partidos' as Route}
-              className="text-sm font-medium text-white/80 hover:text-white transition-colors"
-            >
-              Mis partidos
-            </Link>
-            <Link
-              href={'/jugar' as Route}
-              className="text-sm font-medium text-white/80 hover:text-white transition-colors"
-            >
-              Jugar
-            </Link>
-            {currentUser.role === 'SUPER_ADMIN' && (
-              <Link
-                href={'/admin/disputas' as Route}
-                className="text-sm font-medium text-brand-yellow/90 hover:text-brand-yellow transition-colors"
-              >
-                Disputas
-              </Link>
-            )}
-          </div>
+          <NavLinks isSuperAdmin={currentUser.role === 'SUPER_ADMIN'} />
         </div>
         <div className="flex items-center gap-4">
           <NotificationsBadge />
           <Link
             href="/perfil"
-            className="text-sm font-medium text-white/80 hover:text-white transition-colors"
+            className="text-sm font-medium text-white/70 hover:text-white transition-colors"
           >
             Mi perfil
           </Link>
           <form action="/api/auth/logout" method="post">
             <button
               type="submit"
-              className="text-sm font-medium text-white/60 hover:text-white/90 transition-colors"
+              className="text-sm font-medium text-white/50 hover:text-white/90 transition-colors"
             >
               Salir
             </button>

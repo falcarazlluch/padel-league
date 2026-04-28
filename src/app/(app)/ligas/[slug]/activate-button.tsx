@@ -23,7 +23,7 @@ export function ActivateLeagueButton({ leagueId }: { leagueId: string }) {
     <button
       onClick={handleClick}
       disabled={isPending}
-      className="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors whitespace-nowrap"
+      className="px-4 py-2 bg-gradient-to-br from-emerald-500 to-green-600 text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity whitespace-nowrap"
     >
       {isPending ? 'Activando...' : 'Activar liga'}
     </button>

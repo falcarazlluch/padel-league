@@ -44,7 +44,7 @@ export function MatchCardJornada({
     return (
       <Link
         href={`/ligas/${slug}/partidos/${matchId}` as Route}
-        className="block rounded-lg border border-gray-200 overflow-hidden hover:opacity-90 transition-opacity"
+        className="block rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden hover:opacity-90 transition-opacity"
       >
         {/* Winner row */}
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-green-50 border-b border-green-200">
@@ -64,7 +64,7 @@ export function MatchCardJornada({
     return (
       <Link
         href={`/ligas/${slug}/partidos/${matchId}` as Route}
-        className="block rounded-lg border border-orange-200 overflow-hidden hover:opacity-90 transition-opacity"
+        className="block rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden hover:opacity-90 transition-opacity"
       >
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-orange-50 border-b border-orange-200">
           <span className="truncate text-sm text-orange-600 font-bold">{teamAName}</span>
@@ -80,7 +80,7 @@ export function MatchCardJornada({
   // SCHEDULED: single card + "Proponer fecha" button
   if (status === 'SCHEDULED') {
     return (
-      <div className={`rounded-lg border px-4 py-3 ${singleCardBg(status)}`}>
+      <div className={`rounded-2xl border shadow-sm px-4 py-3 ${singleCardBg(status)}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <span className="truncate text-sm text-gray-900 font-medium">{teamAName}</span>
@@ -105,7 +105,7 @@ export function MatchCardJornada({
   return (
     <Link
       href={`/ligas/${slug}/partidos/${matchId}` as Route}
-      className={`block rounded-lg border px-4 py-3 hover:opacity-90 transition-opacity ${singleCardBg(status)}`}
+      className={`block rounded-2xl border shadow-sm px-4 py-3 hover:opacity-90 transition-opacity ${singleCardBg(status)}`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">

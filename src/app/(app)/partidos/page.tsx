@@ -77,46 +77,45 @@ export default async function MisPartidosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Mis partidos</h1>
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Calendario</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">Mis partidos</h1>
+      </div>
 
       {matches.length === 0 && (
-        <p className="text-gray-500 text-sm">No tienes partidos asignados todavía.</p>
+        <p className="text-slate-400 text-sm">No tienes partidos asignados todavía.</p>
       )}
 
-      {/* Confirmados */}
       {confirmedMatches.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Confirmados</h2>
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Confirmados</h2>
           {confirmedMatches.map((m) => (
             <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
           ))}
         </section>
       )}
 
-      {/* Pendiente de confirmar */}
       {proposedMatches.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Pendiente de confirmar</h2>
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pendiente de confirmar</h2>
           {proposedMatches.map((m) => (
             <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
           ))}
         </section>
       )}
 
-      {/* Sin programar */}
       {scheduledMatches.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Sin programar</h2>
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sin programar</h2>
           {scheduledMatches.map((m) => (
             <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
           ))}
         </section>
       )}
 
-      {/* No jugados — collapsed by default */}
       {expiredMatches.length > 0 && (
         <details className="group">
-          <summary className="cursor-pointer text-sm font-semibold text-gray-400 uppercase tracking-wide select-none">
+          <summary className="cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-widest select-none">
             No jugados ({expiredMatches.length})
           </summary>
           <div className="space-y-3 mt-3">
