@@ -12,7 +12,7 @@ export function IndMatchChallengeEmail({ organizerTeamName, matchName, matchUrl,
   return (
     <div style={{ fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
       <h1>Reto de pádel recibido</h1>
-      <p>El equipo <strong>{organizerTeamName}</strong> os reta a un partido amistoso: <strong>"{matchName}"</strong>.</p>
+      <p>El equipo <strong>{organizerTeamName}</strong> os reta a un partido amistoso: <strong>&ldquo;{matchName}&rdquo;</strong>.</p>
       {scheduledAt && <p>Fecha propuesta: {scheduledAt}</p>}
       {location && <p>Lugar: {location}</p>}
       <p>Cualquier miembro de tu equipo puede aceptar o rechazar el reto.</p>

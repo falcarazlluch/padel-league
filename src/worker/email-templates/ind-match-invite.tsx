@@ -12,7 +12,7 @@ export function IndMatchInviteEmail({ organizerName, matchName, matchUrl, schedu
   return (
     <div style={{ fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
       <h1>Te invitan a un partido de pádel</h1>
-      <p><strong>{organizerName}</strong> te invita a unirte al partido <strong>"{matchName}"</strong>.</p>
+      <p><strong>{organizerName}</strong> te invita a unirte al partido <strong>&ldquo;{matchName}&rdquo;</strong>.</p>
       {scheduledAt && <p>Fecha: {scheduledAt}</p>}
       {location && <p>Lugar: {location}</p>}
       <a
