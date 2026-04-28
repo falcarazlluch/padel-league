@@ -5,7 +5,7 @@ import {
   AuthorizationError,
   DomainError,
 } from '@/shared/errors';
-import { OpenAIProvider } from '../infrastructure/openai-provider';
+import { OpenAIProvider } from './openai-provider';
 import { buildContext } from './context-builder';
 import { buildPrompt, PROMPT_VERSION } from './prompt-builder';
 import type { AIProvider } from '../domain/ai-provider';
