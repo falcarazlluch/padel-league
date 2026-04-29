@@ -18,3 +18,15 @@ export function categoryBadgeClass(category: TeamCategory): string {
       return 'bg-rose-50 text-rose-700 border-rose-200';
   }
 }
+
+const CATEGORY_ORDER: TeamCategory[] = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
+
+export function nextCategoryUp(category: TeamCategory): TeamCategory | null {
+  const idx = CATEGORY_ORDER.indexOf(category);
+  return idx >= 0 && idx < CATEGORY_ORDER.length - 1 ? CATEGORY_ORDER[idx + 1]! : null;
+}
+
+export function nextCategoryDown(category: TeamCategory): TeamCategory | null {
+  const idx = CATEGORY_ORDER.indexOf(category);
+  return idx > 0 ? CATEGORY_ORDER[idx - 1]! : null;
+}

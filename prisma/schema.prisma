@@ -89,6 +89,17 @@ enum DisputeResolution {
   DISMISS
 }
 
+enum CategoryProposalStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+}
+
+enum CategoryProposalReason {
+  PROMOTION
+  DEMOTION
+}
+
 enum IndependentMatchStatus {
   OPEN
   PENDING_APPROVAL
@@ -135,6 +146,7 @@ enum NotificationType {
   EXTENSION_PROPOSED
   EXTENSION_ACCEPTED
   EXTENSION_REJECTED
+  CATEGORY_CHANGE_PROPOSED
 }
 
 enum SignedTokenPurpose {
@@ -204,6 +216,7 @@ model User {
   editedCommentaries    MatchCommentary[]    @relation("CommentaryEditor")
   extensionsProposed    DeadlineExtensionProposal[] @relation("ExtensionProposer")
   extensionsResponded   DeadlineExtensionProposal[] @relation("ExtensionResponder")
+  resolvedCategoryProposals TeamCategoryChangeProposal[] @relation("CategoryProposalResolver")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -289,6 +302,7 @@ model League {
   teams                Team[]
   matches              Match[]
   independentMatches   IndependentMatch[] @relation("IndependentMatchLeague")
+  categoryProposals    TeamCategoryChangeProposal[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -324,9 +338,31 @@ model Team {
   wonMatches                   MatchResult[] @relation("MatchWinner")
   challengedIndependentMatches IndependentMatch[] @relation("ChallengedTeam")
   organizerIndependentMatches  IndependentMatch[] @relation("OrganizerTeam")
+  categoryProposals            TeamCategoryChangeProposal[]
 
   @@unique([leagueId, name])
   @@map("teams")
+}
+
+model TeamCategoryChangeProposal {
+  id                 String                 @id @default(cuid())
+  teamId             String                 @map("team_id")
+  leagueId           String                 @map("league_id")
+  fromCategory       TeamCategory           @map("from_category")
+  toCategory         TeamCategory           @map("to_category")
+  reason             CategoryProposalReason
+  status             CategoryProposalStatus @default(PROPOSED)
+  resolvedByUserId   String?                @map("resolved_by_user_id")
+  resolvedAt         DateTime?              @map("resolved_at")
+  createdAt          DateTime               @default(now()) @map("created_at")
+
+  team               Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  league             League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  resolvedByUser     User?   @relation("CategoryProposalResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([leagueId])
+  @@map("team_category_change_proposals")
 }
 
 model TeamMember {

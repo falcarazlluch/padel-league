@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/client';
 import { logger } from '@/shared/logger';
 import type { JobMap } from '@/shared/queue/jobs';
+import { CategoryProposalService } from '@/modules/leagues';
 
 const NON_FINAL_STATUSES = [
   'SCHEDULED',
@@ -45,6 +46,14 @@ export async function leagueFinalizeHandler(data: JobMap['league-finalize']): Pr
       },
     });
   });
+
+  // Outside the transaction so a failure here doesn't roll back the finalization.
+  try {
+    const { created } = await CategoryProposalService.createProposalsForLeague(leagueId);
+    if (created > 0) log.info({ leagueId, created }, 'league-finalize.category-proposals');
+  } catch (err) {
+    log.error({ leagueId, err }, 'league-finalize.category-proposals-failed');
+  }
 
   log.info({ leagueId }, 'league-finalize.done');
 }

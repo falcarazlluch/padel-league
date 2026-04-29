@@ -5,9 +5,10 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
-import { calculateStandings } from '@/modules/leagues';
+import { calculateStandings, CategoryProposalService } from '@/modules/leagues';
 import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from '../ligas/[slug]/_components/commentary-feed-card';
+import { CategoryProposalBanner } from './category-proposal-banner';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -15,7 +16,7 @@ export default async function DashboardPage() {
   if (!token) redirect('/login');
   const user = await getValidatedSession(token);
 
-  const [leagueCount, matchCount, userLeagues, recentCommentaries] = await Promise.all([
+  const [leagueCount, matchCount, userLeagues, recentCommentaries, pendingCategoryProposals] = await Promise.all([
     prisma.league.count({ where: { status: 'ACTIVE' } }),
     prisma.match.count({
       where: {
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: 'desc' },
     }),
     MatchCommentaryService.listForUser(user.id, 5),
+    CategoryProposalService.listPendingForUser(user.id),
   ]);
 
   // Compute standings for each user league in parallel
@@ -74,6 +76,17 @@ export default async function DashboardPage() {
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Panel de control</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">Bienvenido, {user.name}</h1>
       </div>
+
+      <CategoryProposalBanner
+        proposals={pendingCategoryProposals.map((p) => ({
+          id: p.id,
+          teamName: p.teamName,
+          leagueName: p.leagueName,
+          fromCategory: p.fromCategory,
+          toCategory: p.toCategory,
+          reason: p.reason,
+        }))}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
