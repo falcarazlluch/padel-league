@@ -229,6 +229,8 @@ model User {
   teamInvitationsSent           TeamInvitation[]              @relation("TeamInvitationInviter")
   leagueRegistrationsRegistered LeagueRegistration[]          @relation("RegistrationRegisteredBy")
   leagueRegistrationsWithdrawn  LeagueRegistration[]          @relation("RegistrationWithdrawnBy")
+  registrationCodesCreated      RegistrationCode[]            @relation("RegistrationCodeCreator")
+  registrationCodesUsed         RegistrationCode[]            @relation("RegistrationCodeUser")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -282,6 +284,22 @@ model RateLimitBucket {
   @@unique([key])
   @@index([windowStart])
   @@map("rate_limit_buckets")
+}
+
+model RegistrationCode {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  expiresAt       DateTime? @map("expires_at")
+  usedAt          DateTime? @map("used_at")
+  usedByUserId    String?   @map("used_by_user_id")
+
+  createdBy User  @relation("RegistrationCodeCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  usedBy    User? @relation("RegistrationCodeUser", fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([usedAt, expiresAt])
+  @@map("registration_codes")
 }
 
 // ─── LIGAS ────────────────────────────────────────────────────────────────

@@ -153,7 +153,7 @@ describe('buildPrompt', () => {
     };
     const prompt = buildPrompt(ctx);
     expect(prompt).toContain('bajó');
-    expect(prompt).toContain('Medio');
+    expect(prompt).toContain('Intermedio');
   });
 
   it('does not mention category changes when the team has none', () => {
