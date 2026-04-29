@@ -21,7 +21,7 @@ export function CategoryProposalBanner({ proposals }: { proposals: Proposal[] })
   return (
     <section className="space-y-3">
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-        Propuestas de cambio de categoría
+        Propuestas de cambio de nivel
       </p>
       <div className="space-y-2">
         {proposals.map((p) => (

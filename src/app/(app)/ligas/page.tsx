@@ -141,7 +141,7 @@ export default async function LigasPage({
           </select>
         </div>
         <div>
-          <label htmlFor="category" className="block text-xs font-medium text-slate-500 mb-1">Categoría</label>
+          <label htmlFor="category" className="block text-xs font-medium text-slate-500 mb-1">Nivel</label>
           <select
             id="category"
             name="category"

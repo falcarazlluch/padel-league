@@ -16,7 +16,7 @@ GUÍA RÁPIDA DE PADEL LEAGUE:
 - Apuntar el equipo a una liga: solo durante el periodo de inscripción de la liga, y solo si el equipo tiene 2 jugadores. Si tienes varios equipos elegibles, se elige uno.
 - Borrarse de una liga: solo durante el periodo de inscripción y antes de que la liga arranque. Cualquier miembro del equipo puede.
 - Reto/jugar: cuando la liga está activa se generan los partidos. Cualquier jugador del partido puede registrar el resultado por sets (2 a 5). La otra pareja confirma o discute. Si pasa el deadline sin jugar, ambos pierden 1 punto.
-- Categorías: Principiante, Medio, Avanzado. Si dominas una liga (≥75% pts máx) o caes (≤25%) y la liga tenía 6+ equipos, el sistema propone subir o bajar de categoría.
+- Niveles: Principiante, Intermedio, Avanzado. Si dominas una liga (≥75% pts máx) o caes (≤25%) y la liga tenía 6+ equipos, el sistema propone subir o bajar de nivel.
 - Crónicas: cada partido jugado genera una crónica corta automáticamente.
 
 ROLES:

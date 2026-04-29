@@ -124,7 +124,7 @@ export const CategoryProposalService = {
           proposal.reason === 'PROMOTION'
             ? `Propuesta de ascenso a ${CATEGORY_LABEL[proposal.toCategory]}`
             : `Propuesta de descenso a ${CATEGORY_LABEL[proposal.toCategory]}`;
-        const body = `Se propone ${verb} al equipo "${team.name}" a categoría ${CATEGORY_LABEL[proposal.toCategory]} tras los resultados de la liga "${league.name}".`;
+        const body = `Se propone ${verb} al equipo "${team.name}" a nivel ${CATEGORY_LABEL[proposal.toCategory]} tras los resultados de la liga "${league.name}".`;
         for (const m of team.members) {
           memberPayloads.push({
             userId: m.userId,

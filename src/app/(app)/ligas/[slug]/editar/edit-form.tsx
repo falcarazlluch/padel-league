@@ -86,7 +86,7 @@ export function EditLeagueForm({
 
         <div>
           <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
-            Categoría <span className="text-red-500">*</span>
+            Nivel <span className="text-red-500">*</span>
           </label>
           <select
             id="category"

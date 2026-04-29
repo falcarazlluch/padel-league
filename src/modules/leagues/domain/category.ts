@@ -4,7 +4,7 @@ export const CATEGORY_VALUES = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'] as const
 
 export const CATEGORY_LABEL: Record<TeamCategory, string> = {
   BEGINNER: 'Principiante',
-  INTERMEDIATE: 'Medio',
+  INTERMEDIATE: 'Intermedio',
   ADVANCED: 'Avanzado',
 };
 

@@ -13,7 +13,7 @@ const SECTIONS: Array<{ id: string; title: string; intro: string; steps: Step[] 
     steps: [
       {
         title: 'Ve a "Mis equipos" y pulsa Nuevo equipo',
-        body: <>Encontrarás el acceso en el menú principal o en el footer. Decide un nombre y una <strong>categoría inicial</strong> (Principiante, Medio o Avanzado).</>,
+        body: <>Encontrarás el acceso en el menú principal o en el footer. Decide un nombre y un <strong>nivel inicial</strong> (Principiante, Intermedio o Avanzado).</>,
       },
       {
         title: 'El equipo nace con un solo miembro: tú',
@@ -62,7 +62,7 @@ const SECTIONS: Array<{ id: string; title: string; intro: string; steps: Step[] 
   {
     id: 'apuntarse-liga',
     title: '4 · Apuntarse a una liga',
-    intro: 'Solo durante el periodo de inscripción de una liga podrás apuntar a tu equipo. La categoría no tiene que coincidir.',
+    intro: 'Solo durante el periodo de inscripción de una liga podrás apuntar a tu equipo. El nivel no tiene que coincidir.',
     steps: [
       {
         title: 'Mira la liga y comprueba el estado de la inscripción',
@@ -119,15 +119,15 @@ const SECTIONS: Array<{ id: string; title: string; intro: string; steps: Step[] 
     steps: [
       {
         title: 'Dashboard',
-        body: <>Vas a ver una tarjeta por liga activa con la clasificación, tu progreso de victorias/derrotas y banners de propuestas (cambios de categoría, invitaciones, etc.).</>,
+        body: <>Vas a ver una tarjeta por liga activa con la clasificación, tu progreso de victorias/derrotas y banners de propuestas (cambios de nivel, invitaciones, etc.).</>,
       },
       {
         title: 'Crónicas',
         body: <>Cada partido jugado genera una crónica corta con humor. Aparecen en el feed de la liga y en tu dashboard.</>,
       },
       {
-        title: 'Categoría del equipo',
-        body: <>Si dominas una liga (≥75 % de los puntos máximos posibles) o cae estrepitosamente (≤25 %), el sistema propone subir o bajar de categoría. Cualquier miembro del equipo puede aceptar o rechazar.</>,
+        title: 'Nivel del equipo',
+        body: <>Si dominas una liga (≥75 % de los puntos máximos posibles) o cae estrepitosamente (≤25 %), el sistema propone subir o bajar de nivel. Cualquier miembro del equipo puede aceptar o rechazar.</>,
       },
     ],
   },
