@@ -8,6 +8,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { NotificationsBadge } from './notifications-badge';
 import { NavLinks } from './_components/nav-links';
 import { MobileMenu } from './_components/mobile-menu';
+import { Footer } from './_components/footer';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -62,6 +63,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </nav>
       <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+      <Footer />
     </div>
   );
 }
