@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import type { Route } from 'next';
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
@@ -96,6 +97,10 @@ export async function submitResultAction(
     throw err;
   }
 
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/ligas', 'layout');
+
   try {
     const info = await fetchMatchTeamInfo(matchId);
     if (info) {
@@ -145,6 +150,10 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/ligas', 'layout');
 
   try {
     const info = await fetchMatchTeamInfo(matchId);
@@ -205,6 +214,10 @@ export async function disputeResultAction(
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/ligas', 'layout');
 
   try {
     const info = await fetchMatchTeamInfo(parsed.data.matchId);
