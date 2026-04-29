@@ -78,3 +78,92 @@ export async function acceptProposal(_prev: ActionResult | null, formData: FormD
 // cancelProposal is intentionally not exposed as a UI action.
 // The "Cambiar propuesta" flow calls proposeDate directly, which supersedes any prior proposal atomically.
 // SchedulingService.cancelProposal remains available for admin use or future flows.
+
+const proposeExtensionSchema = z.object({
+  matchId: z.string().cuid(),
+  slug: z.string().min(1),
+  newDeadlineAt: z
+    .string()
+    .min(1, 'Selecciona una fecha.')
+    .transform((v) => new Date(v))
+    .refine((d) => !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
+});
+
+export async function proposeDeadlineExtensionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+
+  const parsed = proposeExtensionSchema.safeParse({
+    matchId: formData.get('matchId'),
+    slug: formData.get('slug'),
+    newDeadlineAt: formData.get('newDeadlineAt'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await SchedulingService.proposeDeadlineExtension(
+      parsed.data.matchId,
+      user.id,
+      parsed.data.newDeadlineAt,
+    );
+    revalidatePath(`/ligas/${parsed.data.slug}/partidos/${parsed.data.matchId}`);
+    revalidatePath('/partidos');
+    return { success: true };
+  } catch (err: unknown) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
+const respondExtensionSchema = z.object({
+  proposalId: z.string().cuid(),
+  matchId: z.string().cuid(),
+  slug: z.string().min(1),
+});
+
+export async function acceptDeadlineExtensionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const parsed = respondExtensionSchema.safeParse({
+    proposalId: formData.get('proposalId'),
+    matchId: formData.get('matchId'),
+    slug: formData.get('slug'),
+  });
+  if (!parsed.success) return { error: 'Datos inválidos.' };
+
+  try {
+    await SchedulingService.acceptDeadlineExtension(parsed.data.proposalId, user.id);
+    revalidatePath(`/ligas/${parsed.data.slug}/partidos/${parsed.data.matchId}`);
+    revalidatePath('/partidos');
+    return { success: true };
+  } catch (err: unknown) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
+export async function rejectDeadlineExtensionAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const parsed = respondExtensionSchema.safeParse({
+    proposalId: formData.get('proposalId'),
+    matchId: formData.get('matchId'),
+    slug: formData.get('slug'),
+  });
+  if (!parsed.success) return { error: 'Datos inválidos.' };
+
+  try {
+    await SchedulingService.rejectDeadlineExtension(parsed.data.proposalId, user.id);
+    revalidatePath(`/ligas/${parsed.data.slug}/partidos/${parsed.data.matchId}`);
+    return { success: true };
+  } catch (err: unknown) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
