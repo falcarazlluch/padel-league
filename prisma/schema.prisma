@@ -63,6 +63,13 @@ enum SchedulingProposalStatus {
   SUPERSEDED
 }
 
+enum ExtensionProposalStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
 enum DisputeStatus {
   OPEN
   RESOLVED
@@ -119,6 +126,9 @@ enum NotificationType {
   LEAGUE_FINISHED
   DEADLINE_REMINDER
   COMMENTARY_GENERATED
+  EXTENSION_PROPOSED
+  EXTENSION_ACCEPTED
+  EXTENSION_REJECTED
 }
 
 enum SignedTokenPurpose {
@@ -186,6 +196,8 @@ model User {
   indParticipations     IndependentMatchParticipant[]
   indJoinRequests       IndependentMatchJoinRequest[]
   editedCommentaries    MatchCommentary[]    @relation("CommentaryEditor")
+  extensionsProposed    DeadlineExtensionProposal[] @relation("ExtensionProposer")
+  extensionsResponded   DeadlineExtensionProposal[] @relation("ExtensionResponder")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -348,9 +360,10 @@ model Match {
   teamB              Team                       @relation("TeamB", fields: [teamBId], references: [id], onDelete: Restrict)
   confirmedResult    MatchResult?               @relation("ConfirmedResult", fields: [confirmedResultId], references: [id])
   results            MatchResult[]              @relation("MatchResults")
-  schedulingProposals MatchSchedulingProposal[]
-  dispute            Dispute?
-  commentaries       MatchCommentary[]
+  schedulingProposals   MatchSchedulingProposal[]
+  extensionProposals    DeadlineExtensionProposal[]
+  dispute               Dispute?
+  commentaries          MatchCommentary[]
 
   @@index([leagueId, status])
   @@index([deadlineAt])
@@ -414,6 +427,24 @@ model MatchSchedulingProposal {
 
   @@index([matchId, status])
   @@map("match_scheduling_proposals")
+}
+
+model DeadlineExtensionProposal {
+  id                 String                    @id @default(cuid())
+  matchId            String                    @map("match_id")
+  proposedByUserId   String                    @map("proposed_by_user_id")
+  proposedDeadlineAt DateTime                  @map("proposed_deadline_at")
+  status             ExtensionProposalStatus   @default(PROPOSED)
+  respondedByUserId  String?                   @map("responded_by_user_id")
+  respondedAt        DateTime?                 @map("responded_at")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+
+  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  proposer  User  @relation("ExtensionProposer", fields: [proposedByUserId], references: [id], onDelete: Restrict)
+  responder User? @relation("ExtensionResponder", fields: [respondedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([matchId, status])
+  @@map("deadline_extension_proposals")
 }
 
 model Dispute {

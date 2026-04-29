@@ -37,15 +37,16 @@ export default async function LigaDetailPage({
   ]);
 
   // Load confirmed + admin-resolved matches for standings calculation
-  const confirmedMatches = await prisma.match.findMany({
-    where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] } },
+  const matchesForStandings = await prisma.match.findMany({
+    where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] } },
     include: { confirmedResult: { include: { sets: true } } },
   });
 
   const teamNamesMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
-  const standingMatches = confirmedMatches.map((m) => ({
+  const standingMatches = matchesForStandings.map((m) => ({
     teamAId: m.teamAId,
     teamBId: m.teamBId,
+    status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
     winnerTeamId: m.winnerTeamId,
     sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
   }));

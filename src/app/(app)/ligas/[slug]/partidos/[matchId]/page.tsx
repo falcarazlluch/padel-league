@@ -51,12 +51,25 @@ export default async function MatchDetailPage({
   const match = await MatchService.getMatch(matchId).catch(() => null);
   if (!match || match.leagueSlug !== slug) notFound();
 
-  const [commentaries, isLeagueAdmin] = await Promise.all([
+  const [commentaries, isLeagueAdmin, leagueEndDateRow, activeExtension] = await Promise.all([
     MatchCommentaryService.getByMatch(matchId),
     prisma.leagueMember.findFirst({
       where: { leagueId: match.leagueId, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
     }).then((m) => !!m),
+    prisma.league.findUnique({
+      where: { id: match.leagueId },
+      select: { endDate: true },
+    }),
+    prisma.deadlineExtensionProposal.findFirst({
+      where: { matchId, status: 'PROPOSED' },
+      include: {
+        proposer: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
+
+  const leagueEndDate = leagueEndDateRow?.endDate ?? new Date();
 
   const teamAIds = match.teamA.members.map((m) => m.userId);
   const teamBIds = match.teamB.members.map((m) => m.userId);
@@ -76,6 +89,14 @@ export default async function MatchDetailPage({
     );
     const currentUserOnTeamA = currentUserSide === 'A';
     proposalState = proposerOnTeamA === currentUserOnTeamA ? 'mine' : 'rival';
+  }
+
+  let extensionState: 'none' | 'mine' | 'rival' = 'none';
+  if (activeExtension) {
+    const proposerOnA = match.teamA.members.some((m) => m.userId === activeExtension.proposedByUserId);
+    const userOnA = currentUserSide === 'A';
+    if (proposerOnA === userOnA) extensionState = 'mine';
+    else extensionState = 'rival';
   }
 
   const canValidate =
@@ -258,10 +279,18 @@ export default async function MatchDetailPage({
           matchId={match.id}
           slug={slug}
           matchStatus={match.status}
+          matchDeadlineAt={match.deadlineAt}
+          leagueEndDate={leagueEndDate}
           proposalState={proposalState}
           proposedDate={match.activeProposal?.proposedDate ?? null}
           scheduledAt={match.scheduledAt ?? null}
           isTeamMember={isTeamMember}
+          extensionState={extensionState}
+          activeExtension={activeExtension ? {
+            id: activeExtension.id,
+            proposedDeadlineAt: activeExtension.proposedDeadlineAt,
+            proposerName: activeExtension.proposer.name ?? '',
+          } : null}
         />
       )}
 

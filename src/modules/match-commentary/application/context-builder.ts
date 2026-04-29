@@ -56,19 +56,20 @@ export async function buildContext(
   const teamNamesById = new Map(allTeams.map((t) => [t.id, t.name]));
   const teamNamesMap = Object.fromEntries(allTeams.map((t) => [t.id, t.name]));
 
-  const confirmedMatches = await prisma.match.findMany({
+  const standingsMatches = await prisma.match.findMany({
     where: {
       leagueId: match.league.id,
-      status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] },
+      status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] },
     },
     include: { confirmedResult: { include: { sets: true } } },
   });
 
   const standings = calculateStandings(
     teamNamesMap,
-    confirmedMatches.map((m) => ({
+    standingsMatches.map((m) => ({
       teamAId: m.teamAId,
       teamBId: m.teamBId,
+      status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
       winnerTeamId: m.winnerTeamId,
       sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
     })),
