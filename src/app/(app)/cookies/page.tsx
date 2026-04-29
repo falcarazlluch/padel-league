@@ -6,20 +6,11 @@ const LAST_UPDATED = '29 de abril de 2026';
 
 export default function CookiesPage() {
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Información legal</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">Política de cookies</h1>
         <p className="text-sm text-slate-400 mt-1">Última actualización: {LAST_UPDATED}</p>
-      </div>
-
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p>
-          <strong>Aviso provisional:</strong> este texto debe ser revisado por un profesional del derecho
-          antes de su uso comercial. Si en el futuro se incorporan cookies de terceros (analytics,
-          marketing, etc.), la política deberá actualizarse y será necesario implementar un banner de
-          consentimiento.
-        </p>
       </div>
 
       <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-3 text-sm text-slate-700 leading-relaxed">

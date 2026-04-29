@@ -6,20 +6,11 @@ const LAST_UPDATED = '29 de abril de 2026';
 
 export default function PrivacidadPage() {
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Información legal</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">Política de privacidad</h1>
         <p className="text-sm text-slate-400 mt-1">Última actualización: {LAST_UPDATED}</p>
-      </div>
-
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p>
-          <strong>Aviso provisional:</strong> este texto es una plantilla orientativa basada en lo que la
-          plataforma realmente trata. Debe ser revisado por un profesional del derecho antes de su uso
-          comercial. Los campos entre corchetes (<code>[…]</code>) deben ser completados por el responsable
-          del sitio.
-        </p>
       </div>
 
       <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-3 text-sm text-slate-700 leading-relaxed">
@@ -29,15 +20,8 @@ export default function PrivacidadPage() {
           responsable del tratamiento de los datos personales recogidos en esta plataforma es:
         </p>
         <ul className="list-disc list-inside space-y-1">
-          <li><strong>Titular:</strong> [NOMBRE O RAZÓN SOCIAL]</li>
-          <li><strong>NIF/CIF:</strong> [NIF/CIF]</li>
-          <li><strong>Domicilio:</strong> [DIRECCIÓN POSTAL]</li>
-          <li><strong>Correo electrónico:</strong> [EMAIL DE CONTACTO]</li>
+          <li><strong>Titular:</strong> Padel League</li>
         </ul>
-        <p>
-          Para cualquier consulta o ejercicio de derechos en materia de protección de datos puedes
-          contactar a través del correo electrónico indicado.
-        </p>
       </article>
 
       <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-3 text-sm text-slate-700 leading-relaxed">
@@ -168,8 +152,8 @@ export default function PrivacidadPage() {
           <li><strong>Retirar el consentimiento</strong> en cualquier momento, cuando el tratamiento se base en consentimiento.</li>
         </ul>
         <p>
-          Para ejercer cualquiera de estos derechos puedes escribir a <strong>[EMAIL DE CONTACTO]</strong>{' '}
-          desde la dirección de correo asociada a tu cuenta. Recibirás respuesta en un plazo máximo de un mes.
+          Para ejercer cualquiera de estos derechos puedes contactar con el responsable a través de los
+          canales de soporte de la plataforma. Recibirás respuesta en un plazo máximo de un mes.
         </p>
         <p>
           Si consideras que el tratamiento de tus datos no se ajusta a la normativa, puedes presentar una

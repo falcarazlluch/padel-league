@@ -6,19 +6,11 @@ const LAST_UPDATED = '29 de abril de 2026';
 
 export default function AvisoLegalPage() {
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Información legal</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">Aviso legal</h1>
         <p className="text-sm text-slate-400 mt-1">Última actualización: {LAST_UPDATED}</p>
-      </div>
-
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p>
-          <strong>Aviso provisional:</strong> este texto es una plantilla orientativa y debe ser revisado y
-          adaptado por un profesional del derecho antes de su uso comercial. Los campos entre corchetes
-          (<code>[…]</code>) deben ser completados por el responsable del sitio.
-        </p>
       </div>
 
       <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-3 text-sm text-slate-700 leading-relaxed">
@@ -29,10 +21,7 @@ export default function AvisoLegalPage() {
           presente sitio web (en adelante, &ldquo;Padel League&rdquo;):
         </p>
         <ul className="list-disc list-inside space-y-1">
-          <li><strong>Titular:</strong> [NOMBRE O RAZÓN SOCIAL]</li>
-          <li><strong>NIF/CIF:</strong> [NIF/CIF]</li>
-          <li><strong>Domicilio:</strong> [DIRECCIÓN POSTAL]</li>
-          <li><strong>Correo electrónico de contacto:</strong> [EMAIL DE CONTACTO]</li>
+          <li><strong>Titular:</strong> Padel League</li>
         </ul>
       </article>
 
