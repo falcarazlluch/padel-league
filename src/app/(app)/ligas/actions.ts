@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import type { Route } from 'next';
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
@@ -123,4 +124,55 @@ export async function activateLeagueAction(leagueId: string): Promise<{ error?: 
   }
   // DO NOT generate fixtures here — activateLeague handles it in its own transaction
   return {};
+}
+
+const updateLeagueSchema = z.object({
+  leagueId: z.string().cuid(),
+  slug: z.string().min(1),
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
+  description: z.string().max(500).optional(),
+  endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de fin inválida'),
+});
+
+export async function updateLeagueAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = updateLeagueSchema.safeParse({
+    leagueId: formData.get('leagueId'),
+    slug: formData.get('slug'),
+    name: formData.get('name'),
+    description: formData.get('description') || undefined,
+    endDate: formData.get('endDate'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await LeagueService.updateLeague(parsed.data.leagueId, user.id, {
+      name: parsed.data.name,
+      description: parsed.data.description ?? null,
+      endDate: new Date(parsed.data.endDate),
+    });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+
+  revalidatePath('/ligas');
+  revalidatePath(`/ligas/${parsed.data.slug}`);
+  return { success: true };
+}
+
+export async function deleteLeagueAction(leagueId: string): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await LeagueService.deleteLeague(leagueId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas');
+  revalidatePath('/dashboard');
+  redirect('/ligas' as Route);
 }

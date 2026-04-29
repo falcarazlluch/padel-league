@@ -151,4 +151,57 @@ export const LeagueService = {
       await tx.league.update({ where: { id: leagueId }, data: { status: 'ACTIVE' } });
     });
   },
+
+  async updateLeague(
+    leagueId: string,
+    requestingUserId: string,
+    input: { name?: string; description?: string | null; endDate?: Date },
+  ): Promise<LeagueRow> {
+    const league = await prisma.league.findUnique({ where: { id: leagueId } });
+    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
+
+    const [requester, member] = await Promise.all([
+      prisma.user.findUnique({ where: { id: requestingUserId }, select: { role: true } }),
+      prisma.leagueMember.findFirst({
+        where: { leagueId, userId: requestingUserId, role: 'LEAGUE_ADMIN' },
+      }),
+    ]);
+    if (requester?.role !== 'SUPER_ADMIN' && !member) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo los admins pueden editar la liga.');
+    }
+
+    if (input.name !== undefined && input.name.trim().length === 0) {
+      throw new DomainError('INVALID_NAME', 'El nombre no puede estar vacío.');
+    }
+
+    if (input.endDate !== undefined && input.endDate.getTime() <= league.startDate.getTime()) {
+      throw new DomainError('INVALID_END_DATE', 'La fecha fin debe ser posterior al inicio de la liga.');
+    }
+
+    return prisma.league.update({
+      where: { id: leagueId },
+      data: {
+        ...(input.name !== undefined && { name: input.name.trim() }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.endDate !== undefined && { endDate: input.endDate }),
+      },
+    });
+  },
+
+  async deleteLeague(leagueId: string, requestingUserId: string): Promise<void> {
+    const league = await prisma.league.findUnique({ where: { id: leagueId } });
+    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    if (requester?.role !== 'SUPER_ADMIN') {
+      throw new AuthorizationError('FORBIDDEN', 'Solo Super Admin puede borrar ligas.');
+    }
+
+    // Cascade deletes: teams, matches, results, sets, scheduling/extension proposals,
+    // commentaries, league_members all have ON DELETE CASCADE on their FK to leagues/teams/matches.
+    await prisma.league.delete({ where: { id: leagueId } });
+  },
 } as const;

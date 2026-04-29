@@ -100,10 +100,19 @@ export default async function LigaDetailPage({
             {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
           </p>
         </div>
-        {/* admin/activate button stays here if present */}
-        {isLeagueAdmin && league.status === 'DRAFT' && (
-          <ActivateLeagueButton leagueId={league.id} />
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isLeagueAdmin && (
+            <Link
+              href={`/ligas/${slug}/editar` as Route}
+              className="text-sm px-3 py-1.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
+            >
+              Editar liga
+            </Link>
+          )}
+          {isLeagueAdmin && league.status === 'DRAFT' && (
+            <ActivateLeagueButton leagueId={league.id} />
+          )}
+        </div>
       </div>
 
       {/* Equipos */}
