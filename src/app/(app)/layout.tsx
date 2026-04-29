@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(160deg,#e8eef8 0%,#f0f4fb 40%,#f5f7fa 100%)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(160deg,#e8eef8 0%,#f0f4fb 40%,#f5f7fa 100%)' }}>
       <nav aria-label="Navegación principal" className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-4 sm:px-6 py-1 flex items-center justify-between sticky top-0 z-10 shadow-md overflow-visible">
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center shrink-0 -mb-3 sm:-mb-6">
@@ -62,7 +62,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <MobileMenu isSuperAdmin={currentUser.role === 'SUPER_ADMIN'} />
         </div>
       </nav>
-      <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+      <main className="max-w-6xl w-full mx-auto px-6 py-8 flex-1">{children}</main>
       <Footer />
     </div>
   );

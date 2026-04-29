@@ -4,7 +4,7 @@ import type { Route } from 'next';
 
 export function Footer() {
   return (
-    <footer className="border-t border-slate-200/80 bg-white mt-12">
+    <footer className="border-t border-slate-200/80 bg-white">
       <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
         <div className="space-y-3">
           <Link href="/dashboard" className="inline-flex items-center">
