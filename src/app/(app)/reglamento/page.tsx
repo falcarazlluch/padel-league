@@ -27,9 +27,9 @@ export default function ReglamentoPage() {
       <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-3">
         <h2 className="text-lg font-bold text-brand-navy">Reglas de los partidos</h2>
         <ul className="text-sm text-slate-700 space-y-1.5 list-disc list-inside">
-          <li>Todos los partidos son al <strong>mejor de 3 sets</strong>.</li>
+          <li>El número de sets es <strong>flexible</strong> (entre 2 y 5). Gana el partido el equipo que gane más sets.</li>
           <li>Cada equipo está formado por <strong>2 jugadores</strong>.</li>
-          <li>Una vez jugado el partido, cualquier jugador puede enviar el resultado.</li>
+          <li>Una vez jugado el partido, cualquier jugador puede enviar el resultado set a set.</li>
           <li>El equipo rival tiene <strong>7 días</strong> para confirmar o disputar.</li>
           <li>Si pasan 7 días sin respuesta, el resultado se aprueba automáticamente.</li>
           <li>En caso de disputa, un administrador resuelve.</li>
