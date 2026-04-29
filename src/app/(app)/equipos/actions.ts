@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { TeamService } from '@/modules/teams';
-import { isUserFacingError } from '@/shared/errors';
+import { prisma } from '@/shared/db/client';
+import { AuthorizationError, NotFoundError, isUserFacingError } from '@/shared/errors';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -111,5 +112,46 @@ export async function rejectInvitationAction(invitationId: string): Promise<{ er
   }
   revalidatePath('/equipos');
   revalidatePath('/dashboard');
+  return {};
+}
+
+const setLogoSchema = z.object({
+  teamId: z.string().cuid(),
+  // Vercel Blob public URLs follow this host pattern.
+  blobUrl: z.string().url().regex(/^https:\/\/[^/]+\.public\.blob\.vercel-storage\.com\//, 'URL inválida.'),
+});
+
+export async function setTeamLogoAction(
+  teamId: string,
+  blobUrl: string,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  const parsed = setLogoSchema.safeParse({ teamId, blobUrl });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id: parsed.data.teamId },
+      include: { members: { select: { userId: true } } },
+    });
+    if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
+    if (!team.members.some((m) => m.userId === user.id)) {
+      throw new AuthorizationError('NOT_TEAM_MEMBER', 'No eres miembro de este equipo.');
+    }
+    // Defensive: confirm the blob URL path references this team.
+    if (!parsed.data.blobUrl.includes(`team-logos/${parsed.data.teamId}-`)) {
+      return { error: 'La URL del logo no corresponde a este equipo.' };
+    }
+    await prisma.team.update({
+      where: { id: parsed.data.teamId },
+      data: { logoUrl: parsed.data.blobUrl },
+    });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+
+  revalidatePath('/equipos');
+  revalidatePath(`/equipos/${parsed.data.teamId}`);
   return {};
 }

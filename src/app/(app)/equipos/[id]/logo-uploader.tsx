@@ -4,8 +4,9 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
+import { setTeamLogoAction } from '../actions';
 
-const MAX_BYTES = 200 * 1024;
+const MAX_BYTES = 4 * 1024 * 1024; // 4 MB
 
 export function LogoUploader({
   teamId,
@@ -23,7 +24,7 @@ export function LogoUploader({
 
   const handleUpload = async (file: File) => {
     if (file.size > MAX_BYTES) {
-      setError(`Imagen demasiado grande (máx ${Math.round(MAX_BYTES / 1024)} KB).`);
+      setError(`Imagen demasiado grande (máx ${Math.round(MAX_BYTES / (1024 * 1024))} MB).`);
       return;
     }
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
@@ -34,10 +35,17 @@ export function LogoUploader({
     try {
       const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
       const random = Math.random().toString(36).slice(2, 10);
-      await upload(`team-logos/${teamId}-${random}.${ext}`, file, {
+      const result = await upload(`team-logos/${teamId}-${random}.${ext}`, file, {
         access: 'public',
         handleUploadUrl: '/api/team-logo/upload',
       });
+      // Persist the URL on the team via server action — more reliable than the
+      // onUploadCompleted webhook (which can fail silently on cold starts / network).
+      const persist = await setTeamLogoAction(teamId, result.url);
+      if (persist.error) {
+        setError(persist.error);
+        return;
+      }
       router.refresh();
     } catch (err) {
       setError((err as Error).message ?? 'No se pudo subir la imagen.');
@@ -67,7 +75,7 @@ export function LogoUploader({
           disabled={pending}
           className="text-xs text-slate-600 file:mr-3 file:px-3 file:py-1.5 file:bg-white file:border file:border-slate-200 file:text-slate-700 file:font-semibold file:rounded-lg file:hover:bg-slate-50 file:cursor-pointer file:transition-colors"
         />
-        <p className="text-[11px] text-slate-400">PNG, JPG o WebP · máx 200&nbsp;KB</p>
+        <p className="text-[11px] text-slate-400">PNG, JPG o WebP · máx 4&nbsp;MB</p>
         {pending && <p className="text-xs text-slate-500">Subiendo…</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>

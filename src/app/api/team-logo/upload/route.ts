@@ -6,7 +6,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { logger } from '@/shared/logger';
 
-const MAX_BYTES = 200 * 1024; // 200KB
+const MAX_BYTES = 4 * 1024 * 1024; // 4 MB
 
 export async function POST(request: Request): Promise<Response> {
   const log = logger();
