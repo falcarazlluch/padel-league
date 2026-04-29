@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues';
 import { createLeagueAction } from '../actions';
 
 const initialState = { error: undefined as string | undefined };
@@ -44,6 +45,25 @@ export default function NuevaLigaPage() {
             placeholder="Descripción opcional..."
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all resize-none"
           />
+        </div>
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
+            Categoría <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="category"
+            name="category"
+            defaultValue="INTERMEDIATE"
+            required
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+          >
+            {CATEGORY_VALUES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABEL[c]}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-500 mt-1">Define el nivel competitivo de la liga.</p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

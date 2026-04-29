@@ -40,6 +40,7 @@ export default async function EditarLigaPage({
         initialName={league.name}
         initialDescription={league.description ?? ''}
         initialEndDate={league.endDate.toISOString().slice(0, 10)}
+        initialCategory={league.category}
         canDelete={currentUser.role === 'SUPER_ADMIN'}
       />
     </div>

@@ -14,3 +14,4 @@ export type {
   SubmitResultInput,
   ResolveDisputeInput,
 } from './domain/types';
+export { CATEGORY_VALUES, CATEGORY_LABEL, categoryBadgeClass } from './domain/category';

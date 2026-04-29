@@ -5,7 +5,7 @@ import type { Route } from 'next';
 import Link from 'next/link';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
-import { LeagueService, calculateStandings } from '@/modules/leagues';
+import { LeagueService, calculateStandings, CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { prisma } from '@/shared/db/client';
 import { ActivateLeagueButton } from './activate-button';
 import { AddMemberForm } from './add-member-form';
@@ -94,7 +94,12 @@ export default async function LigaDetailPage({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Liga</p>
-          <h1 className="text-2xl font-extrabold text-brand-navy">{league.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-extrabold text-brand-navy">{league.name}</h1>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(league.category)}`}>
+              {CATEGORY_LABEL[league.category]}
+            </span>
+          </div>
           {league.description && <p className="text-slate-500 mt-1">{league.description}</p>}
           <p className="text-sm text-slate-400 mt-1">
             {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
@@ -134,7 +139,12 @@ export default async function LigaDetailPage({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {teams.map((team) => (
               <div key={team.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4">
-                <h3 className="font-medium text-gray-900 mb-3">{team.name}</h3>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-medium text-gray-900">{team.name}</h3>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(team.category)}`}>
+                    {CATEGORY_LABEL[team.category]}
+                  </span>
+                </div>
                 <ul className="space-y-1.5">
                   {team.members.map((m) => (
                     <li key={m.userId} className="flex items-center gap-2 text-sm text-gray-600">

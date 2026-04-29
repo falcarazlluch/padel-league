@@ -3,6 +3,8 @@
 import { useActionState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
+import type { TeamCategory } from '@prisma/client';
+import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues';
 import { updateLeagueAction, deleteLeagueAction } from '../../actions';
 
 type Props = {
@@ -11,11 +13,12 @@ type Props = {
   initialName: string;
   initialDescription: string;
   initialEndDate: string; // YYYY-MM-DD
+  initialCategory: TeamCategory;
   canDelete: boolean;
 };
 
 export function EditLeagueForm({
-  leagueId, slug, initialName, initialDescription, initialEndDate, canDelete,
+  leagueId, slug, initialName, initialDescription, initialEndDate, initialCategory, canDelete,
 }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(updateLeagueAction, null);
@@ -75,6 +78,25 @@ export function EditLeagueForm({
             maxLength={500}
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all resize-none"
           />
+        </div>
+
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
+            Categoría <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="category"
+            name="category"
+            defaultValue={initialCategory}
+            required
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+          >
+            {CATEGORY_VALUES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABEL[c]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>

@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/client';
 import { ConflictError, NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
+import type { TeamCategory } from '@prisma/client';
 import type { CreateLeagueInput, CreateTeamInput, LeagueRow, TeamRow, MatchRow } from '../domain/types';
 import { generateFixtures } from './fixture-generator';
 
@@ -25,6 +26,7 @@ export const LeagueService = {
         description: input.description ?? null,
         startDate: input.startDate,
         endDate: input.endDate,
+        category: input.category ?? 'INTERMEDIATE',
         matchFormat: input.matchFormat ?? 'FLEXIBLE',
         defaultDeadlineDays: input.defaultDeadlineDays ?? 21,
         createdByUserId: input.createdByUserId,
@@ -73,7 +75,19 @@ export const LeagueService = {
     });
     if (exists) throw new ConflictError('TEAM_EXISTS', 'Ya existe un equipo con ese nombre en esta liga.');
 
-    return prisma.team.create({ data: { leagueId: input.leagueId, name: input.name } });
+    // Default the team's category to the league's if not provided
+    const league = await prisma.league.findUnique({
+      where: { id: input.leagueId },
+      select: { category: true },
+    });
+
+    return prisma.team.create({
+      data: {
+        leagueId: input.leagueId,
+        name: input.name,
+        category: input.category ?? league?.category ?? 'INTERMEDIATE',
+      },
+    });
   },
 
   async addTeamMember(teamId: string, userId: string): Promise<void> {
@@ -155,7 +169,7 @@ export const LeagueService = {
   async updateLeague(
     leagueId: string,
     requestingUserId: string,
-    input: { name?: string; description?: string | null; endDate?: Date },
+    input: { name?: string; description?: string | null; endDate?: Date; category?: TeamCategory },
   ): Promise<LeagueRow> {
     const league = await prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
@@ -184,6 +198,7 @@ export const LeagueService = {
         ...(input.name !== undefined && { name: input.name.trim() }),
         ...(input.description !== undefined && { description: input.description }),
         ...(input.endDate !== undefined && { endDate: input.endDate }),
+        ...(input.category !== undefined && { category: input.category }),
       },
     });
   },

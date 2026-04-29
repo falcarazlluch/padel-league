@@ -1,4 +1,4 @@
-import type { LeagueStatus, MatchFormat, MatchStatus, DisputeResolution } from '@prisma/client';
+import type { LeagueStatus, MatchFormat, MatchStatus, DisputeResolution, TeamCategory } from '@prisma/client';
 
 export type LeagueRow = {
   id: string;
@@ -8,6 +8,7 @@ export type LeagueRow = {
   startDate: Date;
   endDate: Date;
   status: LeagueStatus;
+  category: TeamCategory;
   matchFormat: MatchFormat;
   defaultDeadlineDays: number;
   pointsWin: number;
@@ -21,6 +22,7 @@ export type TeamRow = {
   id: string;
   leagueId: string;
   name: string;
+  category: TeamCategory;
   members: { userId: string; user: { id: string; name: string; email: string } }[];
 };
 
@@ -58,6 +60,7 @@ export type CreateLeagueInput = {
   description?: string;
   startDate: Date;
   endDate: Date;
+  category?: TeamCategory;
   matchFormat?: MatchFormat;
   defaultDeadlineDays?: number;
   createdByUserId: string;
@@ -66,6 +69,7 @@ export type CreateLeagueInput = {
 export type CreateTeamInput = {
   leagueId: string;
   name: string;
+  category?: TeamCategory;
 };
 
 export type SubmitResultInput = {

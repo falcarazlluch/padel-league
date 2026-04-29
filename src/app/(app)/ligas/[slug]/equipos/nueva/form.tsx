@@ -3,12 +3,22 @@
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
+import type { TeamCategory } from '@prisma/client';
+import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues';
 import { createTeamAction } from '../../../actions';
 
 type FormState = { error?: string };
 const initial: FormState = {};
 
-export function NuevoEquipoForm({ leagueId, slug }: { leagueId: string; slug: string }) {
+export function NuevoEquipoForm({
+  leagueId,
+  slug,
+  defaultCategory,
+}: {
+  leagueId: string;
+  slug: string;
+  defaultCategory: TeamCategory;
+}) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
     async (_prev: FormState, formData: FormData): Promise<FormState> => {
@@ -39,6 +49,25 @@ export function NuevoEquipoForm({ leagueId, slug }: { leagueId: string; slug: st
           placeholder="Ej: Los Cañones"
           className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
         />
+      </div>
+      <div>
+        <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
+          Categoría <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="category"
+          name="category"
+          defaultValue={defaultCategory}
+          required
+          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+        >
+          {CATEGORY_VALUES.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_LABEL[c]}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-slate-500 mt-1">Por defecto coincide con la categoría de la liga.</p>
       </div>
       <div className="flex gap-3 pt-2">
         <button

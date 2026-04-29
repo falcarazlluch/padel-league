@@ -30,6 +30,12 @@ enum LeagueStatus {
   ARCHIVED
 }
 
+enum TeamCategory {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
 enum MatchFormat {
   BEST_OF_3
   BEST_OF_5
@@ -263,6 +269,7 @@ model League {
   startDate            DateTime      @map("start_date")
   endDate              DateTime      @map("end_date")
   status               LeagueStatus  @default(DRAFT)
+  category             TeamCategory  @default(INTERMEDIATE)
 
   // Settings
   matchFormat          MatchFormat   @default(FLEXIBLE) @map("match_format")
@@ -304,10 +311,11 @@ model LeagueMember {
 }
 
 model Team {
-  id        String   @id @default(cuid())
-  leagueId  String   @map("league_id")
+  id        String        @id @default(cuid())
+  leagueId  String        @map("league_id")
   name      String
-  createdAt DateTime @default(now()) @map("created_at")
+  category  TeamCategory  @default(INTERMEDIATE)
+  createdAt DateTime      @default(now()) @map("created_at")
 
   league       League       @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   members      TeamMember[]

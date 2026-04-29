@@ -18,11 +18,14 @@ async function getSession() {
   return getValidatedSession(token);
 }
 
+const categoryEnum = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
+
 const createLeagueSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
   description: z.string().max(500).optional(),
   startDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de inicio inválida'),
   endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de fin inválida'),
+  category: categoryEnum.optional(),
 });
 
 export async function createLeagueAction(
@@ -34,7 +37,7 @@ export async function createLeagueAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
-  const { name, description, startDate, endDate } = parsed.data;
+  const { name, description, startDate, endDate, category } = parsed.data;
   if (new Date(endDate) <= new Date(startDate)) {
     return { error: 'La fecha de fin debe ser posterior a la de inicio.' };
   }
@@ -45,6 +48,7 @@ export async function createLeagueAction(
       description,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
+      category,
       createdByUserId: user.id,
     });
     slug = league.slug;
@@ -58,6 +62,7 @@ export async function createLeagueAction(
 const createTeamSchema = z.object({
   leagueId: z.string().cuid(),
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(60),
+  category: categoryEnum.optional(),
 });
 
 export async function createTeamAction(
@@ -67,9 +72,9 @@ export async function createTeamAction(
   await getSession();
   const parsed = createTeamSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
-  const { leagueId, name } = parsed.data;
+  const { leagueId, name, category } = parsed.data;
   try {
-    await LeagueService.createTeam({ leagueId, name });
+    await LeagueService.createTeam({ leagueId, name, category });
     return {};
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
@@ -132,6 +137,7 @@ const updateLeagueSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
   description: z.string().max(500).optional(),
   endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de fin inválida'),
+  category: categoryEnum.optional(),
 });
 
 export async function updateLeagueAction(
@@ -145,6 +151,7 @@ export async function updateLeagueAction(
     name: formData.get('name'),
     description: formData.get('description') || undefined,
     endDate: formData.get('endDate'),
+    category: formData.get('category') || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
@@ -153,6 +160,7 @@ export async function updateLeagueAction(
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       endDate: new Date(parsed.data.endDate),
+      ...(parsed.data.category && { category: parsed.data.category }),
     });
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
