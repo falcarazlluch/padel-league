@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import type { TeamCategory } from '@prisma/client';
-import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues';
+import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues/domain/category';
 import { createTeamAction } from '../../../actions';
 
 type FormState = { error?: string };
