@@ -1,6 +1,7 @@
-import type { CommentaryContext } from '../domain/types';
+import { CATEGORY_LABEL } from '@/modules/leagues/domain/category';
+import type { CommentaryContext, CommentaryTeam } from '../domain/types';
 
-export const PROMPT_VERSION = 'v1';
+export const PROMPT_VERSION = 'v2';
 
 function formatRecent(recent: Array<{ won: boolean; opponent: string }>): string {
   if (recent.length === 0) return 'Sin partidos previos en la liga.';
@@ -12,6 +13,13 @@ function rankLine(team: { rank: number | null; points: number }): string {
   return ` — clasificación: ${team.rank}º con ${team.points} pts.`;
 }
 
+function categoryChangeLine(team: CommentaryTeam): string {
+  const change = team.recentCategoryChange;
+  if (!change) return '';
+  const direction = change.reason === 'PROMOTION' ? 'ascendió' : 'bajó';
+  return `\n  Cambio reciente: ${direction} de ${CATEGORY_LABEL[change.fromCategory]} a ${CATEGORY_LABEL[change.toCategory]}.`;
+}
+
 function formatSets(sets: Array<{ gamesA: number; gamesB: number }>): string {
   return sets.map((s) => `${s.gamesA}-${s.gamesB}`).join(', ');
 }
@@ -19,8 +27,8 @@ function formatSets(sets: Array<{ gamesA: number; gamesB: number }>): string {
 export function buildPrompt(ctx: CommentaryContext): string {
   const { type, league, teamA, teamB, result } = ctx;
 
-  const teamAInfo = `Equipo A: "${teamA.name}"${rankLine(teamA)}\n  Últimos partidos: ${formatRecent(teamA.recent)}`;
-  const teamBInfo = `Equipo B: "${teamB.name}"${rankLine(teamB)}\n  Últimos partidos: ${formatRecent(teamB.recent)}`;
+  const teamAInfo = `Equipo A: "${teamA.name}"${rankLine(teamA)}\n  Últimos partidos: ${formatRecent(teamA.recent)}${categoryChangeLine(teamA)}`;
+  const teamBInfo = `Equipo B: "${teamB.name}"${rankLine(teamB)}\n  Últimos partidos: ${formatRecent(teamB.recent)}${categoryChangeLine(teamB)}`;
 
   let resultBlock = '';
   if (type === 'RECAP' && result) {

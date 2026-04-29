@@ -129,4 +129,35 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('No inventes');
     expect(prompt).toContain('datos personales');
   });
+
+  it('mentions a recent promotion when the team has one', () => {
+    const ctx: CommentaryContext = {
+      ...baseCtx,
+      teamA: {
+        ...baseCtx.teamA,
+        recentCategoryChange: { fromCategory: 'INTERMEDIATE', toCategory: 'ADVANCED', reason: 'PROMOTION' },
+      },
+    };
+    const prompt = buildPrompt(ctx);
+    expect(prompt).toContain('ascendió');
+    expect(prompt).toContain('Avanzado');
+  });
+
+  it('mentions a recent demotion when the team has one', () => {
+    const ctx: CommentaryContext = {
+      ...baseCtx,
+      teamB: {
+        ...baseCtx.teamB,
+        recentCategoryChange: { fromCategory: 'ADVANCED', toCategory: 'INTERMEDIATE', reason: 'DEMOTION' },
+      },
+    };
+    const prompt = buildPrompt(ctx);
+    expect(prompt).toContain('bajó');
+    expect(prompt).toContain('Medio');
+  });
+
+  it('does not mention category changes when the team has none', () => {
+    const prompt = buildPrompt(baseCtx);
+    expect(prompt).not.toContain('Cambio reciente');
+  });
 });

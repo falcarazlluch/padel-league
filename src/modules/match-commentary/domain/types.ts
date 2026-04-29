@@ -1,22 +1,26 @@
-import type { AICommentaryProvider, CommentaryType } from '@prisma/client';
+import type { AICommentaryProvider, CommentaryType, TeamCategory } from '@prisma/client';
 
 export type { CommentaryType };
+
+export type RecentCategoryChange = {
+  fromCategory: TeamCategory;
+  toCategory: TeamCategory;
+  reason: 'PROMOTION' | 'DEMOTION';
+};
+
+export type CommentaryTeam = {
+  name: string;
+  rank: number | null;
+  points: number;
+  recent: Array<{ won: boolean; opponent: string }>;
+  recentCategoryChange?: RecentCategoryChange;
+};
 
 export type CommentaryContext = {
   type: CommentaryType;
   league: { name: string };
-  teamA: {
-    name: string;
-    rank: number | null;
-    points: number;
-    recent: Array<{ won: boolean; opponent: string }>;
-  };
-  teamB: {
-    name: string;
-    rank: number | null;
-    points: number;
-    recent: Array<{ won: boolean; opponent: string }>;
-  };
+  teamA: CommentaryTeam;
+  teamB: CommentaryTeam;
   result?: {
     sets: Array<{ gamesA: number; gamesB: number }>;
     winnerTeam: 'A' | 'B' | 'DRAW';

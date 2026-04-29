@@ -5,6 +5,7 @@ vi.mock('@/shared/db/client', () => ({
   prisma: {
     match: { findUnique: vi.fn(), findMany: vi.fn() },
     team: { findMany: vi.fn() },
+    teamCategoryChangeProposal: { findFirst: vi.fn() },
   },
 }));
 

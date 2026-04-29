@@ -1,9 +1,29 @@
 import { prisma } from '@/shared/db/client';
 import { calculateStandings } from '@/modules/leagues';
 import { NotFoundError } from '@/shared/errors';
-import type { CommentaryContext, CommentaryType } from '../domain/types';
+import type { CommentaryContext, CommentaryType, RecentCategoryChange } from '../domain/types';
 
 const RECENT_LIMIT = 3;
+const CATEGORY_CHANGE_WINDOW_DAYS = 90;
+
+async function getRecentCategoryChange(teamId: string): Promise<RecentCategoryChange | undefined> {
+  const since = new Date(Date.now() - CATEGORY_CHANGE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const proposal = await prisma.teamCategoryChangeProposal.findFirst({
+    where: {
+      teamId,
+      status: 'ACCEPTED',
+      resolvedAt: { gte: since },
+    },
+    orderBy: { resolvedAt: 'desc' },
+    select: { fromCategory: true, toCategory: true, reason: true },
+  });
+  if (!proposal) return undefined;
+  return {
+    fromCategory: proposal.fromCategory,
+    toCategory: proposal.toCategory,
+    reason: proposal.reason,
+  };
+}
 
 async function getRecentResults(
   teamId: string,
@@ -82,9 +102,11 @@ export async function buildContext(
     return { rank: idx + 1, points: entry.points };
   }
 
-  const [recentA, recentB] = await Promise.all([
+  const [recentA, recentB, categoryChangeA, categoryChangeB] = await Promise.all([
     getRecentResults(match.teamAId, matchId, teamNamesById),
     getRecentResults(match.teamBId, matchId, teamNamesById),
+    getRecentCategoryChange(match.teamAId),
+    getRecentCategoryChange(match.teamBId),
   ]);
 
   const ctx: CommentaryContext = {
@@ -94,11 +116,13 @@ export async function buildContext(
       name: match.teamA.name,
       ...rankAndPoints(match.teamAId),
       recent: recentA,
+      ...(categoryChangeA && { recentCategoryChange: categoryChangeA }),
     },
     teamB: {
       name: match.teamB.name,
       ...rankAndPoints(match.teamBId),
       recent: recentB,
+      ...(categoryChangeB && { recentCategoryChange: categoryChangeB }),
     },
   };
 

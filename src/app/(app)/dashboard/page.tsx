@@ -5,10 +5,11 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
-import { calculateStandings, CategoryProposalService } from '@/modules/leagues';
+import { calculateStandings, CategoryProposalService, computeTeamProgress } from '@/modules/leagues';
 import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from '../ligas/[slug]/_components/commentary-feed-card';
 import { CategoryProposalBanner } from './category-proposal-banner';
+import { WinLossChart } from './win-loss-chart';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
     CategoryProposalService.listPendingForUser(user.id),
   ]);
 
-  // Compute standings for each user league in parallel
+  // Compute standings + per-user-team progression for each league in parallel
   const leaguesWithStandings = await Promise.all(
     userLeagues.map(async (league) => {
       const matchesForStandings = await prisma.match.findMany({
@@ -66,7 +67,20 @@ export default async function DashboardPage() {
         })),
       );
       const userTeamId = league.teams.find((t) => t.members.some((m) => m.userId === user.id))?.id;
-      return { id: league.id, slug: league.slug, name: league.name, standings, userTeamId };
+      const userTeamName = userTeamId ? teamNamesMap[userTeamId] : null;
+      const progress = userTeamId
+        ? computeTeamProgress(
+            matchesForStandings.map((m) => ({
+              teamAId: m.teamAId,
+              teamBId: m.teamBId,
+              status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+              winnerTeamId: m.winnerTeamId,
+              finalizedAt: m.updatedAt,
+            })),
+            userTeamId,
+          )
+        : [];
+      return { id: league.id, slug: league.slug, name: league.name, standings, userTeamId, userTeamName, progress };
     }),
   );
 
@@ -178,6 +192,14 @@ export default async function DashboardPage() {
                       );
                     })}
                   </ol>
+                )}
+                {league.userTeamId && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-2">
+                      Progreso de {league.userTeamName ?? 'tu equipo'}
+                    </p>
+                    <WinLossChart points={league.progress} width={260} height={56} />
+                  </div>
                 )}
               </Link>
             ))}
