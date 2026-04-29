@@ -34,13 +34,22 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         Cómo funciona
       </Link>
       {isSuperAdmin && (
-        <Link
-          href={'/admin/disputas' as Route}
-          className={linkClass(pathname.startsWith('/admin/disputas'))}
-          aria-current={pathname.startsWith('/admin/disputas') ? 'page' : undefined}
-        >
-          Disputas
-        </Link>
+        <>
+          <Link
+            href={'/admin/disputas' as Route}
+            className={linkClass(pathname.startsWith('/admin/disputas'))}
+            aria-current={pathname.startsWith('/admin/disputas') ? 'page' : undefined}
+          >
+            Disputas
+          </Link>
+          <Link
+            href={'/admin/usuarios' as Route}
+            className={linkClass(pathname.startsWith('/admin/usuarios'))}
+            aria-current={pathname.startsWith('/admin/usuarios') ? 'page' : undefined}
+          >
+            Usuarios
+          </Link>
+        </>
       )}
     </div>
   );

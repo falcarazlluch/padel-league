@@ -23,19 +23,18 @@ const editSchema = z.string().trim().min(1, 'El contenido no puede estar vacío.
 async function ensureLeagueAdmin(matchId: string, userId: string): Promise<void> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    select: { leagueId: true },
+    select: { league: { select: { createdByUserId: true } } },
   });
   if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
 
-  const [user, member] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
-    prisma.leagueMember.findFirst({
-      where: { leagueId: match.leagueId, userId, role: 'LEAGUE_ADMIN' },
-    }),
-  ]);
-
-  if (user?.role !== 'SUPER_ADMIN' && !member) {
-    throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo los admins de la liga pueden gestionar la crónica.');
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  const isLeagueAdmin =
+    user?.role === 'LEAGUE_ADMIN' && match.league.createdByUserId === userId;
+  if (user?.role !== 'SUPER_ADMIN' && !isLeagueAdmin) {
+    throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la liga puede gestionar la crónica.');
   }
 }
 

@@ -45,16 +45,14 @@ export async function regenerateCommentaryAction(
     if (!commentary) return { error: 'Crónica no encontrada.' };
 
     // Authorization check: queue is trusted, so we only gate auth here at the action boundary
+    const match = await prisma.match.findUnique({
+      where: { id: commentary.matchId },
+      select: { league: { select: { createdByUserId: true } } },
+    });
     const isAdmin =
       user.role === 'SUPER_ADMIN' ||
-      !!(await prisma.leagueMember.findFirst({
-        where: {
-          userId: user.id,
-          role: 'LEAGUE_ADMIN',
-          league: { matches: { some: { id: commentary.matchId } } },
-        },
-      }));
-    if (!isAdmin) return { error: 'Solo los admins pueden regenerar.' };
+      (user.role === 'LEAGUE_ADMIN' && match?.league.createdByUserId === user.id);
+    if (!isAdmin) return { error: 'Solo el admin de la liga puede regenerar.' };
 
     const q = queue();
     await q.start();
@@ -148,16 +146,14 @@ export async function forceGenerateCommentaryAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   // Authorize: must be league admin (SUPER_ADMIN counts as league admin everywhere)
+  const match = await prisma.match.findUnique({
+    where: { id: parsed.data.matchId },
+    select: { league: { select: { createdByUserId: true } } },
+  });
   const isAdmin =
     user.role === 'SUPER_ADMIN' ||
-    !!(await prisma.leagueMember.findFirst({
-      where: {
-        userId: user.id,
-        role: 'LEAGUE_ADMIN',
-        league: { matches: { some: { id: parsed.data.matchId } } },
-      },
-    }));
-  if (!isAdmin) return { error: 'Solo los admins de la liga pueden generar crónicas.' };
+    (user.role === 'LEAGUE_ADMIN' && match?.league.createdByUserId === user.id);
+  if (!isAdmin) return { error: 'Solo el admin de la liga puede generar crónicas.' };
 
   try {
     // Bypass the queue: call the service synchronously so the admin sees the result immediately.

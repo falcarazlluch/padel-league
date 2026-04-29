@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import type { Route } from 'next';
+import { cookies } from 'next/headers';
 import { prisma } from '@/shared/db/client';
 import type { Prisma, TeamCategory } from '@prisma/client';
+import { SESSION_COOKIE } from '@/shared/auth/session';
+import { getValidatedSession } from '@/shared/auth/session-cache';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import {
   deriveLeagueStatus,
@@ -59,6 +62,11 @@ export default async function LigasPage({
   const from = parseDate(params.from);
   const to = parseDate(params.to);
 
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const currentUser = token ? await getValidatedSession(token).catch(() => null) : null;
+  const canCreateLeague = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'LEAGUE_ADMIN';
+
   // Build the where clause
   const where: Prisma.LeagueWhereInput = {};
   if (q.length > 0) {
@@ -92,12 +100,14 @@ export default async function LigasPage({
           <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Temporada 2026</p>
           <h1 className="text-2xl font-extrabold text-brand-navy">Ligas</h1>
         </div>
-        <Link
-          href={'/ligas/nueva' as Route}
-          className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
-        >
-          Nueva liga
-        </Link>
+        {canCreateLeague && (
+          <Link
+            href={'/ligas/nueva' as Route}
+            className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
+          >
+            Nueva liga
+          </Link>
+        )}
       </div>
 
       {/* Filters */}

@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { MatchStatus } from '@prisma/client';
+import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 
 type SetRow = { setNumber: number; gamesA: number; gamesB: number };
 
@@ -11,6 +12,8 @@ type MatchCardProps = {
   teamBId: string;
   teamAName: string;
   teamBName: string;
+  teamALogoUrl?: string | null;
+  teamBLogoUrl?: string | null;
   status: MatchStatus;
   scheduledAt: Date | null;
   winnerTeamId: string | null;
@@ -24,7 +27,7 @@ function singleCardBg(status: MatchStatus): string {
 }
 
 export function MatchCardJornada({
-  matchId, slug, teamAId, teamAName, teamBName,
+  matchId, slug, teamAId, teamAName, teamBName, teamALogoUrl, teamBLogoUrl,
   status, scheduledAt, winnerTeamId, sets,
 }: MatchCardProps) {
   const isFinished = status === 'CONFIRMED' || status === 'ADMIN_RESOLVED';
@@ -39,7 +42,9 @@ export function MatchCardJornada({
   if (hasWinner) {
     const teamAIsWinner = winnerTeamId === teamAId;
     const winnerName = teamAIsWinner ? teamAName : teamBName;
+    const winnerLogo = teamAIsWinner ? teamALogoUrl : teamBLogoUrl;
     const loserName = teamAIsWinner ? teamBName : teamAName;
+    const loserLogo = teamAIsWinner ? teamBLogoUrl : teamALogoUrl;
 
     return (
       <Link
@@ -48,12 +53,18 @@ export function MatchCardJornada({
       >
         {/* Winner row */}
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-green-50 border-b border-green-200">
-          <span className="truncate text-sm text-green-700 font-bold">{winnerName}</span>
+          <span className="flex items-center gap-2 min-w-0">
+            <TeamLogo url={winnerLogo} name={winnerName} size="sm" />
+            <span className="truncate text-sm text-green-700 font-bold">{winnerName}</span>
+          </span>
           <span className="shrink-0 text-xs font-medium text-green-700">{setsDisplay}</span>
         </div>
         {/* Loser row */}
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-red-50">
-          <span className="truncate text-sm text-red-600">{loserName}</span>
+          <span className="flex items-center gap-2 min-w-0">
+            <TeamLogo url={loserLogo} name={loserName} size="sm" />
+            <span className="truncate text-sm text-red-600">{loserName}</span>
+          </span>
         </div>
       </Link>
     );
@@ -67,26 +78,38 @@ export function MatchCardJornada({
         className="block rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden hover:opacity-90 transition-opacity"
       >
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-orange-50 border-b border-orange-200">
-          <span className="truncate text-sm text-orange-600 font-bold">{teamAName}</span>
+          <span className="flex items-center gap-2 min-w-0">
+            <TeamLogo url={teamALogoUrl} name={teamAName} size="sm" />
+            <span className="truncate text-sm text-orange-600 font-bold">{teamAName}</span>
+          </span>
           <span className="shrink-0 text-xs font-medium text-orange-600">{setsDisplay}</span>
         </div>
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-orange-50">
-          <span className="truncate text-sm text-orange-600 font-bold">{teamBName}</span>
+          <span className="flex items-center gap-2 min-w-0">
+            <TeamLogo url={teamBLogoUrl} name={teamBName} size="sm" />
+            <span className="truncate text-sm text-orange-600 font-bold">{teamBName}</span>
+          </span>
         </div>
       </Link>
     );
   }
+
+  const teamLine = (
+    <div className="flex items-center gap-2 min-w-0">
+      <TeamLogo url={teamALogoUrl} name={teamAName} size="sm" />
+      <span className="truncate text-sm text-gray-900 font-medium">{teamAName}</span>
+      <span className="text-gray-400 text-xs shrink-0">vs</span>
+      <TeamLogo url={teamBLogoUrl} name={teamBName} size="sm" />
+      <span className="truncate text-sm text-gray-900 font-medium">{teamBName}</span>
+    </div>
+  );
 
   // SCHEDULED: single card + "Proponer fecha" button
   if (status === 'SCHEDULED') {
     return (
       <div className={`rounded-2xl border shadow-sm px-4 py-3 ${singleCardBg(status)}`}>
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="truncate text-sm text-gray-900 font-medium">{teamAName}</span>
-            <span className="text-gray-400 text-xs shrink-0">vs</span>
-            <span className="truncate text-sm text-gray-900 font-medium">{teamBName}</span>
-          </div>
+          {teamLine}
           <span className="text-xs text-yellow-700 shrink-0">Sin fecha</span>
         </div>
         <div className="mt-2">
@@ -108,11 +131,7 @@ export function MatchCardJornada({
       className={`block rounded-2xl border shadow-sm px-4 py-3 hover:opacity-90 transition-opacity ${singleCardBg(status)}`}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="truncate text-sm text-gray-900 font-medium">{teamAName}</span>
-          <span className="text-gray-400 text-xs shrink-0">vs</span>
-          <span className="truncate text-sm text-gray-900 font-medium">{teamBName}</span>
-        </div>
+        {teamLine}
         <div className="shrink-0 text-right">
           {(status === 'DATE_PROPOSED' || status === 'DATE_CONFIRMED') && scheduledAt && (
             <span className="text-xs text-blue-700">

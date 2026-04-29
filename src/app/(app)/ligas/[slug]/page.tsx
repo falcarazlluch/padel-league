@@ -12,6 +12,7 @@ import { PartidosTab } from './_components/partidos-tab';
 import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from './_components/commentary-feed-card';
 import { LeagueRegistrationPanel } from './registration-panel';
+import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
   deriveLeagueStatus,
@@ -82,6 +83,7 @@ export default async function LigaDetailPage({
   });
 
   const teamNamesMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
+  const teamLogoMap = Object.fromEntries(teams.map((t) => [t.id, t.logoUrl]));
   const standingMatches = matchesForStandings.map((m) => ({
     teamAId: m.teamAId,
     teamBId: m.teamBId,
@@ -94,9 +96,7 @@ export default async function LigaDetailPage({
 
   const isLeagueAdmin =
     currentUser.role === 'SUPER_ADMIN' ||
-    !!(await prisma.leagueMember.findFirst({
-      where: { leagueId: league.id, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
-    }));
+    (currentUser.role === 'LEAGUE_ADMIN' && league.createdByUserId === currentUser.id);
 
   // Fetch matches with confirmed sets for the Partidos tab
   const matchesWithSets = await prisma.match.findMany({
@@ -195,8 +195,11 @@ export default async function LigaDetailPage({
             {teams.map((team) => (
               <div key={team.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4">
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <h3 className="font-medium text-gray-900">{team.name}</h3>
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(team.category)}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <TeamLogo url={team.logoUrl} name={team.name} size="md" />
+                    <h3 className="font-medium text-gray-900 truncate">{team.name}</h3>
+                  </div>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border whitespace-nowrap ${categoryBadgeClass(team.category)}`}>
                     {CATEGORY_LABEL[team.category]}
                   </span>
                 </div>
@@ -257,6 +260,7 @@ export default async function LigaDetailPage({
               slug={slug}
               matches={matchesForJornada}
               activeJornada={jornada ? parseInt(jornada, 10) : null}
+              teamLogos={teamLogoMap}
             />
           )}
 
@@ -291,7 +295,12 @@ export default async function LigaDetailPage({
                   {standings.map((entry, idx) => (
                     <tr key={entry.teamId} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-400 font-medium">{idx + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{entry.teamName}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        <span className="flex items-center gap-2">
+                          <TeamLogo url={teamLogoMap[entry.teamId] ?? null} name={entry.teamName} size="sm" />
+                          <span className="truncate">{entry.teamName}</span>
+                        </span>
+                      </td>
                       <td className="px-3 py-3 text-center text-gray-600">{entry.played}</td>
                       <td className="px-3 py-3 text-center text-green-600">{entry.won}</td>
                       <td className="px-3 py-3 text-center text-gray-500">{entry.drawn}</td>

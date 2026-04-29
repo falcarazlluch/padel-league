@@ -9,6 +9,7 @@ import { NotificationsBadge } from './notifications-badge';
 import { NavLinks } from './_components/nav-links';
 import { MobileMenu } from './_components/mobile-menu';
 import { Footer } from './_components/footer';
+import { HelpChatWidget } from './_components/help-chat-widget';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -64,6 +65,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </nav>
       <main className="max-w-6xl w-full mx-auto px-6 py-8 flex-1">{children}</main>
       <Footer />
+      <HelpChatWidget />
     </div>
   );
 }

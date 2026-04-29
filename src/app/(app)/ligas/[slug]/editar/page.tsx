@@ -4,7 +4,7 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { LeagueService } from '@/modules/leagues';
-import { prisma } from '@/shared/db/client';
+import { isLeagueAdmin } from '@/shared/auth/rbac';
 import { EditLeagueForm } from './edit-form';
 
 export default async function EditarLigaPage({
@@ -21,12 +21,7 @@ export default async function EditarLigaPage({
   const league = await LeagueService.getBySlug(slug).catch(() => null);
   if (!league) notFound();
 
-  const isLeagueAdmin =
-    currentUser.role === 'SUPER_ADMIN' ||
-    !!(await prisma.leagueMember.findFirst({
-      where: { leagueId: league.id, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
-    }));
-  if (!isLeagueAdmin) {
+  if (!isLeagueAdmin(currentUser, league.createdByUserId)) {
     redirect(`/ligas/${slug}` as Route);
   }
 

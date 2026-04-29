@@ -80,6 +80,7 @@ export const TeamService = {
       id: t.id,
       name: t.name,
       category: t.category,
+      logoUrl: t.logoUrl,
       createdByUserId: t.createdByUserId,
       createdAt: t.createdAt,
       members: t.members.map((m) => ({
@@ -117,6 +118,7 @@ export const TeamService = {
       id: team.id,
       name: team.name,
       category: team.category,
+      logoUrl: team.logoUrl,
       createdByUserId: team.createdByUserId,
       createdAt: team.createdAt,
       members: team.members.map((m) => ({

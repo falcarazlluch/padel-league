@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { TeamService } from '@/modules/teams';
+import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { IncomingInvitationsList } from './incoming-invitations-list';
 
@@ -56,8 +57,11 @@ export default async function MisEquiposPage() {
               className="bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md transition-shadow shadow-sm"
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <h2 className="font-semibold text-brand-navy leading-tight">{team.name}</h2>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(team.category)}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <TeamLogo url={team.logoUrl} name={team.name} size="md" />
+                  <h2 className="font-semibold text-brand-navy leading-tight truncate">{team.name}</h2>
+                </div>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border whitespace-nowrap ${categoryBadgeClass(team.category)}`}>
                   {CATEGORY_LABEL[team.category]}
                 </span>
               </div>

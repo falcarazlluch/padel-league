@@ -7,8 +7,10 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { TeamService } from '@/modules/teams';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { isUserFacingError } from '@/shared/errors';
+import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import { InviteForm } from './invite-form';
 import { CancelInvitationButton } from './cancel-invitation-button';
+import { LogoUploader } from './logo-uploader';
 
 const MAX_TEAM_SIZE = 2;
 
@@ -38,13 +40,16 @@ export default async function EquipoDetailPage({
   return (
     <div className="space-y-8 max-w-3xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Equipo</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-extrabold text-brand-navy">{team.name}</h1>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(team.category)}`}>
-              {CATEGORY_LABEL[team.category]}
-            </span>
+        <div className="flex items-center gap-4">
+          <TeamLogo url={team.logoUrl} name={team.name} size="lg" />
+          <div>
+            <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Equipo</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-extrabold text-brand-navy">{team.name}</h1>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(team.category)}`}>
+                {CATEGORY_LABEL[team.category]}
+              </span>
+            </div>
           </div>
         </div>
         <Link
@@ -54,6 +59,10 @@ export default async function EquipoDetailPage({
           ← Mis equipos
         </Link>
       </div>
+
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+        <LogoUploader teamId={team.id} teamName={team.name} currentLogoUrl={team.logoUrl} />
+      </section>
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-3">
         <div className="flex items-center justify-between">

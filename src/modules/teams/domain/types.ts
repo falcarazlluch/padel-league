@@ -4,6 +4,7 @@ export type TeamSummary = {
   id: string;
   name: string;
   category: TeamCategory;
+  logoUrl: string | null;
   createdByUserId: string;
   createdAt: Date;
   members: { userId: string; name: string; email: string }[];

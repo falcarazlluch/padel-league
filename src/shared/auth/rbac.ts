@@ -1,11 +1,6 @@
 import { AuthorizationError } from '@/shared/errors';
 import type { SessionUser } from './session';
 
-export interface LeagueMembership {
-  leagueId: string;
-  role: string;
-}
-
 /** Throws AuthorizationError if user is not authenticated. */
 export function assertSession(user: SessionUser | null): asserts user is SessionUser {
   if (!user) {
@@ -21,20 +16,19 @@ export function assertSuperAdmin(user: SessionUser): void {
 }
 
 /**
- * Throws AuthorizationError unless user is SUPER_ADMIN or has LEAGUE_ADMIN
- * role in the given league.
+ * True if the user manages this league.
+ * SUPER_ADMIN manages every league. A LEAGUE_ADMIN only manages leagues they
+ * created; if their global role is downgraded they lose access too.
  */
-export function assertLeagueAdmin(
-  user: SessionUser,
-  memberships: LeagueMembership[],
-  leagueId?: string,
-): void {
-  if (user.role === 'SUPER_ADMIN') return;
-  const isAdmin = memberships.some(
-    (m) => (!leagueId || m.leagueId === leagueId) && m.role === 'LEAGUE_ADMIN',
-  );
-  if (!isAdmin) {
-    throw new AuthorizationError('FORBIDDEN', 'Acción reservada para administradores de liga.');
+export function isLeagueAdmin(user: SessionUser, leagueCreatedByUserId: string): boolean {
+  if (user.role === 'SUPER_ADMIN') return true;
+  return user.role === 'LEAGUE_ADMIN' && user.id === leagueCreatedByUserId;
+}
+
+/** Throws AuthorizationError unless the user manages this league. */
+export function assertLeagueAdmin(user: SessionUser, leagueCreatedByUserId: string): void {
+  if (!isLeagueAdmin(user, leagueCreatedByUserId)) {
+    throw new AuthorizationError('FORBIDDEN', 'Acción reservada para el admin de la liga.');
   }
 }
 

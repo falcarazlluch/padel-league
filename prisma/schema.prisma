@@ -15,10 +15,6 @@ datasource db {
 
 enum UserRole {
   SUPER_ADMIN
-  PLAYER
-}
-
-enum LeagueMemberRole {
   LEAGUE_ADMIN
   PLAYER
 }
@@ -212,7 +208,6 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   sessions                      Session[]
-  leagueMemberships             LeagueMember[]
   teamMemberships               TeamMember[]
   auditLogs                     AuditLog[]                    @relation("AuditActor")
   notifications                 Notification[]
@@ -317,7 +312,6 @@ model League {
   updatedAt       DateTime  @updatedAt @map("updated_at")
   finalizedAt     DateTime? @map("finalized_at")
 
-  members            LeagueMember[]
   registrations      LeagueRegistration[]
   matches            Match[]
   independentMatches IndependentMatch[]           @relation("IndependentMatchLeague")
@@ -328,25 +322,11 @@ model League {
   @@map("leagues")
 }
 
-model LeagueMember {
-  id       String           @id @default(cuid())
-  leagueId String           @map("league_id")
-  userId   String           @map("user_id")
-  role     LeagueMemberRole @default(PLAYER)
-  joinedAt DateTime         @default(now()) @map("joined_at")
-
-  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
-
-  @@unique([leagueId, userId])
-  @@index([userId])
-  @@map("league_members")
-}
-
 model Team {
   id              String       @id @default(cuid())
   name            String
   category        TeamCategory @default(INTERMEDIATE)
+  logoUrl         String?      @map("logo_url")
   createdByUserId String       @map("created_by_user_id")
   createdAt       DateTime     @default(now()) @map("created_at")
 

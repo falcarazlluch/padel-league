@@ -29,6 +29,7 @@
     "@node-rs/argon2": "^2.0.2",
     "@prisma/client": "^5.22.0",
     "@react-email/components": "^1.0.12",
+    "@vercel/blob": "^2.3.3",
     "jose": "^6.2.2",
     "next": "^15",
     "openai": "^4.0.0",

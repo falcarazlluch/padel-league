@@ -17,6 +17,8 @@ type MatchForJornada = {
   confirmedSets: { setNumber: number; gamesA: number; gamesB: number }[];
 };
 
+type TeamLogoMap = Record<string, string | null>;
+
 const ACTIVE_STATUSES: MatchStatus[] = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'];
 
 function defaultJornada(matches: MatchForJornada[], rounds: number[]): number {
@@ -30,10 +32,12 @@ export function PartidosTab({
   slug,
   matches,
   activeJornada,
+  teamLogos,
 }: {
   slug: string;
   matches: MatchForJornada[];
   activeJornada: number | null;
+  teamLogos?: TeamLogoMap;
 }) {
   const rounds = [...new Set(
     matches.map((m) => m.round).filter((r): r is number => r !== null)
@@ -79,6 +83,8 @@ export function PartidosTab({
               teamBId={m.teamBId}
               teamAName={m.teamA.name}
               teamBName={m.teamB.name}
+              teamALogoUrl={teamLogos?.[m.teamAId] ?? null}
+              teamBLogoUrl={teamLogos?.[m.teamBId] ?? null}
               status={m.status}
               scheduledAt={m.scheduledAt}
               winnerTeamId={m.winnerTeamId}

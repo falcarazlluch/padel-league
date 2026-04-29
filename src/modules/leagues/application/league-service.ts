@@ -32,6 +32,17 @@ function validateLeagueDates(input: {
 
 export const LeagueService = {
   async create(input: CreateLeagueInput): Promise<LeagueRow> {
+    const creator = await prisma.user.findUnique({
+      where: { id: input.createdByUserId },
+      select: { role: true },
+    });
+    if (creator?.role !== 'SUPER_ADMIN' && creator?.role !== 'LEAGUE_ADMIN') {
+      throw new AuthorizationError(
+        'NOT_LEAGUE_ADMIN',
+        'Solo los administradores de liga pueden crear ligas.',
+      );
+    }
+
     validateLeagueDates({
       registrationStart: input.registrationStart,
       registrationEnd: input.registrationEnd,
@@ -56,9 +67,6 @@ export const LeagueService = {
         matchFormat: input.matchFormat ?? 'FLEXIBLE',
         defaultDeadlineDays: input.defaultDeadlineDays ?? 21,
         createdByUserId: input.createdByUserId,
-        members: {
-          create: { userId: input.createdByUserId, role: 'LEAGUE_ADMIN' },
-        },
       },
     });
     return league;
@@ -96,6 +104,7 @@ export const LeagueService = {
       leagueId,
       name: r.team.name,
       category: r.team.category,
+      logoUrl: r.team.logoUrl,
       members: r.team.members.map((m) => ({
         userId: m.userId,
         user: { id: m.user.id, name: m.user.name, email: m.user.email },
@@ -128,14 +137,14 @@ export const LeagueService = {
     if (league.status !== 'DRAFT')
       throw new DomainError('LEAGUE_NOT_DRAFT', 'La liga ya está activa o finalizada.');
 
-    const [requester, member] = await Promise.all([
-      prisma.user.findUnique({ where: { id: requestingUserId }, select: { role: true } }),
-      prisma.leagueMember.findFirst({
-        where: { leagueId, userId: requestingUserId, role: 'LEAGUE_ADMIN' },
-      }),
-    ]);
-    if (requester?.role !== 'SUPER_ADMIN' && !member) {
-      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de liga puede activarla.');
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    const isLeagueAdmin =
+      requester?.role === 'LEAGUE_ADMIN' && league.createdByUserId === requestingUserId;
+    if (requester?.role !== 'SUPER_ADMIN' && !isLeagueAdmin) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la liga puede activarla.');
     }
 
     const registeredTeams = league.registrations.map((r) => r.team);
@@ -185,14 +194,14 @@ export const LeagueService = {
     const league = await prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
 
-    const [requester, member] = await Promise.all([
-      prisma.user.findUnique({ where: { id: requestingUserId }, select: { role: true } }),
-      prisma.leagueMember.findFirst({
-        where: { leagueId, userId: requestingUserId, role: 'LEAGUE_ADMIN' },
-      }),
-    ]);
-    if (requester?.role !== 'SUPER_ADMIN' && !member) {
-      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo los admins pueden editar la liga.');
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    const isLeagueAdmin =
+      requester?.role === 'LEAGUE_ADMIN' && league.createdByUserId === requestingUserId;
+    if (requester?.role !== 'SUPER_ADMIN' && !isLeagueAdmin) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la liga puede editarla.');
     }
 
     if (input.name !== undefined && input.name.trim().length === 0) {

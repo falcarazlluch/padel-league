@@ -25,6 +25,7 @@ export type TeamRow = {
   leagueId: string;
   name: string;
   category: TeamCategory;
+  logoUrl: string | null;
   members: { userId: string; user: { id: string; name: string; email: string } }[];
 };
 
