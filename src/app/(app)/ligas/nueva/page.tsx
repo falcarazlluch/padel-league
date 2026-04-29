@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues/domain/category';
+import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
 import { createLeagueAction } from '../actions';
 
 const initialState = { error: undefined as string | undefined };
