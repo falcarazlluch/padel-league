@@ -48,16 +48,17 @@ export default async function DashboardPage() {
   // Compute standings for each user league in parallel
   const leaguesWithStandings = await Promise.all(
     userLeagues.map(async (league) => {
-      const confirmedMatches = await prisma.match.findMany({
-        where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] } },
+      const matchesForStandings = await prisma.match.findMany({
+        where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] } },
         include: { confirmedResult: { include: { sets: true } } },
       });
       const teamNamesMap = Object.fromEntries(league.teams.map((t) => [t.id, t.name]));
       const standings = calculateStandings(
         teamNamesMap,
-        confirmedMatches.map((m) => ({
+        matchesForStandings.map((m) => ({
           teamAId: m.teamAId,
           teamBId: m.teamBId,
+          status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
           winnerTeamId: m.winnerTeamId,
           sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
         })),
