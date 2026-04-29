@@ -18,7 +18,7 @@ import type {
 
 const MATCH_DETAIL_INCLUDE = {
   organizer: { select: { id: true, name: true } },
-  challengedTeam: { select: { id: true, name: true, leagueId: true } },
+  challengedTeam: { select: { id: true, name: true } },
   league: { select: { id: true, name: true, slug: true } },
   participants: {
     where: { status: 'ACCEPTED' as const },
@@ -74,14 +74,24 @@ export const IndependentMatchService = {
 
     if (!organizerTeam) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo organizador no encontrado.');
     if (!challengedTeam) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo retado no encontrado.');
-    if (organizerTeam.leagueId !== challengedTeam.leagueId)
-      throw new DomainError('TEAMS_DIFF_LEAGUE', 'Los equipos deben pertenecer a la misma liga.');
     if (input.organizerTeamId === input.challengedTeamId)
       throw new DomainError('SAME_TEAM', 'No puedes retar a tu propio equipo.');
-    if (input.leagueId !== organizerTeam.leagueId)
-      throw new DomainError('LEAGUE_MISMATCH', 'leagueId no coincide con el equipo.');
     if (!organizerTeam.members.some((m) => m.userId === input.organizerId))
       throw new AuthorizationError('NOT_TEAM_MEMBER', 'No eres miembro del equipo organizador.');
+
+    // Both teams must be actively registered in the same league.
+    const [organizerReg, challengedReg] = await Promise.all([
+      prisma.leagueRegistration.findUnique({
+        where: { leagueId_teamId: { leagueId: input.leagueId, teamId: input.organizerTeamId } },
+      }),
+      prisma.leagueRegistration.findUnique({
+        where: { leagueId_teamId: { leagueId: input.leagueId, teamId: input.challengedTeamId } },
+      }),
+    ]);
+    if (!organizerReg || organizerReg.withdrawnAt !== null)
+      throw new DomainError('ORGANIZER_NOT_REGISTERED', 'Tu equipo no está apuntado a la liga.');
+    if (!challengedReg || challengedReg.withdrawnAt !== null)
+      throw new DomainError('CHALLENGED_NOT_REGISTERED', 'El equipo retado no está apuntado a la liga.');
 
     const match = await prisma.independentMatch.create({
       data: {
@@ -147,10 +157,13 @@ export const IndependentMatchService = {
   },
 
   async getTeamsForUser(userId: string): Promise<TeamForChallenge[]> {
+    // Teams the user belongs to that are actively registered in some ACTIVE league.
     const teams = await prisma.team.findMany({
       where: {
         members: { some: { userId } },
-        league: { status: 'ACTIVE' },
+        registrations: {
+          some: { withdrawnAt: null, league: { status: 'ACTIVE' } },
+        },
       },
       include: {
         members: { include: { user: { select: { id: true, name: true, email: true } } } },

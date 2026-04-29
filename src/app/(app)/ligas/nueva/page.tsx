@@ -67,8 +67,34 @@ export default function NuevaLigaPage() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
+            <label htmlFor="registrationStart" className="block text-sm font-medium text-slate-700 mb-1">
+              Inicio inscripción <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="registrationStart"
+              name="registrationStart"
+              type="date"
+              required
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
+          <div>
+            <label htmlFor="registrationEnd" className="block text-sm font-medium text-slate-700 mb-1">
+              Cierre inscripción <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="registrationEnd"
+              name="registrationEnd"
+              type="date"
+              required
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
             <label htmlFor="startDate" className="block text-sm font-medium text-slate-700 mb-1">
-              Fecha inicio <span className="text-red-500">*</span>
+              Inicio liga <span className="text-red-500">*</span>
             </label>
             <input
               id="startDate"
@@ -80,7 +106,7 @@ export default function NuevaLigaPage() {
           </div>
           <div>
             <label htmlFor="endDate" className="block text-sm font-medium text-slate-700 mb-1">
-              Fecha fin <span className="text-red-500">*</span>
+              Fin liga <span className="text-red-500">*</span>
             </label>
             <input
               id="endDate"

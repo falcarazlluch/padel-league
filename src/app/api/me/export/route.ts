@@ -20,7 +20,20 @@ export async function GET(): Promise<Response> {
       }),
       prisma.teamMember.findMany({
         where: { userId: sessionUser.id },
-        include: { team: { select: { name: true, league: { select: { name: true } } } } },
+        include: {
+          team: {
+            select: {
+              name: true,
+              category: true,
+              registrations: {
+                select: {
+                  withdrawnAt: true,
+                  league: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.notification.findMany({
         where: { userId: sessionUser.id },

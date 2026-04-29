@@ -163,7 +163,14 @@ export const MatchCommentaryService = {
     return prisma.matchCommentary.findMany({
       where: {
         match: {
-          league: { teams: { some: { members: { some: { userId } } } } },
+          league: {
+            registrations: {
+              some: {
+                withdrawnAt: null,
+                team: { members: { some: { userId } } },
+              },
+            },
+          },
         },
       },
       include: {

@@ -24,6 +24,7 @@ export function Footer() {
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">App</p>
           <ul className="space-y-1.5 text-sm text-slate-600">
             <li><Link href={'/ligas' as Route} className="hover:text-brand-navy transition-colors">Ligas</Link></li>
+            <li><Link href={'/equipos' as Route} className="hover:text-brand-navy transition-colors">Mis equipos</Link></li>
             <li><Link href={'/partidos' as Route} className="hover:text-brand-navy transition-colors">Mis partidos</Link></li>
             <li><Link href={'/jugar' as Route} className="hover:text-brand-navy transition-colors">Jugar</Link></li>
             <li><Link href={'/reglamento' as Route} className="hover:text-brand-navy transition-colors">Reglamento</Link></li>

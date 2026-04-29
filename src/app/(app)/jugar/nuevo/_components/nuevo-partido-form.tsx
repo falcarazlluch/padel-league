@@ -3,12 +3,19 @@
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createOpenMatch, createChallenge } from '../actions';
-import type { TeamForChallenge } from '@/modules/independent-matches';
 
 type ActionResult = { error: string } | { success: true; matchId: string } | null;
 
-export function NuevoPartidoForm({ userTeams }: { userTeams: TeamForChallenge[] }) {
+type ChallengeLeague = {
+  id: string;
+  name: string;
+  myTeams: { id: string; name: string }[];
+  rivalTeams: { id: string; name: string }[];
+};
+
+export function NuevoPartidoForm({ challengeLeagues }: { challengeLeagues: ChallengeLeague[] }) {
   const [type, setType] = useState<'open' | 'challenge'>('open');
+  const [selectedLeagueId, setSelectedLeagueId] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [openState, openAction, openPending] = useActionState<ActionResult, FormData>(createOpenMatch, null);
   const [challengeState, challengeAction, challengePending] = useActionState<ActionResult, FormData>(createChallenge, null);
@@ -22,15 +29,15 @@ export function NuevoPartidoForm({ userTeams }: { userTeams: TeamForChallenge[] 
     if (challengeState && 'success' in challengeState) router.push(`/jugar/${challengeState.matchId}`);
   }, [challengeState, router]);
 
-  const selectedTeam = userTeams.find((t) => t.id === selectedTeamId);
-  const rivalTeams = selectedTeam
-    ? userTeams.filter((t) => t.leagueId === selectedTeam.leagueId && t.id !== selectedTeamId)
-    : [];
+  const selectedLeague = challengeLeagues.find((l) => l.id === selectedLeagueId);
+  const myTeamsInLeague = selectedLeague?.myTeams ?? [];
+  const rivalTeams = selectedLeague?.rivalTeams ?? [];
+
+  const canChallenge = challengeLeagues.length > 0;
 
   return (
     <div className="space-y-6">
-      {/* Type selector — only shown when user has teams */}
-      {userTeams.length > 0 && (
+      {canChallenge && (
         <div className="flex gap-2">
           <button
             type="button"
@@ -100,23 +107,37 @@ export function NuevoPartidoForm({ userTeams }: { userTeams: TeamForChallenge[] 
             <input name="name" required maxLength={100} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tu equipo *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Liga *</label>
             <select
-              name="organizerTeamId"
+              name="leagueId"
               required
-              value={selectedTeamId}
-              onChange={(e) => setSelectedTeamId(e.target.value)}
+              value={selectedLeagueId}
+              onChange={(e) => { setSelectedLeagueId(e.target.value); setSelectedTeamId(''); }}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
             >
-              <option value="">Selecciona tu equipo...</option>
-              {userTeams.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              <option value="">Selecciona la liga...</option>
+              {challengeLeagues.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
               ))}
             </select>
           </div>
-          {selectedTeam && (
+          {selectedLeague && (
             <>
-              <input type="hidden" name="leagueId" value={selectedTeam.leagueId} />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tu equipo *</label>
+                <select
+                  name="organizerTeamId"
+                  required
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+                >
+                  <option value="">Selecciona tu equipo...</option>
+                  {myTeamsInLeague.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Equipo retado *</label>
                 <select name="challengedTeamId" required className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all">
@@ -141,7 +162,7 @@ export function NuevoPartidoForm({ userTeams }: { userTeams: TeamForChallenge[] 
           )}
           <button
             type="submit"
-            disabled={challengePending || !selectedTeamId}
+            disabled={challengePending || !selectedLeagueId || !selectedTeamId}
             className="px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {challengePending ? 'Enviando...' : 'Enviar reto'}

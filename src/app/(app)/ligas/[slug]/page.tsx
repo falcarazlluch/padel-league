@@ -8,10 +8,23 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { LeagueService, calculateStandings, CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { prisma } from '@/shared/db/client';
 import { ActivateLeagueButton } from './activate-button';
-import { AddMemberForm } from './add-member-form';
 import { PartidosTab } from './_components/partidos-tab';
 import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from './_components/commentary-feed-card';
+import { LeagueRegistrationPanel } from './registration-panel';
+import type { LeagueStatus } from '@prisma/client';
+
+function computeRegistrationWindow(
+  status: LeagueStatus,
+  registrationStart: Date,
+  registrationEnd: Date,
+): 'open' | 'future' | 'past' | 'closed' {
+  if (status !== 'DRAFT') return 'closed';
+  const now = Date.now();
+  if (now < registrationStart.getTime()) return 'future';
+  if (now > registrationEnd.getTime()) return 'past';
+  return 'open';
+}
 
 export default async function LigaDetailPage({
   params,
@@ -35,6 +48,23 @@ export default async function LigaDetailPage({
   const [teams] = await Promise.all([
     LeagueService.getTeams(league.id),
   ]);
+
+  // Teams the current user belongs to + their registration status for this league.
+  const userTeams = await prisma.team.findMany({
+    where: { members: { some: { userId: currentUser.id } } },
+    include: {
+      members: { select: { userId: true } },
+      registrations: { where: { leagueId: league.id }, select: { withdrawnAt: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const userTeamsForRegistration = userTeams.map((t) => ({
+    id: t.id,
+    name: t.name,
+    category: t.category,
+    memberCount: t.members.length,
+    isRegistered: t.registrations.some((r) => r.withdrawnAt === null),
+  }));
 
   // Load confirmed + admin-resolved matches for standings calculation
   const matchesForStandings = await prisma.match.findMany({
@@ -88,6 +118,12 @@ export default async function LigaDetailPage({
     ? await MatchCommentaryService.listForLeague(league.id, 20)
     : [];
 
+  const registrationWindow = computeRegistrationWindow(
+    league.status,
+    league.registrationStart,
+    league.registrationEnd,
+  );
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -102,7 +138,10 @@ export default async function LigaDetailPage({
           </div>
           {league.description && <p className="text-slate-500 mt-1">{league.description}</p>}
           <p className="text-sm text-slate-400 mt-1">
-            {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
+            Liga: {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
+          </p>
+          <p className="text-sm text-slate-400">
+            Inscripción: {league.registrationStart.toLocaleDateString('es-ES')} – {league.registrationEnd.toLocaleDateString('es-ES')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -120,21 +159,19 @@ export default async function LigaDetailPage({
         </div>
       </div>
 
-      {/* Equipos */}
+      {/* Inscripción */}
+      <LeagueRegistrationPanel
+        leagueId={league.id}
+        leagueStatus={league.status}
+        registrationWindow={registrationWindow}
+        userTeams={userTeamsForRegistration}
+      />
+
+      {/* Equipos apuntados */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Equipos ({teams.length})</h2>
-          {isLeagueAdmin && league.status === 'DRAFT' && (
-            <Link
-              href={`/ligas/${slug}/equipos/nueva` as Route}
-              className="text-sm px-3 py-1.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white font-semibold rounded-xl shadow-sm hover:opacity-90 transition-opacity"
-            >
-              Añadir equipo
-            </Link>
-          )}
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Equipos apuntados ({teams.length})</h2>
         {teams.length === 0 ? (
-          <p className="text-sm text-gray-400">No hay equipos en esta liga todavía.</p>
+          <p className="text-sm text-gray-400">No hay equipos apuntados todavía.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {teams.map((team) => (
@@ -154,11 +191,6 @@ export default async function LigaDetailPage({
                       {m.user.name}
                     </li>
                   ))}
-                  {team.members.length < 2 && isLeagueAdmin && league.status === 'DRAFT' && (
-                    <li className="mt-2">
-                      <AddMemberForm teamId={team.id} />
-                    </li>
-                  )}
                 </ul>
               </div>
             ))}

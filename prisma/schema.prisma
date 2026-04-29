@@ -100,6 +100,13 @@ enum CategoryProposalReason {
   DEMOTION
 }
 
+enum TeamInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
 enum IndependentMatchStatus {
   OPEN
   PENDING_APPROVAL
@@ -147,6 +154,11 @@ enum NotificationType {
   EXTENSION_ACCEPTED
   EXTENSION_REJECTED
   CATEGORY_CHANGE_PROPOSED
+  TEAM_INVITATION
+  TEAM_INVITATION_ACCEPTED
+  TEAM_INVITATION_REJECTED
+  LEAGUE_REGISTRATION_ADDED
+  LEAGUE_REGISTRATION_REMOVED
 }
 
 enum SignedTokenPurpose {
@@ -178,45 +190,50 @@ enum CommentaryType {
 // ─── IDENTIDAD Y AUTH ──────────────────────────────────────────────────────
 
 model User {
-  id                    String       @id @default(cuid())
-  email                 String       @unique @db.Citext
-  emailVerifiedAt       DateTime?    @map("email_verified_at")
-  passwordHash          String       @map("password_hash")
-  name                  String
-  avatarUrl             String?      @map("avatar_url")
-  phone                 String?
-  role                  UserRole     @default(PLAYER)
+  id              String    @id @default(cuid())
+  email           String    @unique @db.Citext
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  passwordHash    String    @map("password_hash")
+  name            String
+  avatarUrl       String?   @map("avatar_url")
+  phone           String?
+  role            UserRole  @default(PLAYER)
 
   // 2FA — schema listo, feature OFF hasta Spec 7+
-  twoFactorEnabled      Boolean      @default(false) @map("two_factor_enabled")
-  twoFactorSecret       String?      @map("two_factor_secret") // cifrado con ENCRYPTION_KEY
-  twoFactorBackupCodes  String[]     @default([]) @map("two_factor_backup_codes")
+  twoFactorEnabled     Boolean  @default(false) @map("two_factor_enabled")
+  twoFactorSecret      String?  @map("two_factor_secret") // cifrado con ENCRYPTION_KEY
+  twoFactorBackupCodes String[] @default([]) @map("two_factor_backup_codes")
 
   // GDPR
-  anonymizedAt          DateTime?    @map("anonymized_at")
-  deletedAt             DateTime?    @map("deleted_at")
+  anonymizedAt DateTime? @map("anonymized_at")
+  deletedAt    DateTime? @map("deleted_at")
 
-  createdAt             DateTime     @default(now()) @map("created_at")
-  updatedAt             DateTime     @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  sessions              Session[]
-  leagueMemberships     LeagueMember[]
-  teamMemberships       TeamMember[]
-  auditLogs             AuditLog[]   @relation("AuditActor")
-  notifications         Notification[]
-  submittedResults      MatchResult[]        @relation("ResultSubmitter")
-  validatedResults      MatchResult[]        @relation("ResultValidator")
-  proposedSchedules     MatchSchedulingProposal[] @relation("ScheduleProposer")
-  respondedSchedules    MatchSchedulingProposal[] @relation("ScheduleResponder")
-  openedDisputes        Dispute[]            @relation("DisputeOpener")
-  resolvedDisputes      Dispute[]            @relation("DisputeResolver")
-  independentMatches    IndependentMatch[]   @relation("IndependentOrganizer")
-  indParticipations     IndependentMatchParticipant[]
-  indJoinRequests       IndependentMatchJoinRequest[]
-  editedCommentaries    MatchCommentary[]    @relation("CommentaryEditor")
-  extensionsProposed    DeadlineExtensionProposal[] @relation("ExtensionProposer")
-  extensionsResponded   DeadlineExtensionProposal[] @relation("ExtensionResponder")
-  resolvedCategoryProposals TeamCategoryChangeProposal[] @relation("CategoryProposalResolver")
+  sessions                      Session[]
+  leagueMemberships             LeagueMember[]
+  teamMemberships               TeamMember[]
+  auditLogs                     AuditLog[]                    @relation("AuditActor")
+  notifications                 Notification[]
+  submittedResults              MatchResult[]                 @relation("ResultSubmitter")
+  validatedResults              MatchResult[]                 @relation("ResultValidator")
+  proposedSchedules             MatchSchedulingProposal[]     @relation("ScheduleProposer")
+  respondedSchedules            MatchSchedulingProposal[]     @relation("ScheduleResponder")
+  openedDisputes                Dispute[]                     @relation("DisputeOpener")
+  resolvedDisputes              Dispute[]                     @relation("DisputeResolver")
+  independentMatches            IndependentMatch[]            @relation("IndependentOrganizer")
+  indParticipations             IndependentMatchParticipant[]
+  indJoinRequests               IndependentMatchJoinRequest[]
+  editedCommentaries            MatchCommentary[]             @relation("CommentaryEditor")
+  extensionsProposed            DeadlineExtensionProposal[]   @relation("ExtensionProposer")
+  extensionsResponded           DeadlineExtensionProposal[]   @relation("ExtensionResponder")
+  resolvedCategoryProposals     TeamCategoryChangeProposal[]  @relation("CategoryProposalResolver")
+  teamsCreated                  Team[]                        @relation("TeamCreator")
+  teamInvitationsReceived       TeamInvitation[]              @relation("TeamInvitationInvitee")
+  teamInvitationsSent           TeamInvitation[]              @relation("TeamInvitationInviter")
+  leagueRegistrationsRegistered LeagueRegistration[]          @relation("RegistrationRegisteredBy")
+  leagueRegistrationsWithdrawn  LeagueRegistration[]          @relation("RegistrationWithdrawnBy")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -231,7 +248,7 @@ model Session {
   userAgent    String?  @map("user_agent")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expires])
@@ -248,13 +265,13 @@ model VerificationToken {
 }
 
 model SignedToken {
-  jti        String             @id
-  purpose    SignedTokenPurpose
-  subjectId  String             @map("subject_id")  // userId o matchResultId según purpose
-  metadata   Json?
-  expiresAt  DateTime           @map("expires_at")
-  usedAt     DateTime?          @map("used_at")
-  createdAt  DateTime           @default(now()) @map("created_at")
+  jti       String             @id
+  purpose   SignedTokenPurpose
+  subjectId String             @map("subject_id") // userId o matchResultId según purpose
+  metadata  Json?
+  expiresAt DateTime           @map("expires_at")
+  usedAt    DateTime?          @map("used_at")
+  createdAt DateTime           @default(now()) @map("created_at")
 
   @@index([purpose, subjectId])
   @@index([expiresAt])
@@ -263,7 +280,7 @@ model SignedToken {
 
 model RateLimitBucket {
   id          String   @id @default(cuid())
-  key         String                     // formato: "action:scope:identifier"
+  key         String // formato: "action:scope:identifier"
   count       Int      @default(0)
   windowStart DateTime @map("window_start")
 
@@ -275,34 +292,36 @@ model RateLimitBucket {
 // ─── LIGAS ────────────────────────────────────────────────────────────────
 
 model League {
-  id                   String        @id @default(cuid())
-  name                 String
-  slug                 String        @unique
-  description          String?
-  startDate            DateTime      @map("start_date")
-  endDate              DateTime      @map("end_date")
-  status               LeagueStatus  @default(DRAFT)
-  category             TeamCategory  @default(INTERMEDIATE)
+  id                String       @id @default(cuid())
+  name              String
+  slug              String       @unique
+  description       String?
+  registrationStart DateTime     @map("registration_start")
+  registrationEnd   DateTime     @map("registration_end")
+  startDate         DateTime     @map("start_date")
+  endDate           DateTime     @map("end_date")
+  status            LeagueStatus @default(DRAFT)
+  category          TeamCategory @default(INTERMEDIATE)
 
   // Settings
-  matchFormat          MatchFormat   @default(FLEXIBLE) @map("match_format")
-  defaultDeadlineDays  Int           @default(21) @map("default_deadline_days") // 3 semanas
-  allowDraws           Boolean       @default(true) @map("allow_draws")
-  pointsWin            Int           @default(3) @map("points_win")
-  pointsDraw           Int           @default(1) @map("points_draw")
-  pointsLoss           Int           @default(0) @map("points_loss")
-  tiebreakerConfig     Json          @default("{}") @map("tiebreaker_config")
+  matchFormat         MatchFormat @default(FLEXIBLE) @map("match_format")
+  defaultDeadlineDays Int         @default(21) @map("default_deadline_days") // 3 semanas
+  allowDraws          Boolean     @default(true) @map("allow_draws")
+  pointsWin           Int         @default(3) @map("points_win")
+  pointsDraw          Int         @default(1) @map("points_draw")
+  pointsLoss          Int         @default(0) @map("points_loss")
+  tiebreakerConfig    Json        @default("{}") @map("tiebreaker_config")
 
-  createdByUserId      String        @map("created_by_user_id")
-  createdAt            DateTime      @default(now()) @map("created_at")
-  updatedAt            DateTime      @updatedAt @map("updated_at")
-  finalizedAt          DateTime?     @map("finalized_at")
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  finalizedAt     DateTime? @map("finalized_at")
 
-  members              LeagueMember[]
-  teams                Team[]
-  matches              Match[]
-  independentMatches   IndependentMatch[] @relation("IndependentMatchLeague")
-  categoryProposals    TeamCategoryChangeProposal[]
+  members            LeagueMember[]
+  registrations      LeagueRegistration[]
+  matches            Match[]
+  independentMatches IndependentMatch[]           @relation("IndependentMatchLeague")
+  categoryProposals  TeamCategoryChangeProposal[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -310,14 +329,14 @@ model League {
 }
 
 model LeagueMember {
-  id        String            @id @default(cuid())
-  leagueId  String            @map("league_id")
-  userId    String            @map("user_id")
-  role      LeagueMemberRole  @default(PLAYER)
-  joinedAt  DateTime          @default(now()) @map("joined_at")
+  id       String           @id @default(cuid())
+  leagueId String           @map("league_id")
+  userId   String           @map("user_id")
+  role     LeagueMemberRole @default(PLAYER)
+  joinedAt DateTime         @default(now()) @map("joined_at")
 
-  league    League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user      User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([leagueId, userId])
   @@index([userId])
@@ -325,40 +344,80 @@ model LeagueMember {
 }
 
 model Team {
-  id        String        @id @default(cuid())
-  leagueId  String        @map("league_id")
-  name      String
-  category  TeamCategory  @default(INTERMEDIATE)
-  createdAt DateTime      @default(now()) @map("created_at")
+  id              String       @id @default(cuid())
+  name            String
+  category        TeamCategory @default(INTERMEDIATE)
+  createdByUserId String       @map("created_by_user_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
 
-  league       League       @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  members      TeamMember[]
-  homeMatches  Match[]      @relation("TeamA")
-  awayMatches  Match[]      @relation("TeamB")
-  wonMatches                   MatchResult[] @relation("MatchWinner")
-  challengedIndependentMatches IndependentMatch[] @relation("ChallengedTeam")
-  organizerIndependentMatches  IndependentMatch[] @relation("OrganizerTeam")
+  createdBy                    User                         @relation("TeamCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  members                      TeamMember[]
+  invitations                  TeamInvitation[]
+  registrations                LeagueRegistration[]
+  homeMatches                  Match[]                      @relation("TeamA")
+  awayMatches                  Match[]                      @relation("TeamB")
+  wonMatches                   MatchResult[]                @relation("MatchWinner")
+  challengedIndependentMatches IndependentMatch[]           @relation("ChallengedTeam")
+  organizerIndependentMatches  IndependentMatch[]           @relation("OrganizerTeam")
   categoryProposals            TeamCategoryChangeProposal[]
 
-  @@unique([leagueId, name])
+  @@unique([createdByUserId, name])
   @@map("teams")
 }
 
-model TeamCategoryChangeProposal {
-  id                 String                 @id @default(cuid())
-  teamId             String                 @map("team_id")
-  leagueId           String                 @map("league_id")
-  fromCategory       TeamCategory           @map("from_category")
-  toCategory         TeamCategory           @map("to_category")
-  reason             CategoryProposalReason
-  status             CategoryProposalStatus @default(PROPOSED)
-  resolvedByUserId   String?                @map("resolved_by_user_id")
-  resolvedAt         DateTime?              @map("resolved_at")
-  createdAt          DateTime               @default(now()) @map("created_at")
+model TeamInvitation {
+  id              String               @id @default(cuid())
+  teamId          String               @map("team_id")
+  invitedUserId   String               @map("invited_user_id")
+  invitedByUserId String               @map("invited_by_user_id")
+  status          TeamInvitationStatus @default(PENDING)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  resolvedAt      DateTime?            @map("resolved_at")
 
-  team               Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  league             League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  resolvedByUser     User?   @relation("CategoryProposalResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitedUser User @relation("TeamInvitationInvitee", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedBy   User @relation("TeamInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([invitedUserId, status])
+  @@index([teamId, status])
+  @@map("team_invitations")
+}
+
+model LeagueRegistration {
+  id                 String    @id @default(cuid())
+  leagueId           String    @map("league_id")
+  teamId             String    @map("team_id")
+  registeredByUserId String    @map("registered_by_user_id")
+  registeredAt       DateTime  @default(now()) @map("registered_at")
+  withdrawnAt        DateTime? @map("withdrawn_at")
+  withdrawnByUserId  String?   @map("withdrawn_by_user_id")
+
+  league       League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team         Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  registeredBy User   @relation("RegistrationRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: Restrict)
+  withdrawnBy  User?  @relation("RegistrationWithdrawnBy", fields: [withdrawnByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([leagueId, teamId])
+  @@index([leagueId])
+  @@index([teamId])
+  @@map("league_registrations")
+}
+
+model TeamCategoryChangeProposal {
+  id               String                 @id @default(cuid())
+  teamId           String                 @map("team_id")
+  leagueId         String                 @map("league_id")
+  fromCategory     TeamCategory           @map("from_category")
+  toCategory       TeamCategory           @map("to_category")
+  reason           CategoryProposalReason
+  status           CategoryProposalStatus @default(PROPOSED)
+  resolvedByUserId String?                @map("resolved_by_user_id")
+  resolvedAt       DateTime?              @map("resolved_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+
+  team           Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  league         League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  resolvedByUser User?  @relation("CategoryProposalResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
 
   @@index([teamId, status])
   @@index([leagueId])
@@ -366,13 +425,13 @@ model TeamCategoryChangeProposal {
 }
 
 model TeamMember {
-  id       String @id @default(cuid())
-  teamId   String @map("team_id")
-  userId   String @map("user_id")
+  id       String   @id @default(cuid())
+  teamId   String   @map("team_id")
+  userId   String   @map("user_id")
   joinedAt DateTime @default(now()) @map("joined_at")
 
-  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user     User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([teamId, userId])
   @@index([userId])
@@ -382,32 +441,32 @@ model TeamMember {
 // ─── PARTIDOS ────────────────────────────────────────────────────────────
 
 model Match {
-  id                 String       @id @default(cuid())
-  leagueId           String       @map("league_id")
-  teamAId            String       @map("team_a_id")
-  teamBId            String       @map("team_b_id")
-  status             MatchStatus  @default(SCHEDULED)
+  id       String      @id @default(cuid())
+  leagueId String      @map("league_id")
+  teamAId  String      @map("team_a_id")
+  teamBId  String      @map("team_b_id")
+  status   MatchStatus @default(SCHEDULED)
 
-  scheduledAt        DateTime?    @map("scheduled_at")   // fecha acordada
-  deadlineAt         DateTime     @map("deadline_at")     // blando; se endurece al endDate de liga
+  scheduledAt DateTime? @map("scheduled_at") // fecha acordada
+  deadlineAt  DateTime  @map("deadline_at") // blando; se endurece al endDate de liga
 
-  confirmedResultId  String?      @unique @map("confirmed_result_id")
-  winnerTeamId       String?      @map("winner_team_id")   // null si empate
-  isTiebreaker       Boolean      @default(false) @map("is_tiebreaker")
-  round              Int?
+  confirmedResultId String? @unique @map("confirmed_result_id")
+  winnerTeamId      String? @map("winner_team_id") // null si empate
+  isTiebreaker      Boolean @default(false) @map("is_tiebreaker")
+  round             Int?
 
-  createdAt          DateTime     @default(now()) @map("created_at")
-  updatedAt          DateTime     @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  league             League                     @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  teamA              Team                       @relation("TeamA", fields: [teamAId], references: [id], onDelete: Restrict)
-  teamB              Team                       @relation("TeamB", fields: [teamBId], references: [id], onDelete: Restrict)
-  confirmedResult    MatchResult?               @relation("ConfirmedResult", fields: [confirmedResultId], references: [id])
-  results            MatchResult[]              @relation("MatchResults")
-  schedulingProposals   MatchSchedulingProposal[]
-  extensionProposals    DeadlineExtensionProposal[]
-  dispute               Dispute?
-  commentaries          MatchCommentary[]
+  league              League                      @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  teamA               Team                        @relation("TeamA", fields: [teamAId], references: [id], onDelete: Restrict)
+  teamB               Team                        @relation("TeamB", fields: [teamBId], references: [id], onDelete: Restrict)
+  confirmedResult     MatchResult?                @relation("ConfirmedResult", fields: [confirmedResultId], references: [id])
+  results             MatchResult[]               @relation("MatchResults")
+  schedulingProposals MatchSchedulingProposal[]
+  extensionProposals  DeadlineExtensionProposal[]
+  dispute             Dispute?
+  commentaries        MatchCommentary[]
 
   @@index([leagueId, status])
   @@index([deadlineAt])
@@ -417,24 +476,24 @@ model Match {
 }
 
 model MatchResult {
-  id                String              @id @default(cuid())
-  matchId           String              @map("match_id")
-  submittedByUserId String              @map("submitted_by_user_id")
-  submittedAt       DateTime            @default(now()) @map("submitted_at")
-  status            MatchResultStatus   @default(PENDING)
-  winnerTeamId      String?             @map("winner_team_id")  // null = empate; calculado al submit
-  validatedByUserId String?             @map("validated_by_user_id")
-  validatedAt       DateTime?           @map("validated_at")
-  autoApprovedAt    DateTime?           @map("auto_approved_at")
-  rejectionReason   String?             @map("rejection_reason")
-  rejectedAt        DateTime?           @map("rejected_at")
+  id                String            @id @default(cuid())
+  matchId           String            @map("match_id")
+  submittedByUserId String            @map("submitted_by_user_id")
+  submittedAt       DateTime          @default(now()) @map("submitted_at")
+  status            MatchResultStatus @default(PENDING)
+  winnerTeamId      String?           @map("winner_team_id") // null = empate; calculado al submit
+  validatedByUserId String?           @map("validated_by_user_id")
+  validatedAt       DateTime?         @map("validated_at")
+  autoApprovedAt    DateTime?         @map("auto_approved_at")
+  rejectionReason   String?           @map("rejection_reason")
+  rejectedAt        DateTime?         @map("rejected_at")
 
-  match            Match   @relation("MatchResults", fields: [matchId], references: [id], onDelete: Cascade)
-  submitter        User    @relation("ResultSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
-  validator        User?   @relation("ResultValidator", fields: [validatedByUserId], references: [id], onDelete: Restrict)
-  winnerTeam       Team?   @relation("MatchWinner", fields: [winnerTeamId], references: [id], onDelete: Restrict)
+  match            Match  @relation("MatchResults", fields: [matchId], references: [id], onDelete: Cascade)
+  submitter        User   @relation("ResultSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  validator        User?  @relation("ResultValidator", fields: [validatedByUserId], references: [id], onDelete: Restrict)
+  winnerTeam       Team?  @relation("MatchWinner", fields: [winnerTeamId], references: [id], onDelete: Restrict)
   sets             Set[]
-  matchAsConfirmed Match?  @relation("ConfirmedResult")
+  matchAsConfirmed Match? @relation("ConfirmedResult")
 
   @@index([matchId, status])
   @@index([submittedByUserId])
@@ -444,44 +503,44 @@ model MatchResult {
 model Set {
   id            String @id @default(cuid())
   matchResultId String @map("match_result_id")
-  setNumber     Int    @map("set_number")   // 1..5
+  setNumber     Int    @map("set_number") // 1..5
   gamesA        Int    @map("games_a")
   gamesB        Int    @map("games_b")
 
-  matchResult   MatchResult @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
+  matchResult MatchResult @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
 
   @@unique([matchResultId, setNumber])
   @@map("sets")
 }
 
 model MatchSchedulingProposal {
-  id                 String                    @id @default(cuid())
-  matchId            String                    @map("match_id")
-  proposedByUserId   String                    @map("proposed_by_user_id")
-  proposedDate       DateTime                  @map("proposed_date")
-  status             SchedulingProposalStatus  @default(PROPOSED)
-  respondedByUserId  String?                   @map("responded_by_user_id")
-  respondedAt        DateTime?                 @map("responded_at")
-  rejectionReason    String?                   @map("rejection_reason")
-  createdAt          DateTime                  @default(now()) @map("created_at")
+  id                String                   @id @default(cuid())
+  matchId           String                   @map("match_id")
+  proposedByUserId  String                   @map("proposed_by_user_id")
+  proposedDate      DateTime                 @map("proposed_date")
+  status            SchedulingProposalStatus @default(PROPOSED)
+  respondedByUserId String?                  @map("responded_by_user_id")
+  respondedAt       DateTime?                @map("responded_at")
+  rejectionReason   String?                  @map("rejection_reason")
+  createdAt         DateTime                 @default(now()) @map("created_at")
 
-  match       Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  proposer    User   @relation("ScheduleProposer", fields: [proposedByUserId], references: [id], onDelete: Restrict)
-  responder   User?  @relation("ScheduleResponder", fields: [respondedByUserId], references: [id], onDelete: Restrict)
+  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  proposer  User  @relation("ScheduleProposer", fields: [proposedByUserId], references: [id], onDelete: Restrict)
+  responder User? @relation("ScheduleResponder", fields: [respondedByUserId], references: [id], onDelete: Restrict)
 
   @@index([matchId, status])
   @@map("match_scheduling_proposals")
 }
 
 model DeadlineExtensionProposal {
-  id                 String                    @id @default(cuid())
-  matchId            String                    @map("match_id")
-  proposedByUserId   String                    @map("proposed_by_user_id")
-  proposedDeadlineAt DateTime                  @map("proposed_deadline_at")
-  status             ExtensionProposalStatus   @default(PROPOSED)
-  respondedByUserId  String?                   @map("responded_by_user_id")
-  respondedAt        DateTime?                 @map("responded_at")
-  createdAt          DateTime                  @default(now()) @map("created_at")
+  id                 String                  @id @default(cuid())
+  matchId            String                  @map("match_id")
+  proposedByUserId   String                  @map("proposed_by_user_id")
+  proposedDeadlineAt DateTime                @map("proposed_deadline_at")
+  status             ExtensionProposalStatus @default(PROPOSED)
+  respondedByUserId  String?                 @map("responded_by_user_id")
+  respondedAt        DateTime?               @map("responded_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
 
   match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   proposer  User  @relation("ExtensionProposer", fields: [proposedByUserId], references: [id], onDelete: Restrict)
@@ -492,42 +551,42 @@ model DeadlineExtensionProposal {
 }
 
 model Dispute {
-  id                 String              @id @default(cuid())
-  matchId            String              @unique @map("match_id")
-  openedByUserId     String              @map("opened_by_user_id")
-  reason             String
-  evidenceSnapshot   Json                @map("evidence_snapshot")   // histórico serializado al abrir
-  status             DisputeStatus       @default(OPEN)
-  resolution         DisputeResolution?
-  adminNote          String?             @map("admin_note")
-  newDeadlineAt      DateTime?           @map("new_deadline_at")
-  resolvedByUserId   String?             @map("resolved_by_user_id")
-  resolvedAt         DateTime?           @map("resolved_at")
-  createdAt          DateTime            @default(now()) @map("created_at")
+  id               String             @id @default(cuid())
+  matchId          String             @unique @map("match_id")
+  openedByUserId   String             @map("opened_by_user_id")
+  reason           String
+  evidenceSnapshot Json               @map("evidence_snapshot") // histórico serializado al abrir
+  status           DisputeStatus      @default(OPEN)
+  resolution       DisputeResolution?
+  adminNote        String?            @map("admin_note")
+  newDeadlineAt    DateTime?          @map("new_deadline_at")
+  resolvedByUserId String?            @map("resolved_by_user_id")
+  resolvedAt       DateTime?          @map("resolved_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
 
-  match        Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  opener       User  @relation("DisputeOpener", fields: [openedByUserId], references: [id], onDelete: Restrict)
-  resolver     User? @relation("DisputeResolver", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  opener   User  @relation("DisputeOpener", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  resolver User? @relation("DisputeResolver", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
 
   @@index([status])
   @@map("disputes")
 }
 
 model MatchCommentary {
-  id                 String                @id @default(cuid())
-  matchId            String                @map("match_id")
-  type               CommentaryType
-  provider           AICommentaryProvider
-  content            String
-  generatedAt        DateTime              @default(now()) @map("generated_at")
-  regeneratedCount   Int                   @default(0) @map("regenerated_count")
-  rejectedForSafety  Boolean               @default(false) @map("rejected_for_safety")
-  promptVersion      String                @default("v1") @map("prompt_version")
-  editedAt           DateTime?             @map("edited_at")
-  editedByUserId     String?               @map("edited_by_user_id")
+  id                String               @id @default(cuid())
+  matchId           String               @map("match_id")
+  type              CommentaryType
+  provider          AICommentaryProvider
+  content           String
+  generatedAt       DateTime             @default(now()) @map("generated_at")
+  regeneratedCount  Int                  @default(0) @map("regenerated_count")
+  rejectedForSafety Boolean              @default(false) @map("rejected_for_safety")
+  promptVersion     String               @default("v1") @map("prompt_version")
+  editedAt          DateTime?            @map("edited_at")
+  editedByUserId    String?              @map("edited_by_user_id")
 
-  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  editor User?  @relation("CommentaryEditor", fields: [editedByUserId], references: [id], onDelete: Restrict)
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  editor User? @relation("CommentaryEditor", fields: [editedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([matchId, type])
   @@map("match_commentaries")
@@ -551,10 +610,10 @@ model IndependentMatch {
   createdAt        DateTime               @default(now()) @map("created_at")
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
-  organizer      User                              @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
-  challengedTeam Team?                             @relation("ChallengedTeam", fields: [challengedTeamId], references: [id], onDelete: Restrict)
-  organizerTeam  Team?                             @relation("OrganizerTeam", fields: [organizerTeamId], references: [id], onDelete: Restrict)
-  league         League?                           @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
+  organizer      User                          @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  challengedTeam Team?                         @relation("ChallengedTeam", fields: [challengedTeamId], references: [id], onDelete: Restrict)
+  organizerTeam  Team?                         @relation("OrganizerTeam", fields: [organizerTeamId], references: [id], onDelete: Restrict)
+  league         League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
   participants   IndependentMatchParticipant[]
   joinRequests   IndependentMatchJoinRequest[]
   invitations    IndependentMatchInvitation[]
@@ -564,31 +623,31 @@ model IndependentMatch {
 }
 
 model IndependentMatchParticipant {
-  id                   String             @id @default(cuid())
-  independentMatchId   String             @map("independent_match_id")
-  userId               String             @map("user_id")
-  status               ParticipantStatus  @default(INVITED)
-  respondedAt          DateTime?          @map("responded_at")
+  id                 String            @id @default(cuid())
+  independentMatchId String            @map("independent_match_id")
+  userId             String            @map("user_id")
+  status             ParticipantStatus @default(INVITED)
+  respondedAt        DateTime?         @map("responded_at")
 
-  match                IndependentMatch @relation(fields: [independentMatchId], references: [id], onDelete: Cascade)
-  user                 User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  match IndependentMatch @relation(fields: [independentMatchId], references: [id], onDelete: Cascade)
+  user  User             @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([independentMatchId, userId])
   @@map("independent_match_participants")
 }
 
 model IndependentMatchJoinRequest {
-  id                    String             @id @default(cuid())
-  independentMatchId    String             @map("independent_match_id")
-  userId                String             @map("user_id")
-  message               String?
-  status                JoinRequestStatus  @default(PENDING)
-  respondedByUserId     String?            @map("responded_by_user_id")
-  respondedAt           DateTime?          @map("responded_at")
-  createdAt             DateTime           @default(now()) @map("created_at")
+  id                 String            @id @default(cuid())
+  independentMatchId String            @map("independent_match_id")
+  userId             String            @map("user_id")
+  message            String?
+  status             JoinRequestStatus @default(PENDING)
+  respondedByUserId  String?           @map("responded_by_user_id")
+  respondedAt        DateTime?         @map("responded_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
 
-  match    IndependentMatch @relation(fields: [independentMatchId], references: [id], onDelete: Cascade)
-  user     User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  match IndependentMatch @relation(fields: [independentMatchId], references: [id], onDelete: Cascade)
+  user  User             @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([independentMatchId, status])
   @@map("independent_match_join_requests")
@@ -612,33 +671,33 @@ model IndependentMatchInvitation {
 // ─── INFRA COMÚN ─────────────────────────────────────────────────────────
 
 model Notification {
-  id        String              @id @default(cuid())
-  userId    String              @map("user_id")
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
   type      NotificationType
   title     String
   body      String
   metadata  Json?
-  readAt    DateTime?           @map("read_at")
-  createdAt DateTime            @default(now()) @map("created_at")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
 
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
   @@map("notifications")
 }
 
 model EmailLog {
-  id                 String       @id @default(cuid())
-  toEmail            String       @map("to_email")
-  template           String
-  subject            String
-  providerMessageId  String?      @map("provider_message_id")
-  status             EmailStatus  @default(QUEUED)
-  attempt            Int          @default(1)
-  errorMessage       String?      @map("error_message")
-  dedupKey           String?      @unique @map("dedup_key")
-  createdAt          DateTime     @default(now()) @map("created_at")
-  sentAt             DateTime?    @map("sent_at")
+  id                String      @id @default(cuid())
+  toEmail           String      @map("to_email")
+  template          String
+  subject           String
+  providerMessageId String?     @map("provider_message_id")
+  status            EmailStatus @default(QUEUED)
+  attempt           Int         @default(1)
+  errorMessage      String?     @map("error_message")
+  dedupKey          String?     @unique @map("dedup_key")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  sentAt            DateTime?   @map("sent_at")
 
   @@index([status])
   @@index([toEmail])
@@ -646,17 +705,17 @@ model EmailLog {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  actorId     String?  @map("actor_id")  // null si sistema
-  action      String                      // p. ej., "match.result.confirmed"
-  targetType  String   @map("target_type") // p. ej., "Match"
-  targetId    String   @map("target_id")
-  metadata    Json?
-  ipAddress   String?  @map("ip_address")
-  userAgent   String?  @map("user_agent")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  actorId    String?  @map("actor_id") // null si sistema
+  action     String // p. ej., "match.result.confirmed"
+  targetType String   @map("target_type") // p. ej., "Match"
+  targetId   String   @map("target_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
 
-  actor       User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([targetType, targetId, createdAt])
   @@index([actorId, createdAt])
@@ -665,12 +724,12 @@ model AuditLog {
 }
 
 model JobDeadLetter {
-  id          String   @id @default(cuid())
-  jobName     String   @map("job_name")
-  jobId       String   @map("job_id")     // id de pg-boss
-  payload     Json
-  error       String
-  failedAt    DateTime @default(now()) @map("failed_at")
+  id       String   @id @default(cuid())
+  jobName  String   @map("job_name")
+  jobId    String   @map("job_id") // id de pg-boss
+  payload  Json
+  error    String
+  failedAt DateTime @default(now()) @map("failed_at")
 
   @@index([jobName, failedAt])
   @@map("job_dead_letters")

@@ -69,10 +69,11 @@ export async function buildContext(
   });
   if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
 
-  const allTeams = await prisma.team.findMany({
-    where: { leagueId: match.league.id },
-    select: { id: true, name: true },
+  const registrations = await prisma.leagueRegistration.findMany({
+    where: { leagueId: match.league.id, withdrawnAt: null },
+    select: { team: { select: { id: true, name: true } } },
   });
+  const allTeams = registrations.map((r) => r.team);
   const teamNamesById = new Map(allTeams.map((t) => [t.id, t.name]));
   const teamNamesMap = Object.fromEntries(allTeams.map((t) => [t.id, t.name]));
 

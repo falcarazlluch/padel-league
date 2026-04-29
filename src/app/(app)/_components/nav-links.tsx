@@ -18,6 +18,9 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))} aria-current={pathname.startsWith('/ligas') ? 'page' : undefined}>
         Ligas
       </Link>
+      <Link href={'/equipos' as Route} className={linkClass(pathname.startsWith('/equipos'))} aria-current={pathname.startsWith('/equipos') ? 'page' : undefined}>
+        Mis equipos
+      </Link>
       <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))} aria-current={pathname.startsWith('/partidos') ? 'page' : undefined}>
         Mis partidos
       </Link>

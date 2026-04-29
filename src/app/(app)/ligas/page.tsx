@@ -214,8 +214,12 @@ export default async function LigasPage({
                 <p className="text-sm text-slate-500 mb-3 line-clamp-2">{league.description}</p>
               )}
               <p className="text-xs text-slate-400">
-                {league.startDate.toLocaleDateString('es-ES')} –{' '}
+                Liga: {league.startDate.toLocaleDateString('es-ES')} –{' '}
                 {league.endDate.toLocaleDateString('es-ES')}
+              </p>
+              <p className="text-xs text-slate-400">
+                Inscripción: {league.registrationStart.toLocaleDateString('es-ES')} –{' '}
+                {league.registrationEnd.toLocaleDateString('es-ES')}
               </p>
             </Link>
           ))}

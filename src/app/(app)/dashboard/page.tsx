@@ -31,14 +31,24 @@ export default async function DashboardPage() {
     prisma.league.findMany({
       where: {
         status: 'ACTIVE',
-        teams: { some: { members: { some: { userId: user.id } } } },
+        registrations: {
+          some: {
+            withdrawnAt: null,
+            team: { members: { some: { userId: user.id } } },
+          },
+        },
       },
       include: {
-        teams: {
-          select: {
-            id: true,
-            name: true,
-            members: { select: { userId: true } },
+        registrations: {
+          where: { withdrawnAt: null },
+          include: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+                members: { select: { userId: true } },
+              },
+            },
           },
         },
       },
@@ -55,7 +65,8 @@ export default async function DashboardPage() {
         where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] } },
         include: { confirmedResult: { include: { sets: true } } },
       });
-      const teamNamesMap = Object.fromEntries(league.teams.map((t) => [t.id, t.name]));
+      const leagueTeams = league.registrations.map((r) => r.team);
+      const teamNamesMap = Object.fromEntries(leagueTeams.map((t) => [t.id, t.name]));
       const standings = calculateStandings(
         teamNamesMap,
         matchesForStandings.map((m) => ({
@@ -66,7 +77,7 @@ export default async function DashboardPage() {
           sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
         })),
       );
-      const userTeamId = league.teams.find((t) => t.members.some((m) => m.userId === user.id))?.id;
+      const userTeamId = leagueTeams.find((t) => t.members.some((m) => m.userId === user.id))?.id;
       const userTeamName = userTeamId ? teamNamesMap[userTeamId] : null;
       const progress = userTeamId
         ? computeTeamProgress(

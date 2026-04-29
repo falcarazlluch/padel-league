@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('@/shared/db/client', () => ({
   prisma: {
     match: { findUnique: vi.fn(), findMany: vi.fn() },
-    team: { findMany: vi.fn() },
+    leagueRegistration: { findMany: vi.fn() },
     teamCategoryChangeProposal: { findFirst: vi.fn() },
   },
 }));
@@ -17,6 +17,10 @@ import { prisma } from '@/shared/db/client';
 import { calculateStandings } from '@/modules/leagues';
 import { buildContext } from '@/modules/match-commentary/application/context-builder';
 import { NotFoundError } from '@/shared/errors';
+
+function regs(teams: Array<{ id: string; name: string }>) {
+  return teams.map((t) => ({ team: t }));
+}
 
 const mockMatch = (overrides: Record<string, unknown> = {}) => ({
   id: 'match-1',
@@ -43,11 +47,13 @@ describe('buildContext', () => {
 
   it('builds a PREVIEW context with team names, ranking, and recent matches', async () => {
     (prisma.match.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockMatch());
-    (prisma.team.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-      { id: 'team-a', name: 'Los Cañones' },
-      { id: 'team-b', name: 'Pádel Bros' },
-      { id: 'team-c', name: 'Team Rafa' },
-    ]);
+    (prisma.leagueRegistration.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      regs([
+        { id: 'team-a', name: 'Los Cañones' },
+        { id: 'team-b', name: 'Pádel Bros' },
+        { id: 'team-c', name: 'Team Rafa' },
+      ]),
+    );
     (prisma.match.findMany as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce([]) // confirmedMatches for standings
       .mockResolvedValueOnce([
@@ -77,10 +83,12 @@ describe('buildContext', () => {
 
   it('returns rank=null when team has not played any match yet', async () => {
     (prisma.match.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockMatch());
-    (prisma.team.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-      { id: 'team-a', name: 'Los Cañones' },
-      { id: 'team-b', name: 'Pádel Bros' },
-    ]);
+    (prisma.leagueRegistration.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      regs([
+        { id: 'team-a', name: 'Los Cañones' },
+        { id: 'team-b', name: 'Pádel Bros' },
+      ]),
+    );
     (prisma.match.findMany as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -108,10 +116,12 @@ describe('buildContext', () => {
         },
       }),
     );
-    (prisma.team.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-      { id: 'team-a', name: 'Los Cañones' },
-      { id: 'team-b', name: 'Pádel Bros' },
-    ]);
+    (prisma.leagueRegistration.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      regs([
+        { id: 'team-a', name: 'Los Cañones' },
+        { id: 'team-b', name: 'Pádel Bros' },
+      ]),
+    );
     (prisma.match.findMany as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -140,10 +150,12 @@ describe('buildContext', () => {
         confirmedResult: { sets: [{ setNumber: 1, gamesA: 6, gamesB: 6 }] },
       }),
     );
-    (prisma.team.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-      { id: 'team-a', name: 'Los Cañones' },
-      { id: 'team-b', name: 'Pádel Bros' },
-    ]);
+    (prisma.leagueRegistration.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      regs([
+        { id: 'team-a', name: 'Los Cañones' },
+        { id: 'team-b', name: 'Pádel Bros' },
+      ]),
+    );
     (prisma.match.findMany as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])

@@ -5,6 +5,8 @@ export type LeagueRow = {
   name: string;
   slug: string;
   description: string | null;
+  registrationStart: Date;
+  registrationEnd: Date;
   startDate: Date;
   endDate: Date;
   status: LeagueStatus;
@@ -58,18 +60,14 @@ export type StandingEntry = {
 export type CreateLeagueInput = {
   name: string;
   description?: string;
+  registrationStart: Date;
+  registrationEnd: Date;
   startDate: Date;
   endDate: Date;
   category?: TeamCategory;
   matchFormat?: MatchFormat;
   defaultDeadlineDays?: number;
   createdByUserId: string;
-};
-
-export type CreateTeamInput = {
-  leagueId: string;
-  name: string;
-  category?: TeamCategory;
 };
 
 export type SubmitResultInput = {

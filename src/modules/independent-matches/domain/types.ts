@@ -18,7 +18,7 @@ export type IndependentMatchRow = {
 
 export type IndependentMatchDetail = IndependentMatchRow & {
   organizer: { id: string; name: string };
-  challengedTeam: { id: string; name: string; leagueId: string } | null;
+  challengedTeam: { id: string; name: string } | null;
   league: { id: string; name: string; slug: string } | null;
   participants: { userId: string; user: { id: string; name: string }; status: ParticipantStatus }[];
   joinRequests: { id: string; userId: string; user: { id: string; name: string }; status: JoinRequestStatus; createdAt: Date }[];
@@ -47,7 +47,6 @@ export type CreateChallengeInput = {
 
 export type TeamForChallenge = {
   id: string;
-  leagueId: string;
   name: string;
   members: { userId: string; user: { id: string; name: string; email: string } }[];
 };

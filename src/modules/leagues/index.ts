@@ -13,7 +13,6 @@ export type {
   MatchDetailRow,
   StandingEntry,
   CreateLeagueInput,
-  CreateTeamInput,
   SubmitResultInput,
   ResolveDisputeInput,
 } from './domain/types';

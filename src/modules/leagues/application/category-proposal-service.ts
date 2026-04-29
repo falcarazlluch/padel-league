@@ -30,19 +30,25 @@ export const CategoryProposalService = {
         id: true,
         name: true,
         pointsWin: true,
-        teams: {
+        registrations: {
+          where: { withdrawnAt: null },
           select: {
-            id: true,
-            name: true,
-            category: true,
-            members: { select: { userId: true } },
+            team: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                members: { select: { userId: true } },
+              },
+            },
           },
         },
       },
     });
     if (!league) return { created: 0 };
 
-    const teamNames = Object.fromEntries(league.teams.map((t) => [t.id, t.name]));
+    const leagueTeams = league.registrations.map((r) => r.team);
+    const teamNames = Object.fromEntries(leagueTeams.map((t) => [t.id, t.name]));
 
     const matches = await prisma.match.findMany({
       where: {
@@ -63,7 +69,7 @@ export const CategoryProposalService = {
       })),
     );
 
-    const teamCategoryMap = new Map(league.teams.map((t) => [t.id, t.category]));
+    const teamCategoryMap = new Map(leagueTeams.map((t) => [t.id, t.category]));
     const proposalCandidates = calculateCategoryProposals(
       standings.map((s) => ({
         teamId: s.teamId,
@@ -111,7 +117,7 @@ export const CategoryProposalService = {
       }> = [];
 
       for (const proposal of created) {
-        const team = league.teams.find((t) => t.id === proposal.teamId);
+        const team = leagueTeams.find((t) => t.id === proposal.teamId);
         if (!team) continue;
         const verb = proposal.reason === 'PROMOTION' ? 'subir' : 'bajar';
         const title =

@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { LeagueService } from '@/modules/leagues';
-import { prisma } from '@/shared/db/client';
+import { LeagueRegistrationService } from '@/modules/teams';
 import { isUserFacingError } from '@/shared/errors';
 
 async function getSession() {
@@ -19,12 +19,15 @@ async function getSession() {
 }
 
 const categoryEnum = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
+const dateString = z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida');
 
 const createLeagueSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
   description: z.string().max(500).optional(),
-  startDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de inicio inválida'),
-  endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de fin inválida'),
+  registrationStart: dateString,
+  registrationEnd: dateString,
+  startDate: dateString,
+  endDate: dateString,
   category: categoryEnum.optional(),
 });
 
@@ -37,15 +40,14 @@ export async function createLeagueAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
-  const { name, description, startDate, endDate, category } = parsed.data;
-  if (new Date(endDate) <= new Date(startDate)) {
-    return { error: 'La fecha de fin debe ser posterior a la de inicio.' };
-  }
+  const { name, description, registrationStart, registrationEnd, startDate, endDate, category } = parsed.data;
   let slug: string;
   try {
     const league = await LeagueService.create({
       name,
       description,
+      registrationStart: new Date(registrationStart),
+      registrationEnd: new Date(registrationEnd),
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       category,
@@ -59,66 +61,6 @@ export async function createLeagueAction(
   redirect(`/ligas/${slug}` as Route);
 }
 
-const createTeamSchema = z.object({
-  leagueId: z.string().cuid(),
-  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(60),
-  category: categoryEnum.optional(),
-});
-
-export async function createTeamAction(
-  _prev: { error?: string },
-  formData: FormData,
-): Promise<{ error?: string }> {
-  await getSession();
-  const parsed = createTeamSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
-  const { leagueId, name, category } = parsed.data;
-  try {
-    await LeagueService.createTeam({ leagueId, name, category });
-    return {};
-  } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
-  }
-}
-
-const addMemberSchema = z.object({
-  teamId: z.string().cuid(),
-  userEmail: z.string().email('Email inválido'),
-});
-
-export async function addTeamMemberAction(
-  _prev: { error?: string },
-  formData: FormData,
-): Promise<{ error?: string }> {
-  await getSession();
-  const parsed = addMemberSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
-  const { teamId, userEmail } = parsed.data;
-
-  const user = await prisma.user.findUnique({ where: { email: userEmail } });
-  if (!user) return { error: 'No existe ningún usuario con ese email.' };
-
-  try {
-    await LeagueService.addTeamMember(teamId, user.id);
-    return {};
-  } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
-  }
-}
-
-export async function removeTeamMemberAction(teamId: string, userId: string): Promise<{ error?: string }> {
-  await getSession();
-  try {
-    await LeagueService.removeTeamMember(teamId, userId);
-    return {};
-  } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
-  }
-}
-
 export async function activateLeagueAction(leagueId: string): Promise<{ error?: string }> {
   const user = await getSession();
   try {
@@ -127,7 +69,6 @@ export async function activateLeagueAction(leagueId: string): Promise<{ error?: 
     if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
-  // DO NOT generate fixtures here — activateLeague handles it in its own transaction
   return {};
 }
 
@@ -136,7 +77,9 @@ const updateLeagueSchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
   description: z.string().max(500).optional(),
-  endDate: z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha de fin inválida'),
+  registrationStart: dateString.optional(),
+  registrationEnd: dateString.optional(),
+  endDate: dateString,
   category: categoryEnum.optional(),
 });
 
@@ -150,6 +93,8 @@ export async function updateLeagueAction(
     slug: formData.get('slug'),
     name: formData.get('name'),
     description: formData.get('description') || undefined,
+    registrationStart: formData.get('registrationStart') || undefined,
+    registrationEnd: formData.get('registrationEnd') || undefined,
     endDate: formData.get('endDate'),
     category: formData.get('category') || undefined,
   });
@@ -160,6 +105,8 @@ export async function updateLeagueAction(
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       endDate: new Date(parsed.data.endDate),
+      ...(parsed.data.registrationStart && { registrationStart: new Date(parsed.data.registrationStart) }),
+      ...(parsed.data.registrationEnd && { registrationEnd: new Date(parsed.data.registrationEnd) }),
       ...(parsed.data.category && { category: parsed.data.category }),
     });
   } catch (err) {
@@ -183,4 +130,52 @@ export async function deleteLeagueAction(leagueId: string): Promise<{ error?: st
   revalidatePath('/ligas');
   revalidatePath('/dashboard');
   redirect('/ligas' as Route);
+}
+
+const registerSchema = z.object({
+  leagueId: z.string().cuid(),
+  teamId: z.string().cuid(),
+});
+
+export async function registerTeamAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = registerSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await LeagueRegistrationService.register({
+      leagueId: parsed.data.leagueId,
+      teamId: parsed.data.teamId,
+      userId: user.id,
+    });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+
+  revalidatePath('/ligas');
+  revalidatePath('/equipos');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
+export async function withdrawTeamAction(
+  leagueId: string,
+  teamId: string,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await LeagueRegistrationService.withdraw({ leagueId, teamId, userId: user.id });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+
+  revalidatePath('/ligas');
+  revalidatePath('/equipos');
+  revalidatePath('/dashboard');
+  return {};
 }

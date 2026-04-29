@@ -12,13 +12,17 @@ type Props = {
   slug: string;
   initialName: string;
   initialDescription: string;
-  initialEndDate: string; // YYYY-MM-DD
+  initialRegistrationStart: string; // YYYY-MM-DD
+  initialRegistrationEnd: string;   // YYYY-MM-DD
+  initialEndDate: string;           // YYYY-MM-DD
   initialCategory: TeamCategory;
   canDelete: boolean;
 };
 
 export function EditLeagueForm({
-  leagueId, slug, initialName, initialDescription, initialEndDate, initialCategory, canDelete,
+  leagueId, slug, initialName, initialDescription,
+  initialRegistrationStart, initialRegistrationEnd, initialEndDate,
+  initialCategory, canDelete,
 }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(updateLeagueAction, null);
@@ -97,6 +101,35 @@ export function EditLeagueForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="registrationStart" className="block text-sm font-medium text-slate-700 mb-1">
+              Inicio inscripción <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="registrationStart"
+              name="registrationStart"
+              type="date"
+              required
+              defaultValue={initialRegistrationStart}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
+          <div>
+            <label htmlFor="registrationEnd" className="block text-sm font-medium text-slate-700 mb-1">
+              Cierre inscripción <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="registrationEnd"
+              name="registrationEnd"
+              type="date"
+              required
+              defaultValue={initialRegistrationEnd}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
         </div>
 
         <div>

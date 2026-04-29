@@ -57,6 +57,9 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           <Link href={'/ligas' as Route} onClick={close} className={linkClass(pathname.startsWith('/ligas'))}>
             Ligas
           </Link>
+          <Link href={'/equipos' as Route} onClick={close} className={linkClass(pathname.startsWith('/equipos'))}>
+            Mis equipos
+          </Link>
           <Link href={'/partidos' as Route} onClick={close} className={linkClass(pathname.startsWith('/partidos'))}>
             Mis partidos
           </Link>

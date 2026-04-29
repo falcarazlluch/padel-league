@@ -1,20 +1,44 @@
 import { prisma } from '@/shared/db/client';
-import { ConflictError, NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
+import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import type { TeamCategory } from '@prisma/client';
-import type { CreateLeagueInput, CreateTeamInput, LeagueRow, TeamRow, MatchRow } from '../domain/types';
+import type { CreateLeagueInput, LeagueRow, TeamRow, MatchRow } from '../domain/types';
 import { generateFixtures } from './fixture-generator';
 
 function toSlug(name: string): string {
   return name
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 }
 
+function validateLeagueDates(input: {
+  registrationStart: Date;
+  registrationEnd: Date;
+  startDate: Date;
+  endDate: Date;
+}): void {
+  if (input.registrationStart.getTime() >= input.registrationEnd.getTime()) {
+    throw new DomainError('INVALID_REGISTRATION_WINDOW', 'El cierre de inscripción debe ser posterior a su apertura.');
+  }
+  if (input.registrationEnd.getTime() > input.startDate.getTime()) {
+    throw new DomainError('INVALID_REGISTRATION_WINDOW', 'El cierre de inscripción debe ser anterior o igual al inicio de la liga.');
+  }
+  if (input.startDate.getTime() >= input.endDate.getTime()) {
+    throw new DomainError('INVALID_END_DATE', 'La fecha fin debe ser posterior al inicio de la liga.');
+  }
+}
+
 export const LeagueService = {
   async create(input: CreateLeagueInput): Promise<LeagueRow> {
+    validateLeagueDates({
+      registrationStart: input.registrationStart,
+      registrationEnd: input.registrationEnd,
+      startDate: input.startDate,
+      endDate: input.endDate,
+    });
+
     const baseSlug = toSlug(input.name);
     const existing = await prisma.league.findMany({ where: { slug: { startsWith: baseSlug } } });
     const slug = existing.length === 0 ? baseSlug : `${baseSlug}-${existing.length + 1}`;
@@ -24,6 +48,8 @@ export const LeagueService = {
         name: input.name,
         slug,
         description: input.description ?? null,
+        registrationStart: input.registrationStart,
+        registrationEnd: input.registrationEnd,
         startDate: input.startDate,
         endDate: input.endDate,
         category: input.category ?? 'INTERMEDIATE',
@@ -50,12 +76,31 @@ export const LeagueService = {
     return league;
   },
 
+  /** Returns teams currently registered (not withdrawn) in the league. */
   async getTeams(leagueId: string): Promise<TeamRow[]> {
-    return prisma.team.findMany({
-      where: { leagueId },
-      include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
-      orderBy: { name: 'asc' },
+    const registrations = await prisma.leagueRegistration.findMany({
+      where: { leagueId, withdrawnAt: null },
+      include: {
+        team: {
+          include: {
+            members: {
+              include: { user: { select: { id: true, name: true, email: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { team: { name: 'asc' } },
     });
+    return registrations.map((r) => ({
+      id: r.team.id,
+      leagueId,
+      name: r.team.name,
+      category: r.team.category,
+      members: r.team.members.map((m) => ({
+        userId: m.userId,
+        user: { id: m.user.id, name: m.user.name, email: m.user.email },
+      })),
+    }));
   },
 
   async getMatches(leagueId: string): Promise<MatchRow[]> {
@@ -69,57 +114,15 @@ export const LeagueService = {
     });
   },
 
-  async createTeam(input: CreateTeamInput): Promise<{ id: string; name: string }> {
-    const exists = await prisma.team.findFirst({
-      where: { leagueId: input.leagueId, name: input.name },
-    });
-    if (exists) throw new ConflictError('TEAM_EXISTS', 'Ya existe un equipo con ese nombre en esta liga.');
-
-    // Default the team's category to the league's if not provided
-    const league = await prisma.league.findUnique({
-      where: { id: input.leagueId },
-      select: { category: true },
-    });
-
-    return prisma.team.create({
-      data: {
-        leagueId: input.leagueId,
-        name: input.name,
-        category: input.category ?? league?.category ?? 'INTERMEDIATE',
-      },
-    });
-  },
-
-  async addTeamMember(teamId: string, userId: string): Promise<void> {
-    const team = await prisma.team.findUnique({ where: { id: teamId }, include: { members: true } });
-    if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
-    if (team.members.length >= 2) throw new DomainError('TEAM_FULL', 'El equipo ya tiene 2 miembros.');
-    if (team.members.some((m) => m.userId === userId))
-      throw new ConflictError('MEMBER_EXISTS', 'El jugador ya es miembro de este equipo.');
-
-    const league = await prisma.league.findUnique({ where: { id: team.leagueId } });
-    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
-    if (league.status !== 'DRAFT')
-      throw new DomainError('LEAGUE_NOT_DRAFT', 'No se pueden modificar equipos de una liga activa.');
-
-    await prisma.teamMember.create({ data: { teamId, userId } });
-  },
-
-  async removeTeamMember(teamId: string, userId: string): Promise<void> {
-    const member = await prisma.teamMember.findFirst({ where: { teamId, userId } });
-    if (!member) throw new NotFoundError('MEMBER_NOT_FOUND', 'El jugador no es miembro de este equipo.');
-
-    const team = await prisma.team.findUnique({ where: { id: teamId }, include: { league: true } });
-    if (team?.league.status !== 'DRAFT')
-      throw new DomainError('LEAGUE_NOT_DRAFT', 'No se pueden modificar equipos de una liga activa.');
-
-    await prisma.teamMember.delete({ where: { id: member.id } });
-  },
-
   async activateLeague(leagueId: string, requestingUserId: string): Promise<void> {
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      include: { teams: { include: { members: true } } },
+      include: {
+        registrations: {
+          where: { withdrawnAt: null },
+          include: { team: { include: { members: true } } },
+        },
+      },
     });
     if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
     if (league.status !== 'DRAFT')
@@ -135,10 +138,11 @@ export const LeagueService = {
       throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de liga puede activarla.');
     }
 
-    if (league.teams.length < 2)
-      throw new DomainError('NOT_ENOUGH_TEAMS', 'La liga necesita al menos 2 equipos para activarse.');
+    const registeredTeams = league.registrations.map((r) => r.team);
+    if (registeredTeams.length < 2)
+      throw new DomainError('NOT_ENOUGH_TEAMS', 'La liga necesita al menos 2 equipos apuntados para activarse.');
 
-    const teamsWithWrongSize = league.teams.filter((t) => t.members.length !== 2);
+    const teamsWithWrongSize = registeredTeams.filter((t) => t.members.length !== 2);
     if (teamsWithWrongSize.length > 0) {
       const names = teamsWithWrongSize.map((t) => t.name).join(', ');
       throw new DomainError('TEAM_SIZE_INVALID', `Los siguientes equipos no tienen exactamente 2 jugadores: ${names}.`);
@@ -148,7 +152,7 @@ export const LeagueService = {
       // Guard: skip fixture generation if matches already exist (idempotency)
       const existingCount = await tx.match.count({ where: { leagueId } });
       if (existingCount === 0) {
-        const teamIds = league.teams.map((t) => t.id);
+        const teamIds = registeredTeams.map((t) => t.id);
         const fixtures = generateFixtures(teamIds, league.startDate, league.defaultDeadlineDays);
         if (fixtures.length > 0) {
           await tx.match.createMany({
@@ -169,7 +173,14 @@ export const LeagueService = {
   async updateLeague(
     leagueId: string,
     requestingUserId: string,
-    input: { name?: string; description?: string | null; endDate?: Date; category?: TeamCategory },
+    input: {
+      name?: string;
+      description?: string | null;
+      registrationStart?: Date;
+      registrationEnd?: Date;
+      endDate?: Date;
+      category?: TeamCategory;
+    },
   ): Promise<LeagueRow> {
     const league = await prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
@@ -188,15 +199,21 @@ export const LeagueService = {
       throw new DomainError('INVALID_NAME', 'El nombre no puede estar vacío.');
     }
 
-    if (input.endDate !== undefined && input.endDate.getTime() <= league.startDate.getTime()) {
-      throw new DomainError('INVALID_END_DATE', 'La fecha fin debe ser posterior al inicio de la liga.');
-    }
+    const merged = {
+      registrationStart: input.registrationStart ?? league.registrationStart,
+      registrationEnd: input.registrationEnd ?? league.registrationEnd,
+      startDate: league.startDate,
+      endDate: input.endDate ?? league.endDate,
+    };
+    validateLeagueDates(merged);
 
     return prisma.league.update({
       where: { id: leagueId },
       data: {
         ...(input.name !== undefined && { name: input.name.trim() }),
         ...(input.description !== undefined && { description: input.description }),
+        ...(input.registrationStart !== undefined && { registrationStart: input.registrationStart }),
+        ...(input.registrationEnd !== undefined && { registrationEnd: input.registrationEnd }),
         ...(input.endDate !== undefined && { endDate: input.endDate }),
         ...(input.category !== undefined && { category: input.category }),
       },
@@ -215,7 +232,7 @@ export const LeagueService = {
       throw new AuthorizationError('FORBIDDEN', 'Solo Super Admin puede borrar ligas.');
     }
 
-    // Cascade deletes: teams, matches, results, sets, scheduling/extension proposals,
+    // Cascade deletes: registrations, matches, results, sets, scheduling/extension proposals,
     // commentaries, league_members all have ON DELETE CASCADE on their FK to leagues/teams/matches.
     await prisma.league.delete({ where: { id: leagueId } });
   },
