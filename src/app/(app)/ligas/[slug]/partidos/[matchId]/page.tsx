@@ -54,9 +54,11 @@ export default async function MatchDetailPage({
 
   const [commentaries, isLeagueAdmin, leagueEndDateRow, activeExtension] = await Promise.all([
     MatchCommentaryService.getByMatch(matchId),
-    prisma.leagueMember.findFirst({
-      where: { leagueId: match.leagueId, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
-    }).then((m) => !!m),
+    currentUser.role === 'SUPER_ADMIN'
+      ? Promise.resolve(true)
+      : prisma.leagueMember.findFirst({
+          where: { leagueId: match.leagueId, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
+        }).then((m) => !!m),
     prisma.league.findUnique({
       where: { id: match.leagueId },
       select: { endDate: true },

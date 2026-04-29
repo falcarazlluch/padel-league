@@ -111,10 +111,15 @@ export const LeagueService = {
     if (league.status !== 'DRAFT')
       throw new DomainError('LEAGUE_NOT_DRAFT', 'La liga ya está activa o finalizada.');
 
-    const member = await prisma.leagueMember.findFirst({
-      where: { leagueId, userId: requestingUserId, role: 'LEAGUE_ADMIN' },
-    });
-    if (!member) throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de liga puede activarla.');
+    const [requester, member] = await Promise.all([
+      prisma.user.findUnique({ where: { id: requestingUserId }, select: { role: true } }),
+      prisma.leagueMember.findFirst({
+        where: { leagueId, userId: requestingUserId, role: 'LEAGUE_ADMIN' },
+      }),
+    ]);
+    if (requester?.role !== 'SUPER_ADMIN' && !member) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de liga puede activarla.');
+    }
 
     if (league.teams.length < 2)
       throw new DomainError('NOT_ENOUGH_TEAMS', 'La liga necesita al menos 2 equipos para activarse.');

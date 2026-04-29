@@ -53,9 +53,11 @@ export default async function LigaDetailPage({
 
   const standings = calculateStandings(teamNamesMap, standingMatches);
 
-  const isLeagueAdmin = await prisma.leagueMember.findFirst({
-    where: { leagueId: league.id, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
-  });
+  const isLeagueAdmin =
+    currentUser.role === 'SUPER_ADMIN' ||
+    !!(await prisma.leagueMember.findFirst({
+      where: { leagueId: league.id, userId: currentUser.id, role: 'LEAGUE_ADMIN' },
+    }));
 
   // Fetch matches with confirmed sets for the Partidos tab
   const matchesWithSets = await prisma.match.findMany({
