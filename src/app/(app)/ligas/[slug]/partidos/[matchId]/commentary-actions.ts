@@ -125,3 +125,43 @@ export async function deleteCommentaryAction(
     throw err;
   }
 }
+
+const forceGenerateSchema = z.object({
+  matchId: z.string().cuid(),
+  slug: z.string().min(1),
+  type: z.enum(['PREVIEW', 'RECAP']),
+});
+
+export async function forceGenerateCommentaryAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+
+  const parsed = forceGenerateSchema.safeParse({
+    matchId: formData.get('matchId'),
+    slug: formData.get('slug'),
+    type: formData.get('type'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  // Authorize: must be league admin
+  const isAdmin = await prisma.leagueMember.findFirst({
+    where: {
+      userId: user.id,
+      role: 'LEAGUE_ADMIN',
+      league: { matches: { some: { id: parsed.data.matchId } } },
+    },
+  });
+  if (!isAdmin) return { error: 'Solo los admins de la liga pueden generar crónicas.' };
+
+  try {
+    // Bypass the queue: call the service synchronously so the admin sees the result immediately.
+    await MatchCommentaryService.generate(parsed.data.matchId, parsed.data.type);
+    revalidatePath(`/ligas/${parsed.data.slug}/partidos/${parsed.data.matchId}`);
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}

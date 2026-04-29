@@ -12,6 +12,7 @@ import { SubmitResultForm } from './submit-result-form';
 import { ConfirmRejectPanel } from './confirm-reject-panel';
 import { ScheduleSection } from './schedule-section';
 import { CommentaryAdminActions } from './_components/commentary-admin-actions';
+import { CommentaryGenerateButton } from './_components/commentary-generate-button';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -130,56 +131,71 @@ export default async function MatchDetailPage({
       </div>
 
       {/* AI Commentaries */}
-      {(commentaries.preview || commentaries.recap) && (
-        <section className="space-y-3">
-          {commentaries.preview && (
-            <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
-              <header className="flex items-baseline justify-between mb-2">
-                <h2 className="text-xs font-bold text-brand-blue uppercase tracking-widest" title="Generado por IA">
-                  ✨ Previa
-                </h2>
-                <time className="text-xs text-slate-400">
-                  {commentaries.preview.generatedAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </time>
-              </header>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-                {commentaries.preview.content}
-              </p>
-              {isLeagueAdmin && (
-                <CommentaryAdminActions
-                  commentaryId={commentaries.preview.id}
-                  matchId={matchId}
-                  slug={slug}
-                  currentContent={commentaries.preview.content}
-                />
-              )}
-            </article>
-          )}
-          {commentaries.recap && (
-            <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
-              <header className="flex items-baseline justify-between mb-2">
-                <h2 className="text-xs font-bold text-brand-blue uppercase tracking-widest" title="Generado por IA">
-                  ✨ Crónica
-                </h2>
-                <time className="text-xs text-slate-400">
-                  {commentaries.recap.generatedAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </time>
-              </header>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-                {commentaries.recap.content}
-              </p>
-              {isLeagueAdmin && (
-                <CommentaryAdminActions
-                  commentaryId={commentaries.recap.id}
-                  matchId={matchId}
-                  slug={slug}
-                  currentContent={commentaries.recap.content}
-                />
-              )}
-            </article>
-          )}
-        </section>
-      )}
+      {(() => {
+        const PREVIEW_ELIGIBLE = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED', 'PENDING_VALIDATION'];
+        const RECAP_ELIGIBLE = ['CONFIRMED', 'ADMIN_RESOLVED'];
+        const showGeneratePreview = isLeagueAdmin && !commentaries.preview && PREVIEW_ELIGIBLE.includes(match.status);
+        const showGenerateRecap = isLeagueAdmin && !commentaries.recap && RECAP_ELIGIBLE.includes(match.status);
+        const showSection = commentaries.preview || commentaries.recap || showGeneratePreview || showGenerateRecap;
+
+        if (!showSection) return null;
+        return (
+          <section className="space-y-3">
+            {commentaries.preview && (
+              <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+                <header className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-xs font-bold text-brand-blue uppercase tracking-widest" title="Generado por IA">
+                    ✨ Previa
+                  </h2>
+                  <time className="text-xs text-slate-400">
+                    {commentaries.preview.generatedAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </time>
+                </header>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                  {commentaries.preview.content}
+                </p>
+                {isLeagueAdmin && (
+                  <CommentaryAdminActions
+                    commentaryId={commentaries.preview.id}
+                    matchId={matchId}
+                    slug={slug}
+                    currentContent={commentaries.preview.content}
+                  />
+                )}
+              </article>
+            )}
+            {showGeneratePreview && (
+              <CommentaryGenerateButton matchId={matchId} slug={slug} type="PREVIEW" />
+            )}
+            {commentaries.recap && (
+              <article className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+                <header className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-xs font-bold text-brand-blue uppercase tracking-widest" title="Generado por IA">
+                    ✨ Crónica
+                  </h2>
+                  <time className="text-xs text-slate-400">
+                    {commentaries.recap.generatedAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </time>
+                </header>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                  {commentaries.recap.content}
+                </p>
+                {isLeagueAdmin && (
+                  <CommentaryAdminActions
+                    commentaryId={commentaries.recap.id}
+                    matchId={matchId}
+                    slug={slug}
+                    currentContent={commentaries.recap.content}
+                  />
+                )}
+              </article>
+            )}
+            {showGenerateRecap && (
+              <CommentaryGenerateButton matchId={matchId} slug={slug} type="RECAP" />
+            )}
+          </section>
+        );
+      })()}
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
