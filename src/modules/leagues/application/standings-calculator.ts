@@ -1,15 +1,16 @@
 import type { StandingEntry } from '../domain/types';
 
-type ConfirmedMatch = {
+type MatchForStandings = {
   teamAId: string;
   teamBId: string;
+  status: 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED';
   winnerTeamId: string | null;
   sets: { gamesA: number; gamesB: number }[];
 };
 
 export function calculateStandings(
   teamNames: Record<string, string>,
-  confirmedMatches: ConfirmedMatch[],
+  matches: MatchForStandings[],
 ): StandingEntry[] {
   const map = new Map<string, StandingEntry>();
 
@@ -21,13 +22,19 @@ export function calculateStandings(
     });
   }
 
-  for (const match of confirmedMatches) {
+  for (const match of matches) {
     const a = map.get(match.teamAId);
     const b = map.get(match.teamBId);
     if (!a || !b) continue;
 
     a.played++;
     b.played++;
+
+    if (match.status === 'EXPIRED_UNPLAYED') {
+      a.points -= 1;
+      b.points -= 1;
+      continue;
+    }
 
     let setsWonA = 0;
     let setsWonB = 0;

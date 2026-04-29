@@ -13,7 +13,7 @@ function makeMatch(
   const setsWonA = sets.filter((s) => s.gamesA > s.gamesB).length;
   const setsWonB = sets.filter((s) => s.gamesB > s.gamesA).length;
   const winnerTeamId = setsWonA > setsWonB ? teamAId : setsWonB > setsWonA ? teamBId : null;
-  return { teamAId, teamBId, sets, winnerTeamId };
+  return { teamAId, teamBId, sets, winnerTeamId, status: 'CONFIRMED' };
 }
 
 describe('calculateStandings', () => {
@@ -80,5 +80,59 @@ describe('calculateStandings', () => {
     expect(t2.points).toBe(3);
     // t1 setsDiff=2, t2 setsDiff=1 → t1 ranked higher
     expect(standings.indexOf(t1)).toBeLessThan(standings.indexOf(t2));
+  });
+
+  it('deducts 1 point from each team when match is EXPIRED_UNPLAYED', () => {
+    const matches = [{
+      teamAId: 't1',
+      teamBId: 't2',
+      status: 'EXPIRED_UNPLAYED' as const,
+      winnerTeamId: null,
+      sets: [],
+    }];
+    const standings = calculateStandings(teamNames, matches);
+    const t1 = standings.find((s) => s.teamId === 't1')!;
+    const t2 = standings.find((s) => s.teamId === 't2')!;
+    expect(t1.points).toBe(-1);
+    expect(t2.points).toBe(-1);
+    expect(t1.played).toBe(1);
+    expect(t2.played).toBe(1);
+    expect(t1.won).toBe(0);
+    expect(t1.drawn).toBe(0);
+    expect(t1.lost).toBe(0);
+  });
+
+  it('does not accumulate sets/games for EXPIRED_UNPLAYED matches', () => {
+    const matches = [{
+      teamAId: 't1',
+      teamBId: 't2',
+      status: 'EXPIRED_UNPLAYED' as const,
+      winnerTeamId: null,
+      sets: [],
+    }];
+    const standings = calculateStandings(teamNames, matches);
+    const t1 = standings.find((s) => s.teamId === 't1')!;
+    expect(t1.setsFor).toBe(0);
+    expect(t1.setsAgainst).toBe(0);
+    expect(t1.gamesFor).toBe(0);
+    expect(t1.gamesAgainst).toBe(0);
+  });
+
+  it('mixes CONFIRMED wins with EXPIRED_UNPLAYED penalties correctly', () => {
+    const matches = [
+      makeMatch('t1', 't2', [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]),
+      {
+        teamAId: 't1',
+        teamBId: 't3',
+        status: 'EXPIRED_UNPLAYED' as const,
+        winnerTeamId: null,
+        sets: [],
+      },
+    ];
+    const standings = calculateStandings(teamNames, matches);
+    const t1 = standings.find((s) => s.teamId === 't1')!;
+    expect(t1.points).toBe(2); // 3 (win) - 1 (no-show) = 2
+    expect(t1.played).toBe(2);
+    expect(t1.won).toBe(1);
   });
 });
