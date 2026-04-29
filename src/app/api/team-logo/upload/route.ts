@@ -12,19 +12,21 @@ export async function POST(request: Request): Promise<Response> {
   const log = logger();
   const body = (await request.json()) as HandleUploadBody;
 
-  // Validate session at the action boundary; the upload uses a client token issued below.
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await getValidatedSession(token).catch(() => null);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   try {
     const json = await handleUpload({
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        // pathname looks like "team-logos/<teamId>-<random>"
+        // Session check happens here — only on the initial client-driven request.
+        // The follow-up "upload-completed" webhook from Vercel Blob carries no session
+        // cookie; handleUpload verifies its own signed token instead.
+        const cookieStore = await cookies();
+        const token = cookieStore.get(SESSION_COOKIE)?.value;
+        if (!token) throw new Error('Unauthorized');
+        const user = await getValidatedSession(token).catch(() => null);
+        if (!user) throw new Error('Unauthorized');
+
+        // pathname looks like "team-logos/<teamId>-<random>.<ext>"
         const teamId = pathname.split('/').pop()?.split('-')[0];
         if (!teamId) {
           throw new Error('Pathname must include the team id.');
@@ -43,7 +45,8 @@ export async function POST(request: Request): Promise<Response> {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // Persist the URL on the team — only if the uploader is still a member.
+        // Persist the URL on the team. No session here — tokenPayload was signed
+        // by handleUpload at generation time, so we trust its contents.
         try {
           const payload = tokenPayload ? (JSON.parse(tokenPayload) as { teamId: string; userId: string }) : null;
           if (!payload) return;
