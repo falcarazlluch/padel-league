@@ -1,22 +1,17 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { prisma } from '@/shared/db/client';
-import type { LeagueStatus, Prisma, TeamCategory } from '@prisma/client';
+import type { Prisma, TeamCategory } from '@prisma/client';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
+import {
+  deriveLeagueStatus,
+  DISPLAY_STATUS_CLASS,
+  DISPLAY_STATUS_LABEL,
+} from '@/modules/leagues/presentation/league-status';
 
-const STATUS_LABEL: Record<LeagueStatus, string> = {
-  DRAFT: 'Borrador',
-  ACTIVE: 'Activa',
-  FINISHED: 'Finalizada',
-  ARCHIVED: 'Archivada',
-};
-
-const STATUS_CLASS: Record<LeagueStatus, string> = {
-  DRAFT: 'bg-gray-100 text-gray-500',
-  ACTIVE: 'bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700',
-  FINISHED: 'bg-gradient-to-r from-blue-50 to-sky-100 text-blue-700',
-  ARCHIVED: 'bg-gray-100 text-gray-400',
-};
+function readNow(): number {
+  return Date.now();
+}
 
 type StatusFilter = 'all' | 'draft' | 'active' | 'finished';
 
@@ -81,6 +76,12 @@ export default async function LigasPage({
     where,
     orderBy: { createdAt: 'desc' },
   });
+
+  const now = readNow();
+  const leaguesWithDisplay = leagues.map((l) => ({
+    ...l,
+    displayStatus: deriveLeagueStatus(l.status, l.registrationStart, l.registrationEnd, now),
+  }));
 
   const hasActiveFilters = q.length > 0 || status !== 'all' || category !== 'all' || from !== null || to !== null;
 
@@ -193,7 +194,7 @@ export default async function LigasPage({
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {leagues.map((league) => (
+          {leaguesWithDisplay.map((league) => (
             <Link
               key={league.id}
               href={`/ligas/${league.slug}` as Route}
@@ -201,8 +202,8 @@ export default async function LigasPage({
             >
               <div className="flex items-start justify-between gap-2 mb-2">
                 <h2 className="font-semibold text-brand-navy leading-tight">{league.name}</h2>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${STATUS_CLASS[league.status]}`}>
-                  {STATUS_LABEL[league.status]}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${DISPLAY_STATUS_CLASS[league.displayStatus]}`}>
+                  {DISPLAY_STATUS_LABEL[league.displayStatus]}
                 </span>
               </div>
               <div className="mb-2">

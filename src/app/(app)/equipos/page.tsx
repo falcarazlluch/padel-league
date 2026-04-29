@@ -61,10 +61,15 @@ export default async function MisEquiposPage() {
                   {CATEGORY_LABEL[team.category]}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mb-3">
-                {team.members.length}/2 jugadores
-                {team.pendingInvitationCount > 0 && ` · ${team.pendingInvitationCount} invitación pendiente`}
-              </p>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="text-xs text-slate-400">{team.members.length}/2 jugadores</span>
+                {team.pendingInvitationCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" aria-hidden />
+                    Invitación pendiente
+                  </span>
+                )}
+              </div>
               <ul className="space-y-1.5">
                 {team.members.map((m) => (
                   <li key={m.userId} className="flex items-center gap-2 text-sm text-slate-600">

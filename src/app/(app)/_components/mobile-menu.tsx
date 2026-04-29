@@ -69,6 +69,9 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           <Link href={'/reglamento' as Route} onClick={close} className={linkClass(pathname.startsWith('/reglamento'))}>
             Reglamento
           </Link>
+          <Link href={'/como-funciona' as Route} onClick={close} className={linkClass(pathname.startsWith('/como-funciona'))}>
+            Cómo funciona
+          </Link>
           {isSuperAdmin && (
             <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
               Disputas

@@ -28,6 +28,7 @@ export function Footer() {
             <li><Link href={'/partidos' as Route} className="hover:text-brand-navy transition-colors">Mis partidos</Link></li>
             <li><Link href={'/jugar' as Route} className="hover:text-brand-navy transition-colors">Jugar</Link></li>
             <li><Link href={'/reglamento' as Route} className="hover:text-brand-navy transition-colors">Reglamento</Link></li>
+            <li><Link href={'/como-funciona' as Route} className="hover:text-brand-navy transition-colors">Cómo funciona</Link></li>
           </ul>
         </div>
 

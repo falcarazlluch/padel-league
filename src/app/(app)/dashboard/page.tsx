@@ -91,9 +91,25 @@ export default async function DashboardPage() {
             userTeamId,
           )
         : [];
-      return { id: league.id, slug: league.slug, name: league.name, standings, userTeamId, userTeamName, progress };
+      const userRank = userTeamId
+        ? standings.findIndex((s) => s.teamId === userTeamId) + 1
+        : 0;
+      const userPoints = userTeamId
+        ? standings.find((s) => s.teamId === userTeamId)?.points ?? 0
+        : 0;
+      return {
+        id: league.id, slug: league.slug, name: league.name,
+        standings, userTeamId, userTeamName, progress,
+        userRank: userRank > 0 ? userRank : null,
+        userPoints,
+        totalTeams: standings.length,
+      };
     }),
   );
+
+  const rankings = leaguesWithStandings
+    .filter((l) => l.userTeamId !== undefined && l.userRank !== null)
+    .sort((a, b) => (a.userRank ?? Infinity) - (b.userRank ?? Infinity));
 
   return (
     <div className="space-y-8">
@@ -155,6 +171,42 @@ export default async function DashboardPage() {
           </Link>
         )}
       </div>
+
+      {rankings.length > 0 && (
+        <section>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Mis posiciones</p>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {rankings.map((r) => {
+              const medalClass =
+                r.userRank === 1
+                  ? 'bg-brand-yellow text-brand-navy'
+                  : (r.userRank ?? 99) <= 3
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-100 text-slate-500';
+              return (
+                <li key={r.id}>
+                  <Link
+                    href={`/ligas/${r.slug}` as Route}
+                    className="flex items-center gap-3 bg-white rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow px-3 py-3"
+                  >
+                    <span className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-extrabold ${medalClass}`}>
+                      {r.userRank}º
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-brand-navy truncate">
+                        {r.userTeamName ?? 'Tu equipo'}
+                      </span>
+                      <span className="block text-xs text-slate-500 truncate">
+                        {r.name} · {r.userPoints} pts · de {r.totalTeams}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {leaguesWithStandings.length > 0 && (
         <section>

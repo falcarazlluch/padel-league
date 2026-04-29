@@ -13,6 +13,11 @@ import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from './_components/commentary-feed-card';
 import { LeagueRegistrationPanel } from './registration-panel';
 import type { LeagueStatus } from '@prisma/client';
+import {
+  deriveLeagueStatus,
+  DISPLAY_STATUS_CLASS,
+  DISPLAY_STATUS_LABEL,
+} from '@/modules/leagues/presentation/league-status';
 
 function computeRegistrationWindow(
   status: LeagueStatus,
@@ -24,6 +29,10 @@ function computeRegistrationWindow(
   if (now < registrationStart.getTime()) return 'future';
   if (now > registrationEnd.getTime()) return 'past';
   return 'open';
+}
+
+function readNow(): number {
+  return Date.now();
 }
 
 export default async function LigaDetailPage({
@@ -123,6 +132,12 @@ export default async function LigaDetailPage({
     league.registrationStart,
     league.registrationEnd,
   );
+  const displayStatus = deriveLeagueStatus(
+    league.status,
+    league.registrationStart,
+    league.registrationEnd,
+    readNow(),
+  );
 
   return (
     <div className="space-y-8">
@@ -134,6 +149,9 @@ export default async function LigaDetailPage({
             <h1 className="text-2xl font-extrabold text-brand-navy">{league.name}</h1>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(league.category)}`}>
               {CATEGORY_LABEL[league.category]}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${DISPLAY_STATUS_CLASS[displayStatus]}`}>
+              {DISPLAY_STATUS_LABEL[displayStatus]}
             </span>
           </div>
           {league.description && <p className="text-slate-500 mt-1">{league.description}</p>}
