@@ -138,6 +138,26 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
   }
 }
 
+export async function cancelMatchInvitation(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const matchId = formData.get('matchId');
+  const invitationId = formData.get('invitationId');
+  if (typeof matchId !== 'string' || typeof invitationId !== 'string')
+    return { error: 'Datos inválidos.' };
+
+  try {
+    await IndependentMatchService.cancelInvitation(matchId, invitationId, user.id);
+    revalidatePath(`/jugar/${matchId}`);
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
 export async function respondToChallenge(
   _prev: ActionResult | null,
   formData: FormData,

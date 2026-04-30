@@ -306,6 +306,28 @@ export const IndependentMatchService = {
     return { invitationId: invitation.id, isNew: true };
   },
 
+  async cancelInvitation(matchId: string, invitationId: string, organizerId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      select: { organizerId: true },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.organizerId !== organizerId)
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede cancelar invitaciones.');
+
+    const invitation = await prisma.independentMatchInvitation.findUnique({
+      where: { id: invitationId },
+      select: { id: true, matchId: true, acceptedAt: true },
+    });
+    if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'Invitación no encontrada.');
+    if (invitation.matchId !== matchId)
+      throw new DomainError('INVITATION_MISMATCH', 'La invitación no pertenece a este partido.');
+    if (invitation.acceptedAt)
+      throw new DomainError('INVITATION_ALREADY_ACCEPTED', 'Esta invitación ya fue aceptada.');
+
+    await prisma.independentMatchInvitation.delete({ where: { id: invitationId } });
+  },
+
   async acceptInvitation(token: string, userId: string): Promise<string> {
     const { subjectId } = await SignedTokenService.consume(token, SignedTokenPurpose.INDEPENDENT_MATCH_INVITE);
 

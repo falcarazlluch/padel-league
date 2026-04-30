@@ -10,6 +10,7 @@ import { JoinRequestsPanel } from './_components/join-requests-panel';
 import { InviteForm } from './_components/invite-form';
 import { ChallengePanel } from './_components/challenge-panel';
 import { CancelMatchButton } from './_components/cancel-match-button';
+import { CancelInvitationButton } from './_components/cancel-invitation-button';
 
 export default async function JugarDetailPage({
   params,
@@ -138,9 +139,16 @@ export default async function JugarDetailPage({
                   <p className="text-xs text-gray-500 mb-1">Invitaciones enviadas:</p>
                   <ul className="space-y-1">
                     {match.invitations.map((inv) => (
-                      <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2">
-                        {inv.email}
-                        {inv.acceptedAt ? <span className="text-green-600">✓ Aceptada</span> : <span className="text-gray-400">Pendiente</span>}
+                      <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
+                        <span>{inv.email}</span>
+                        {inv.acceptedAt ? (
+                          <span className="text-green-600">✓ Aceptada</span>
+                        ) : (
+                          <>
+                            <span className="text-gray-400">Pendiente</span>
+                            <CancelInvitationButton matchId={id} invitationId={inv.id} />
+                          </>
+                        )}
                       </li>
                     ))}
                   </ul>
