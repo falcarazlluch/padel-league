@@ -111,12 +111,6 @@ enum IndependentMatchStatus {
   CANCELLED
 }
 
-enum JoinRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
 enum IndependentMatchType {
   OPEN
   TEAM_CHALLENGE
@@ -224,7 +218,6 @@ model User {
   resolvedDisputes              Dispute[]                     @relation("DisputeResolver")
   independentMatches            IndependentMatch[]            @relation("IndependentOrganizer")
   indParticipations             IndependentMatchParticipant[]
-  indJoinRequests               IndependentMatchJoinRequest[]
   matchInvitationsReceived      IndependentMatchInvitation[]
   editedCommentaries            MatchCommentary[]             @relation("CommentaryEditor")
   extensionsProposed            DeadlineExtensionProposal[]   @relation("ExtensionProposer")
@@ -620,7 +613,6 @@ model IndependentMatch {
   organizerTeam  Team?                         @relation("OrganizerTeam", fields: [organizerTeamId], references: [id], onDelete: Restrict)
   league         League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
   participants   IndependentMatchParticipant[]
-  joinRequests   IndependentMatchJoinRequest[]
   invitations    IndependentMatchInvitation[]
 
   @@index([status, scheduledAt])
@@ -639,23 +631,6 @@ model IndependentMatchParticipant {
 
   @@unique([independentMatchId, userId])
   @@map("independent_match_participants")
-}
-
-model IndependentMatchJoinRequest {
-  id                 String            @id @default(cuid())
-  independentMatchId String            @map("independent_match_id")
-  userId             String            @map("user_id")
-  message            String?
-  status             JoinRequestStatus @default(PENDING)
-  respondedByUserId  String?           @map("responded_by_user_id")
-  respondedAt        DateTime?         @map("responded_at")
-  createdAt          DateTime          @default(now()) @map("created_at")
-
-  match IndependentMatch @relation(fields: [independentMatchId], references: [id], onDelete: Cascade)
-  user  User             @relation(fields: [userId], references: [id], onDelete: Restrict)
-
-  @@index([independentMatchId, status])
-  @@map("independent_match_join_requests")
 }
 
 model IndependentMatchInvitation {
