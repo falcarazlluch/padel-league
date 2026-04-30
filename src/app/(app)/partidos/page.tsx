@@ -165,7 +165,7 @@ export default async function MisPartidosPage() {
                   <div className="min-w-0">
                     <p className="font-bold text-brand-navy truncate">{m.name}</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {m.type === 'TEAM_CHALLENGE' ? 'Reto de equipos' : 'Partido abierto'}
+                      {'Partido abierto'}
                       {dateStr ? ` · ${dateStr}` : ''}
                       {m.location ? ` · ${m.location}` : ''}
                     </p>

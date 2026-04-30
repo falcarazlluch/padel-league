@@ -3,6 +3,4 @@ export type {
   IndependentMatchRow,
   IndependentMatchDetail,
   CreateOpenMatchInput,
-  CreateChallengeInput,
-  TeamForChallenge,
 } from './domain/types';

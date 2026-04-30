@@ -121,7 +121,7 @@ export default async function JugarPage({
                       <div className="min-w-0">
                         <p className="font-bold text-brand-navy truncate">{m.name}</p>
                         <p className="text-xs text-slate-400 uppercase tracking-wide mt-0.5">
-                          {m.type === 'OPEN' ? 'Abierto' : 'Reto de equipos'}
+                          Partido abierto
                         </p>
                       </div>
                       <StatusBadge status={m.status} />

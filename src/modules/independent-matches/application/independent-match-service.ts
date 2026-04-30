@@ -9,16 +9,14 @@ import { NotificationService } from '@/modules/notifications';
 import { SignedTokenService, SignedTokenPurpose } from '@/shared/auth/signed-tokens';
 import type {
   CreateOpenMatchInput,
-  CreateChallengeInput,
   IndependentMatchDetail,
   IndependentMatchRow,
-  TeamForChallenge,
 } from '../domain/types';
 
 
 const MATCH_DETAIL_INCLUDE = {
   organizer: { select: { id: true, name: true } },
-  challengedTeam: { select: { id: true, name: true } },
+  hostTeam: { select: { id: true, name: true, logoUrl: true } },
   league: { select: { id: true, name: true, slug: true } },
   participants: {
     where: { status: 'ACCEPTED' as const },
@@ -26,7 +24,10 @@ const MATCH_DETAIL_INCLUDE = {
   },
   invitations: {
     orderBy: { createdAt: 'asc' as const },
-    include: { invitedUser: { select: { id: true, name: true } } },
+    include: {
+      invitedUser: { select: { id: true, name: true } },
+      invitedTeam: { select: { id: true, name: true, logoUrl: true } },
+    },
   },
 } as const;
 
@@ -36,92 +37,57 @@ export function calculateAvailableSlots(maxPlayers: number, confirmedCount: numb
 
 export const IndependentMatchService = {
   async createOpen(input: CreateOpenMatchInput): Promise<IndependentMatchRow> {
+    // Host-team validation up-front, outside the TX, to give a fast error path.
+    let hostTeamMembers: { userId: string }[] = [];
+    if (input.hostTeamId) {
+      if (input.maxPlayers !== 4)
+        throw new DomainError('TEAM_HOST_REQUIRES_4', 'Un partido como equipo debe tener 4 jugadores.');
+      const team = await prisma.team.findUnique({
+        where: { id: input.hostTeamId },
+        include: { members: { select: { userId: true } } },
+      });
+      if (!team)
+        throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo organizador no encontrado.');
+      if (!team.members.some((m) => m.userId === input.organizerId))
+        throw new AuthorizationError('NOT_TEAM_MEMBER', 'No eres miembro del equipo organizador.');
+      hostTeamMembers = team.members;
+    }
+
     const match = await prisma.$transaction(async (tx) => {
       const m = await tx.independentMatch.create({
         data: {
           organizerId: input.organizerId,
           name: input.name,
-          type: 'OPEN',
           visibility: input.visibility,
+          hostTeamId: input.hostTeamId ?? null,
           scheduledAt: input.scheduledAt ?? null,
           location: input.location ?? null,
           description: input.description ?? null,
           maxPlayers: input.maxPlayers,
         },
       });
-      await tx.independentMatchParticipant.create({
-        data: { independentMatchId: m.id, userId: input.organizerId, status: 'ACCEPTED' },
+
+      const seedUserIds = input.hostTeamId
+        ? hostTeamMembers.map((mem) => mem.userId)
+        : [input.organizerId];
+
+      await tx.independentMatchParticipant.createMany({
+        data: seedUserIds.map((userId) => ({
+          independentMatchId: m.id,
+          userId,
+          status: 'ACCEPTED' as const,
+        })),
+        skipDuplicates: true,
       });
+
       return m;
     });
     return match;
   },
 
-  async createChallenge(input: CreateChallengeInput): Promise<IndependentMatchRow> {
-    const [organizerTeam, challengedTeam] = await Promise.all([
-      prisma.team.findUnique({
-        where: { id: input.organizerTeamId },
-        include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
-      }),
-      prisma.team.findUnique({
-        where: { id: input.challengedTeamId },
-        include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
-      }),
-    ]);
-
-    if (!organizerTeam) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo organizador no encontrado.');
-    if (!challengedTeam) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo retado no encontrado.');
-    if (input.organizerTeamId === input.challengedTeamId)
-      throw new DomainError('SAME_TEAM', 'No puedes retar a tu propio equipo.');
-    if (!organizerTeam.members.some((m) => m.userId === input.organizerId))
-      throw new AuthorizationError('NOT_TEAM_MEMBER', 'No eres miembro del equipo organizador.');
-
-    // Both teams must be actively registered in the same league.
-    const [organizerReg, challengedReg] = await Promise.all([
-      prisma.leagueRegistration.findUnique({
-        where: { leagueId_teamId: { leagueId: input.leagueId, teamId: input.organizerTeamId } },
-      }),
-      prisma.leagueRegistration.findUnique({
-        where: { leagueId_teamId: { leagueId: input.leagueId, teamId: input.challengedTeamId } },
-      }),
-    ]);
-    if (!organizerReg || organizerReg.withdrawnAt !== null)
-      throw new DomainError('ORGANIZER_NOT_REGISTERED', 'Tu equipo no está apuntado a la liga.');
-    if (!challengedReg || challengedReg.withdrawnAt !== null)
-      throw new DomainError('CHALLENGED_NOT_REGISTERED', 'El equipo retado no está apuntado a la liga.');
-
-    const match = await prisma.independentMatch.create({
-      data: {
-        organizerId: input.organizerId,
-        name: input.name,
-        type: 'TEAM_CHALLENGE',
-        organizerTeamId: input.organizerTeamId,
-        challengedTeamId: input.challengedTeamId,
-        leagueId: input.leagueId,
-        scheduledAt: input.scheduledAt ?? null,
-        location: input.location ?? null,
-        description: input.description ?? null,
-        maxPlayers: 4,
-        status: 'PENDING_APPROVAL',
-      },
-    });
-
-    NotificationService.createMany(
-      challengedTeam.members.map((m) => ({
-        userId: m.userId,
-        type: 'INDEPENDENT_MATCH_INVITE' as const,
-        title: 'Reto de pádel recibido',
-        body: `${organizerTeam.name} os reta a un partido amistoso.`,
-        metadata: { matchId: match.id },
-      })),
-    ).catch(() => undefined);
-
-    return match;
-  },
-
   async listOpen(): Promise<(IndependentMatchRow & { confirmedCount: number })[]> {
     const matches = await prisma.independentMatch.findMany({
-      where: { type: 'OPEN', status: 'OPEN', visibility: 'PUBLIC' },
+      where: { status: 'OPEN', visibility: 'PUBLIC' },
       include: { _count: { select: { participants: { where: { status: 'ACCEPTED' } } } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -153,22 +119,6 @@ export const IndependentMatchService = {
     return match as IndependentMatchDetail;
   },
 
-  async getTeamsForUser(userId: string): Promise<TeamForChallenge[]> {
-    // Teams the user belongs to that are actively registered in some ACTIVE league.
-    const teams = await prisma.team.findMany({
-      where: {
-        members: { some: { userId } },
-        registrations: {
-          some: { withdrawnAt: null, league: { status: 'ACTIVE' } },
-        },
-      },
-      include: {
-        members: { include: { user: { select: { id: true, name: true, email: true } } } },
-      },
-    });
-    return teams;
-  },
-
   async inviteByEmail(
     matchId: string,
     organizerId: string,
@@ -181,7 +131,7 @@ export const IndependentMatchService = {
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
     if (match.organizerId !== organizerId)
       throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
-    if (!['OPEN', 'PENDING_APPROVAL'].includes(match.status))
+    if (match.status !== 'OPEN')
       throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
     if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
       throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
@@ -220,7 +170,7 @@ export const IndependentMatchService = {
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
     if (match.organizerId !== organizerId)
       throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
-    if (!['OPEN', 'PENDING_APPROVAL'].includes(match.status))
+    if (match.status !== 'OPEN')
       throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
     if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
       throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
@@ -257,6 +207,52 @@ export const IndependentMatchService = {
     return { invitationId: invitation.id, isNew: true };
   },
 
+  async inviteTeam(
+    matchId: string,
+    organizerId: string,
+    invitedTeamId: string,
+  ): Promise<{ invitationId: string; isNew: boolean }> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: { participants: { where: { status: 'ACCEPTED' } } },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.organizerId !== organizerId)
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
+    if (match.status !== 'OPEN')
+      throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
+    if (calculateAvailableSlots(match.maxPlayers, match.participants.length) < 2)
+      throw new DomainError('NOT_ENOUGH_SLOTS_FOR_TEAM', 'No quedan dos huecos libres para invitar a un equipo.');
+    if (match.hostTeamId === invitedTeamId)
+      throw new DomainError('CANNOT_INVITE_OWN_TEAM', 'No puedes invitar a tu propio equipo.');
+
+    const team = await prisma.team.findUnique({
+      where: { id: invitedTeamId },
+      include: { members: { select: { userId: true } } },
+    });
+    if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const existing = await prisma.independentMatchInvitation.findFirst({
+      where: { matchId, invitedTeamId },
+    });
+
+    if (existing && !existing.acceptedAt && existing.expiresAt > new Date()) {
+      return { invitationId: existing.id, isNew: false };
+    }
+
+    const invitation = existing
+      ? await prisma.independentMatchInvitation.update({
+          where: { id: existing.id },
+          data: { expiresAt, acceptedAt: null },
+        })
+      : await prisma.independentMatchInvitation.create({
+          data: { matchId, invitedTeamId, expiresAt },
+        });
+
+    return { invitationId: invitation.id, isNew: true };
+  },
+
   async cancelInvitation(matchId: string, invitationId: string, organizerId: string): Promise<void> {
     const match = await prisma.independentMatch.findUnique({
       where: { id: matchId },
@@ -284,18 +280,78 @@ export const IndependentMatchService = {
 
     const invitation = await prisma.independentMatchInvitation.findUnique({
       where: { id: subjectId },
-      include: { match: { include: { participants: { where: { status: 'ACCEPTED' } } } } },
+      include: {
+        match: { include: { participants: { where: { status: 'ACCEPTED' } } } },
+        invitedTeam: { include: { members: { select: { userId: true } } } },
+      },
     });
     if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'Invitación no encontrada.');
     if (invitation.acceptedAt) throw new DomainError('ALREADY_ACCEPTED', 'Esta invitación ya fue usada.');
 
-    // For user-targeted invitations, only the targeted user can accept.
+    const { match } = invitation;
+    if (match.status === 'CANCELLED') throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+
+    // Branch on invitation kind.
+    if (invitation.invitedTeamId !== null) {
+      if (!invitation.invitedTeam)
+        throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo invitado no encontrado.');
+      const isMember = invitation.invitedTeam.members.some((m) => m.userId === userId);
+      if (!isMember)
+        throw new AuthorizationError('NOT_INVITEE', 'Esta invitación es para un equipo del que no formas parte.');
+
+      const teamUserIds = invitation.invitedTeam.members.map((m) => m.userId);
+
+      await prisma.$transaction(async (tx) => {
+        // Fresh read inside the TX for race-safety. `match.participants` loaded
+        // outside the TX may be stale if someone joined between the two reads.
+        const currentParticipants = await tx.independentMatchParticipant.findMany({
+          where: { independentMatchId: match.id, status: 'ACCEPTED' },
+          select: { userId: true },
+        });
+        const currentIds = new Set(currentParticipants.map((p) => p.userId));
+        const newcomers = teamUserIds.filter((uid) => !currentIds.has(uid));
+
+        if (currentIds.size + newcomers.length > match.maxPlayers)
+          throw new DomainError('MATCH_FULL', 'Este partido ya está completo.');
+
+        await tx.independentMatchInvitation.update({
+          where: { id: invitation.id },
+          data: { acceptedAt: new Date() },
+        });
+
+        if (newcomers.length > 0) {
+          await tx.independentMatchParticipant.createMany({
+            data: newcomers.map((uid) => ({
+              independentMatchId: match.id,
+              userId: uid,
+              status: 'ACCEPTED' as const,
+            })),
+            skipDuplicates: true,
+          });
+        }
+
+        const totalAfter = currentIds.size + newcomers.length;
+        if (totalAfter >= match.maxPlayers) {
+          await tx.independentMatch.update({ where: { id: match.id }, data: { status: 'CONFIRMED' } });
+        }
+      });
+
+      NotificationService.create({
+        userId: match.organizerId,
+        type: 'INDEPENDENT_MATCH_CONFIRMED',
+        title: 'Equipo aceptó tu invitación',
+        body: `${invitation.invitedTeam.name} se unió a "${match.name}".`,
+        metadata: { matchId: match.id },
+      }).catch(() => undefined);
+
+      return match.id;
+    }
+
+    // User-targeted invitation (existing behaviour).
     if (invitation.invitedUserId !== null && invitation.invitedUserId !== userId) {
       throw new AuthorizationError('NOT_INVITEE', 'Esta invitación no es para ti.');
     }
 
-    const { match } = invitation;
-    if (match.status === 'CANCELLED') throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
     if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
       throw new DomainError('MATCH_FULL', 'Este partido ya está completo.');
 
@@ -380,98 +436,6 @@ export const IndependentMatchService = {
       title: 'Alguien se unió a tu partido',
       body: `Un jugador se unió a "${match.name}".`,
       metadata: { matchId: match.id },
-    }).catch(() => undefined);
-  },
-
-  async acceptChallenge(matchId: string, userId: string): Promise<void> {
-    const match = await prisma.independentMatch.findUnique({
-      where: { id: matchId },
-      include: {
-        challengedTeam: { include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } } },
-        organizer: { select: { id: true, name: true } },
-      },
-    });
-    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
-    if (match.type !== 'TEAM_CHALLENGE') throw new DomainError('NOT_CHALLENGE', 'Este partido no es un reto.');
-    if (match.status !== 'PENDING_APPROVAL')
-      throw new ConflictError('CHALLENGE_ALREADY_RESOLVED', 'Este reto ya fue respondido.');
-    if (!match.challengedTeam)
-      throw new DomainError('NO_CHALLENGED_TEAM', 'Equipo retado no encontrado.');
-
-    const isChallengedMember = match.challengedTeam.members.some((m) => m.userId === userId);
-    if (!isChallengedMember)
-      throw new AuthorizationError('NOT_CHALLENGED_MEMBER', 'Solo un miembro del equipo retado puede aceptar.');
-
-    // Get organizer team members — deterministic via stored organizerTeamId
-    if (!match.organizerTeamId)
-      throw new DomainError('ORGANIZER_TEAM_NOT_FOUND', 'No se encontró el equipo organizador.');
-
-    const organizerTeam = await prisma.team.findUnique({
-      where: { id: match.organizerTeamId },
-      include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
-    });
-    if (!organizerTeam)
-      throw new DomainError('ORGANIZER_TEAM_NOT_FOUND', 'No se encontró el equipo organizador.');
-
-    const allParticipantUserIds = [
-      ...match.challengedTeam.members.map((m) => m.userId),
-      ...organizerTeam.members.map((m) => m.userId),
-    ];
-
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.independentMatch.updateMany({
-        where: { id: matchId, status: 'PENDING_APPROVAL' },
-        data: { status: 'CONFIRMED' },
-      });
-      if (updated.count === 0)
-        throw new ConflictError('CHALLENGE_ALREADY_RESOLVED', 'Este reto ya fue respondido.');
-      await tx.independentMatchParticipant.createMany({
-        data: allParticipantUserIds.map((uid) => ({
-          independentMatchId: matchId,
-          userId: uid,
-          status: 'ACCEPTED' as const,
-        })),
-        skipDuplicates: true,
-      });
-    });
-
-    // Notify organizer
-    NotificationService.create({
-      userId: match.organizerId,
-      type: 'INDEPENDENT_MATCH_CONFIRMED',
-      title: 'Reto aceptado',
-      body: `${match.challengedTeam.name} aceptó tu reto "${match.name}".`,
-      metadata: { matchId },
-    }).catch(() => undefined);
-  },
-
-  async rejectChallenge(matchId: string, userId: string): Promise<void> {
-    const match = await prisma.independentMatch.findUnique({
-      where: { id: matchId },
-      include: {
-        challengedTeam: { include: { members: { select: { userId: true } } } },
-      },
-    });
-    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
-    if (match.type !== 'TEAM_CHALLENGE') throw new DomainError('NOT_CHALLENGE', 'Este partido no es un reto.');
-    if (match.status !== 'PENDING_APPROVAL')
-      throw new ConflictError('CHALLENGE_ALREADY_RESOLVED', 'Este reto ya fue respondido.');
-
-    const isChallengedMember = match.challengedTeam?.members.some((m) => m.userId === userId);
-    if (!isChallengedMember)
-      throw new AuthorizationError('NOT_CHALLENGED_MEMBER', 'Solo un miembro del equipo retado puede rechazar.');
-
-    await prisma.independentMatch.update({
-      where: { id: matchId },
-      data: { status: 'REJECTED' },
-    });
-
-    NotificationService.create({
-      userId: match.organizerId,
-      type: 'INDEPENDENT_MATCH_CANCELLED',
-      title: 'Reto rechazado',
-      body: `Tu reto "${match.name}" fue rechazado.`,
-      metadata: { matchId },
     }).catch(() => undefined);
   },
 

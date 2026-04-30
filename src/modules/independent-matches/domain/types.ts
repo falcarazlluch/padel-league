@@ -1,12 +1,11 @@
-import type { IndependentMatchStatus, IndependentMatchType, MatchVisibility, ParticipantStatus } from '@prisma/client';
+import type { IndependentMatchStatus, MatchVisibility, ParticipantStatus } from '@prisma/client';
 
 export type IndependentMatchRow = {
   id: string;
   name: string;
-  type: IndependentMatchType;
   visibility: MatchVisibility;
   organizerId: string;
-  challengedTeamId: string | null;
+  hostTeamId: string | null;
   leagueId: string | null;
   scheduledAt: Date | null;
   location: string | null;
@@ -19,7 +18,7 @@ export type IndependentMatchRow = {
 
 export type IndependentMatchDetail = IndependentMatchRow & {
   organizer: { id: string; name: string };
-  challengedTeam: { id: string; name: string } | null;
+  hostTeam: { id: string; name: string; logoUrl: string | null } | null;
   league: { id: string; name: string; slug: string } | null;
   participants: { userId: string; user: { id: string; name: string }; status: ParticipantStatus }[];
   invitations: {
@@ -27,6 +26,8 @@ export type IndependentMatchDetail = IndependentMatchRow & {
     email: string | null;
     invitedUserId: string | null;
     invitedUser: { id: string; name: string } | null;
+    invitedTeamId: string | null;
+    invitedTeam: { id: string; name: string; logoUrl: string | null } | null;
     acceptedAt: Date | null;
     createdAt: Date;
   }[];
@@ -36,25 +37,9 @@ export type CreateOpenMatchInput = {
   organizerId: string;
   name: string;
   visibility: MatchVisibility;
+  hostTeamId?: string;
   scheduledAt?: Date;
   location?: string;
   description?: string;
   maxPlayers: 2 | 4;
-};
-
-export type CreateChallengeInput = {
-  organizerId: string;
-  organizerTeamId: string;
-  challengedTeamId: string;
-  leagueId: string;
-  name: string;
-  scheduledAt?: Date;
-  location?: string;
-  description?: string;
-};
-
-export type TeamForChallenge = {
-  id: string;
-  name: string;
-  members: { userId: string; user: { id: string; name: string; email: string } }[];
 };
