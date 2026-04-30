@@ -225,6 +225,7 @@ model User {
   independentMatches            IndependentMatch[]            @relation("IndependentOrganizer")
   indParticipations             IndependentMatchParticipant[]
   indJoinRequests               IndependentMatchJoinRequest[]
+  matchInvitationsReceived      IndependentMatchInvitation[]
   editedCommentaries            MatchCommentary[]             @relation("CommentaryEditor")
   extensionsProposed            DeadlineExtensionProposal[]   @relation("ExtensionProposer")
   extensionsResponded           DeadlineExtensionProposal[]   @relation("ExtensionResponder")
@@ -658,16 +659,19 @@ model IndependentMatchJoinRequest {
 }
 
 model IndependentMatchInvitation {
-  id         String    @id @default(cuid())
-  matchId    String    @map("match_id")
-  email      String    @db.Citext
-  expiresAt  DateTime  @map("expires_at")
-  acceptedAt DateTime? @map("accepted_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id            String    @id @default(cuid())
+  matchId       String    @map("match_id")
+  email         String?   @db.Citext
+  invitedUserId String?   @map("invited_user_id")
+  expiresAt     DateTime  @map("expires_at")
+  acceptedAt    DateTime? @map("accepted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
-  match IndependentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  match       IndependentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  invitedUser User?            @relation(fields: [invitedUserId], references: [id], onDelete: SetNull)
 
-  @@unique([matchId, email])
+  @@unique([matchId, email], map: "imi_match_email_uniq")
+  @@unique([matchId, invitedUserId], map: "imi_match_user_uniq")
   @@index([matchId])
   @@map("independent_match_invitations")
 }
