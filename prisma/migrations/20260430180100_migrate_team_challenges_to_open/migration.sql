@@ -7,6 +7,10 @@ WHERE "type" = 'TEAM_CHALLENGE'
 
 -- 2) For PENDING_APPROVAL challenges, create a team invitation pointing at the
 --    challenged team so the invitee can still accept after migration.
+--    NOTE: avoid ON CONFLICT here. The (match_id, invited_team_id) unique
+--    index is partial (WHERE invited_team_id IS NOT NULL) and Postgres won't
+--    infer a partial index from a bare conflict_target. NOT EXISTS keeps it
+--    idempotent without depending on that quirk.
 INSERT INTO "independent_match_invitations" (id, match_id, invited_team_id, expires_at, created_at)
 SELECT
   'cmgr' || substring(md5(random()::text || im.id), 1, 21),
@@ -18,7 +22,11 @@ FROM "independent_matches" im
 WHERE im."type" = 'TEAM_CHALLENGE'
   AND im."status" = 'PENDING_APPROVAL'
   AND im."challenged_team_id" IS NOT NULL
-ON CONFLICT ("match_id", "invited_team_id") DO NOTHING;
+  AND NOT EXISTS (
+    SELECT 1 FROM "independent_match_invitations" imi
+    WHERE imi."match_id" = im."id"
+      AND imi."invited_team_id" = im."challenged_team_id"
+  );
 
 -- 3) Map status: PENDING_APPROVAL -> OPEN; REJECTED -> CANCELLED.
 UPDATE "independent_matches"
