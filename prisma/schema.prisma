@@ -122,6 +122,11 @@ enum IndependentMatchType {
   TEAM_CHALLENGE
 }
 
+enum MatchVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 enum ParticipantStatus {
   INVITED
   ACCEPTED
@@ -597,6 +602,7 @@ model IndependentMatch {
   organizerId      String                 @map("organizer_id")
   name             String
   type             IndependentMatchType   @default(OPEN)
+  visibility       MatchVisibility        @default(PUBLIC) @map("visibility")
   challengedTeamId String?                @map("challenged_team_id")
   organizerTeamId  String?                @map("organizer_team_id")
   leagueId         String?                @map("league_id")
