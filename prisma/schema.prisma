@@ -356,6 +356,8 @@ model Team {
   wonMatches                   MatchResult[]                @relation("MatchWinner")
   challengedIndependentMatches IndependentMatch[]           @relation("ChallengedTeam")
   organizerIndependentMatches  IndependentMatch[]           @relation("OrganizerTeam")
+  hostedMatches                IndependentMatch[]           @relation("MatchHostTeam")
+  matchTeamInvitations         IndependentMatchInvitation[] @relation("MatchTeamInvitations")
   categoryProposals            TeamCategoryChangeProposal[]
 
   @@unique([createdByUserId, name])
@@ -599,6 +601,7 @@ model IndependentMatch {
   visibility       MatchVisibility        @default(PUBLIC) @map("visibility")
   challengedTeamId String?                @map("challenged_team_id")
   organizerTeamId  String?                @map("organizer_team_id")
+  hostTeamId       String?                @map("host_team_id")
   leagueId         String?                @map("league_id")
   scheduledAt      DateTime?              @map("scheduled_at")
   location         String?
@@ -611,6 +614,7 @@ model IndependentMatch {
   organizer      User                          @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
   challengedTeam Team?                         @relation("ChallengedTeam", fields: [challengedTeamId], references: [id], onDelete: Restrict)
   organizerTeam  Team?                         @relation("OrganizerTeam", fields: [organizerTeamId], references: [id], onDelete: Restrict)
+  hostTeam       Team?                         @relation("MatchHostTeam", fields: [hostTeamId], references: [id], onDelete: SetNull)
   league         League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
   participants   IndependentMatchParticipant[]
   invitations    IndependentMatchInvitation[]
@@ -638,15 +642,18 @@ model IndependentMatchInvitation {
   matchId       String    @map("match_id")
   email         String?   @db.Citext
   invitedUserId String?   @map("invited_user_id")
+  invitedTeamId String?   @map("invited_team_id")
   expiresAt     DateTime  @map("expires_at")
   acceptedAt    DateTime? @map("accepted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   match       IndependentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
   invitedUser User?            @relation(fields: [invitedUserId], references: [id], onDelete: SetNull)
+  invitedTeam Team?            @relation("MatchTeamInvitations", fields: [invitedTeamId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, email], map: "imi_match_email_uniq")
   @@unique([matchId, invitedUserId], map: "imi_match_user_uniq")
+  @@unique([matchId, invitedTeamId], map: "imi_match_team_uniq")
   @@index([matchId])
   @@map("independent_match_invitations")
 }
