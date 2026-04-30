@@ -24,6 +24,7 @@ type ActionResult = { error: string } | { success: true; matchId: string };
 
 const createOpenSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(100),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']),
   scheduledAt: z
     .string()
     .optional()
@@ -43,6 +44,7 @@ export async function createOpenMatch(
   const user = await getSession();
   const parsed = createOpenSchema.safeParse({
     name: formData.get('name'),
+    visibility: formData.get('visibility'),
     scheduledAt: formData.get('scheduledAt') || undefined,
     location: formData.get('location') || undefined,
     description: formData.get('description') || undefined,
