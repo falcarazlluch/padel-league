@@ -14,6 +14,22 @@ function normalizeEnv(raw: NodeJS.ProcessEnv | Record<string, string | undefined
   return out;
 }
 
+// Optional email: a non-email value gets coerced to `undefined` and warned in
+// stderr instead of tearing down the entire app at boot. Reason: a typo in
+// RESEND_FROM_EMAIL on Vercel was crashing every request that touched env(),
+// which is most of the app.
+const optionalEmail = z.preprocess((v) => {
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  if (trimmed === '') return undefined;
+  // RFC 5322 is overkill — this catches the realistic typos
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
+    console.warn(`[env] discarding non-email value for optional email field: ${trimmed.slice(0, 40)}`);
+    return undefined;
+  }
+  return trimmed;
+}, z.string().optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']),
   APP_URL: z.string().url(),
@@ -27,11 +43,11 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().min(32),
   ENCRYPTION_KEY_PREVIOUS: z.string().min(32).optional(),
 
-  // Email (Resend) is optional — when missing, EmailService throws on send.
-  // Keeps the app booting in environments without email configured.
+  // Email (Resend) is optional — when missing or malformed, EmailService throws
+  // on send. Keeps the app booting in environments without proper config.
   RESEND_API_KEY: z.string().min(1).optional(),
-  RESEND_FROM_EMAIL: z.string().email().optional(),
-  EMAIL_REPLY_TO: z.string().email().optional(),
+  RESEND_FROM_EMAIL: optionalEmail,
+  EMAIL_REPLY_TO: optionalEmail,
 
   AI_PROVIDER: z.enum(['claude', 'openai']).optional(),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
@@ -50,7 +66,7 @@ const envSchema = z.object({
 
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(4),
 
-  SEED_SUPERADMIN_EMAIL: z.string().email().optional(),
+  SEED_SUPERADMIN_EMAIL: optionalEmail,
   SEED_SUPERADMIN_PASSWORD: z.string().min(10).optional(),
 });
 

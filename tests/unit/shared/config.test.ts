@@ -47,4 +47,17 @@ describe('parseEnv', () => {
     expect(env.WORKER_CONCURRENCY).toBe(8);
     expect(typeof env.WORKER_CONCURRENCY).toBe('number');
   });
+
+  it('treats whitespace-only optional vars as undefined', () => {
+    const env = parseEnv({ ...valid, RESEND_FROM_EMAIL: '  ', EMAIL_REPLY_TO: '' });
+    expect(env.RESEND_FROM_EMAIL).toBeUndefined();
+    expect(env.EMAIL_REPLY_TO).toBeUndefined();
+  });
+
+  it('discards malformed email values for optional email fields without throwing', () => {
+    // A typo in RESEND_FROM_EMAIL on Vercel was tearing down every request that
+    // touched env(); this guards that we never crash boot for a non-critical typo.
+    const env = parseEnv({ ...valid, RESEND_FROM_EMAIL: 'not-an-email' });
+    expect(env.RESEND_FROM_EMAIL).toBeUndefined();
+  });
 });
