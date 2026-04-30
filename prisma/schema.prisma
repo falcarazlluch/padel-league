@@ -111,11 +111,6 @@ enum IndependentMatchStatus {
   CANCELLED
 }
 
-enum IndependentMatchType {
-  OPEN
-  TEAM_CHALLENGE
-}
-
 enum MatchVisibility {
   PUBLIC
   PRIVATE
@@ -354,11 +349,9 @@ model Team {
   homeMatches                  Match[]                      @relation("TeamA")
   awayMatches                  Match[]                      @relation("TeamB")
   wonMatches                   MatchResult[]                @relation("MatchWinner")
-  challengedIndependentMatches IndependentMatch[]           @relation("ChallengedTeam")
-  organizerIndependentMatches  IndependentMatch[]           @relation("OrganizerTeam")
-  hostedMatches                IndependentMatch[]           @relation("MatchHostTeam")
-  matchTeamInvitations         IndependentMatchInvitation[] @relation("MatchTeamInvitations")
-  categoryProposals            TeamCategoryChangeProposal[]
+  hostedMatches        IndependentMatch[]           @relation("MatchHostTeam")
+  matchTeamInvitations IndependentMatchInvitation[] @relation("MatchTeamInvitations")
+  categoryProposals    TeamCategoryChangeProposal[]
 
   @@unique([createdByUserId, name])
   @@map("teams")
@@ -594,30 +587,25 @@ model MatchCommentary {
 // ─── PARTIDOS INDEPENDIENTES ─────────────────────────────────────────────
 
 model IndependentMatch {
-  id               String                 @id @default(cuid())
-  organizerId      String                 @map("organizer_id")
-  name             String
-  type             IndependentMatchType   @default(OPEN)
-  visibility       MatchVisibility        @default(PUBLIC) @map("visibility")
-  challengedTeamId String?                @map("challenged_team_id")
-  organizerTeamId  String?                @map("organizer_team_id")
-  hostTeamId       String?                @map("host_team_id")
-  leagueId         String?                @map("league_id")
-  scheduledAt      DateTime?              @map("scheduled_at")
-  location         String?
-  description      String?
-  maxPlayers       Int                    @default(4) @map("max_players")
-  status           IndependentMatchStatus @default(OPEN)
-  createdAt        DateTime               @default(now()) @map("created_at")
-  updatedAt        DateTime               @updatedAt @map("updated_at")
+  id          String                 @id @default(cuid())
+  organizerId String                 @map("organizer_id")
+  name        String
+  visibility  MatchVisibility        @default(PUBLIC) @map("visibility")
+  hostTeamId  String?                @map("host_team_id")
+  leagueId    String?                @map("league_id")
+  scheduledAt DateTime?              @map("scheduled_at")
+  location    String?
+  description String?
+  maxPlayers  Int                    @default(4) @map("max_players")
+  status      IndependentMatchStatus @default(OPEN)
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
 
-  organizer      User                          @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
-  challengedTeam Team?                         @relation("ChallengedTeam", fields: [challengedTeamId], references: [id], onDelete: Restrict)
-  organizerTeam  Team?                         @relation("OrganizerTeam", fields: [organizerTeamId], references: [id], onDelete: Restrict)
-  hostTeam       Team?                         @relation("MatchHostTeam", fields: [hostTeamId], references: [id], onDelete: SetNull)
-  league         League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
-  participants   IndependentMatchParticipant[]
-  invitations    IndependentMatchInvitation[]
+  organizer    User                          @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  hostTeam     Team?                         @relation("MatchHostTeam", fields: [hostTeamId], references: [id], onDelete: SetNull)
+  league       League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
+  participants IndependentMatchParticipant[]
+  invitations  IndependentMatchInvitation[]
 
   @@index([status, scheduledAt])
   @@map("independent_matches")
