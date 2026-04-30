@@ -74,10 +74,7 @@ export default async function EquipoDetailPage({
               <span className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs flex items-center justify-center font-semibold shrink-0">
                 {m.name[0]?.toUpperCase()}
               </span>
-              <span>
-                <span className="font-medium">{m.name}</span>
-                <span className="ml-2 text-xs text-slate-400">{m.email}</span>
-              </span>
+              <span className="font-medium">{m.name}</span>
             </li>
           ))}
         </ul>
@@ -87,10 +84,7 @@ export default async function EquipoDetailPage({
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Invitaciones pendientes</p>
             {team.invitations.map((inv) => (
               <div key={inv.id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-3 py-2">
-                <div className="text-sm">
-                  <span className="font-medium text-slate-700">{inv.invitedUser.name}</span>
-                  <span className="ml-2 text-xs text-slate-400">{inv.invitedUser.email}</span>
-                </div>
+                <span className="font-medium text-slate-700 text-sm">{inv.invitedUser.name}</span>
                 <CancelInvitationButton invitationId={inv.id} teamId={team.id} />
               </div>
             ))}
