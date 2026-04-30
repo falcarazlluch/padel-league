@@ -46,16 +46,20 @@ export function queue(): Queue {
           ...(data as Record<string, unknown>),
           __requestId: currentRequestId(),
         };
-        return boss.send(name, payload, {
-          startAfter: opts?.startAfter,
-          singletonKey: opts?.singletonKey,
+        // pg-boss v12 asserts on undefined values for some options (notably
+        // expireInSeconds, which it coerces to 0 then asserts >= 1). Build the
+        // options object without optional keys when caller didn't set them.
+        const sendOpts: Parameters<typeof boss.send>[2] = {
           retryLimit: opts?.retryLimit ?? 3,
           retryBackoff: true,
-          expireInSeconds: opts?.expireInSeconds,
           // Route exhausted-retry jobs to the dead-letter queue so
           // attachDeadLetterRecorder() can persist them to JobDeadLetter.
           deadLetter: 'dead-letter',
-        });
+        };
+        if (opts?.startAfter !== undefined) sendOpts.startAfter = opts.startAfter;
+        if (opts?.singletonKey !== undefined) sendOpts.singletonKey = opts.singletonKey;
+        if (opts?.expireInSeconds !== undefined) sendOpts.expireInSeconds = opts.expireInSeconds;
+        return boss.send(name, payload, sendOpts);
       },
       raw() {
         return boss;
