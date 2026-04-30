@@ -9,9 +9,6 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService } from '@/modules/independent-matches';
 import { isUserFacingError } from '@/shared/errors';
-import { prisma } from '@/shared/db/client';
-import { queue } from '@/shared/queue/client';
-import { env } from '@/shared/config/env';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -22,20 +19,27 @@ async function getSession() {
 
 type ActionResult = { error: string } | { success: true; matchId: string };
 
-const createOpenSchema = z.object({
-  name: z.string().min(1, 'El nombre es obligatorio.').max(100),
-  visibility: z.enum(['PUBLIC', 'PRIVATE']),
-  scheduledAt: z
-    .string()
-    .optional()
-    .transform((v) => (v ? new Date(v) : undefined))
-    .refine((d) => d === undefined || !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
-  location: z.string().max(200).optional(),
-  description: z.string().max(500).optional(),
-  maxPlayers: z.coerce
-    .number()
-    .refine((n): n is 2 | 4 => n === 2 || n === 4, { message: 'El máximo de jugadores debe ser 2 o 4.' }),
-});
+const createOpenSchema = z
+  .object({
+    name: z.string().min(1, 'El nombre es obligatorio.').max(100),
+    visibility: z.enum(['PUBLIC', 'PRIVATE']),
+    hostKind: z.enum(['USER', 'TEAM']),
+    hostTeamId: z.string().cuid().optional().or(z.literal('').transform(() => undefined)),
+    scheduledAt: z
+      .string()
+      .optional()
+      .transform((v) => (v ? new Date(v) : undefined))
+      .refine((d) => d === undefined || !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
+    location: z.string().max(200).optional(),
+    description: z.string().max(500).optional(),
+    maxPlayers: z.coerce
+      .number()
+      .refine((n): n is 2 | 4 => n === 2 || n === 4, { message: 'El máximo de jugadores debe ser 2 o 4.' }),
+  })
+  .refine((v) => v.hostKind === 'USER' || (v.hostKind === 'TEAM' && Boolean(v.hostTeamId)), {
+    message: 'Selecciona el equipo organizador.',
+    path: ['hostTeamId'],
+  });
 
 export async function createOpenMatch(
   _prev: ActionResult | null,
@@ -45,6 +49,8 @@ export async function createOpenMatch(
   const parsed = createOpenSchema.safeParse({
     name: formData.get('name'),
     visibility: formData.get('visibility'),
+    hostKind: formData.get('hostKind'),
+    hostTeamId: formData.get('hostTeamId'),
     scheduledAt: formData.get('scheduledAt') || undefined,
     location: formData.get('location') || undefined,
     description: formData.get('description') || undefined,
@@ -52,78 +58,16 @@ export async function createOpenMatch(
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
-  try {
-    const match = await IndependentMatchService.createOpen({ ...parsed.data, organizerId: user.id });
-    revalidatePath('/jugar');
-    return { success: true, matchId: match.id };
-  } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
-  }
-}
-
-const createChallengeSchema = z.object({
-  name: z.string().min(1, 'El nombre es obligatorio.').max(100),
-  organizerTeamId: z.string().cuid(),
-  challengedTeamId: z.string().cuid(),
-  leagueId: z.string().cuid(),
-  scheduledAt: z
-    .string()
-    .optional()
-    .transform((v) => (v ? new Date(v) : undefined))
-    .refine((d) => d === undefined || !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
-  location: z.string().max(200).optional(),
-  description: z.string().max(500).optional(),
-});
-
-export async function createChallenge(
-  _prev: ActionResult | null,
-  formData: FormData,
-): Promise<ActionResult> {
-  const user = await getSession();
-  const parsed = createChallengeSchema.safeParse({
-    name: formData.get('name'),
-    organizerTeamId: formData.get('organizerTeamId'),
-    challengedTeamId: formData.get('challengedTeamId'),
-    leagueId: formData.get('leagueId'),
-    scheduledAt: formData.get('scheduledAt') || undefined,
-    location: formData.get('location') || undefined,
-    description: formData.get('description') || undefined,
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  const { hostKind, hostTeamId, ...rest } = parsed.data;
+  const effectiveMaxPlayers = hostKind === 'TEAM' ? (4 as const) : rest.maxPlayers;
 
   try {
-    const match = await IndependentMatchService.createChallenge({ ...parsed.data, organizerId: user.id });
-
-    // Send email to challenged team members
-    const challengedTeam = await prisma.team.findUnique({
-      where: { id: parsed.data.challengedTeamId },
-      include: { members: { include: { user: { select: { email: true, name: true } } } } },
+    const match = await IndependentMatchService.createOpen({
+      ...rest,
+      organizerId: user.id,
+      maxPlayers: effectiveMaxPlayers,
+      hostTeamId: hostKind === 'TEAM' ? hostTeamId : undefined,
     });
-    const organizerTeam = await prisma.team.findUnique({
-      where: { id: parsed.data.organizerTeamId },
-      select: { name: true },
-    });
-    const matchUrl = `${env().APP_URL}/jugar/${match.id}`;
-    const q = queue();
-    await q.start();
-    await Promise.all(
-      (challengedTeam?.members ?? []).map((m) =>
-        q.publish('send-email', {
-          template: 'ind-match-challenge',
-          to: m.user.email,
-          data: {
-            organizerTeamName: organizerTeam?.name ?? 'Equipo rival',
-            matchName: match.name,
-            matchUrl,
-            scheduledAt: match.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
-            location: match.location ?? undefined,
-          },
-          dedupKey: `ind-challenge-${match.id}-${m.user.email}`,
-        }),
-      ),
-    );
-
     revalidatePath('/jugar');
     return { success: true, matchId: match.id };
   } catch (err) {
