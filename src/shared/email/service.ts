@@ -3,8 +3,8 @@ import { env } from '@/shared/config/env';
 
 let _resend: Resend | undefined;
 
-function getResend(): Resend {
-  _resend ??= new Resend(env().RESEND_API_KEY);
+function getResend(apiKey: string): Resend {
+  _resend ??= new Resend(apiKey);
   return _resend;
 }
 
@@ -18,10 +18,19 @@ export interface SendEmailOptions {
 
 export const EmailService = {
   async send(opts: SendEmailOptions): Promise<string> {
+    const apiKey = env().RESEND_API_KEY;
+    const fromAddr = opts.from ?? env().RESEND_FROM_EMAIL;
+
+    if (!apiKey || !fromAddr) {
+      throw new Error(
+        'Email no configurado: faltan RESEND_API_KEY y/o RESEND_FROM_EMAIL.',
+      );
+    }
+
     const replyTo = opts.replyTo ?? env().EMAIL_REPLY_TO;
 
-    const { data, error } = await getResend().emails.send({
-      from: opts.from ?? env().RESEND_FROM_EMAIL,
+    const { data, error } = await getResend(apiKey).emails.send({
+      from: fromAddr,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,

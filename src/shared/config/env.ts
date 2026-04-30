@@ -4,6 +4,16 @@ const booleanString = z
   .union([z.literal('true'), z.literal('false')])
   .transform((v) => v === 'true');
 
+// Preprocess raw env: turn whitespace-only strings into `undefined` so optional
+// fields don't fail validation just because someone set `FOO=` in Vercel.
+function normalizeEnv(raw: NodeJS.ProcessEnv | Record<string, string | undefined>): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    out[k] = typeof v === 'string' && v.trim() === '' ? undefined : v;
+  }
+  return out;
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']),
   APP_URL: z.string().url(),
@@ -17,8 +27,10 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().min(32),
   ENCRYPTION_KEY_PREVIOUS: z.string().min(32).optional(),
 
-  RESEND_API_KEY: z.string().min(1),
-  RESEND_FROM_EMAIL: z.string().email(),
+  // Email (Resend) is optional — when missing, EmailService throws on send.
+  // Keeps the app booting in environments without email configured.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().email().optional(),
   EMAIL_REPLY_TO: z.string().email().optional(),
 
   AI_PROVIDER: z.enum(['claude', 'openai']).optional(),
@@ -45,7 +57,7 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 export function parseEnv(raw: NodeJS.ProcessEnv | Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(raw);
+  const result = envSchema.safeParse(normalizeEnv(raw));
   if (!result.success) {
     const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
     throw new Error(`Invalid environment: ${issues}`);
