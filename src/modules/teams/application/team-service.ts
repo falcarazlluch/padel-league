@@ -25,18 +25,6 @@ async function ensureMember(teamId: string, userId: string): Promise<void> {
   }
 }
 
-async function resolveUserByIdentifier(identifier: string): Promise<{ id: string; name: string; email: string } | null> {
-  const trimmed = identifier.trim();
-  if (trimmed.length === 0) return null;
-  // identifier might be email or name — try both.
-  return prisma.user.findFirst({
-    where: {
-      OR: [{ email: trimmed }, { name: trimmed }],
-      deletedAt: null,
-    },
-    select: { id: true, name: true, email: true },
-  });
-}
 
 export const TeamService = {
   async create(input: CreateTeamInput): Promise<{ id: string }> {
@@ -149,6 +137,10 @@ export const TeamService = {
   async invite(input: InviteInput): Promise<{ id: string }> {
     await ensureMember(input.teamId, input.invitedByUserId);
 
+    if (input.invitedUserId === input.invitedByUserId) {
+      throw new DomainError('CANNOT_INVITE_SELF', 'No puedes invitarte a ti mismo.');
+    }
+
     const team = await prisma.team.findUnique({
       where: { id: input.teamId },
       include: {
@@ -158,6 +150,14 @@ export const TeamService = {
     });
     if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
 
+    // Specific conflicts checked before capacity — clearer errors for the inviter.
+    if (team.members.some((m) => m.userId === input.invitedUserId)) {
+      throw new ConflictError('ALREADY_MEMBER', 'Ese usuario ya es miembro del equipo.');
+    }
+    if (team.invitations.some((i) => i.invitedUserId === input.invitedUserId)) {
+      throw new ConflictError('INVITATION_EXISTS', 'Ya hay una invitación pendiente para ese usuario.');
+    }
+
     if (team.members.length >= MAX_TEAM_SIZE) {
       throw new DomainError('TEAM_FULL', 'El equipo ya está completo.');
     }
@@ -166,18 +166,12 @@ export const TeamService = {
       throw new DomainError('INVITATION_LIMIT', 'Ya hay una invitación pendiente para este equipo.');
     }
 
-    const invitee = await resolveUserByIdentifier(input.invitedUserIdentifier);
-    if (!invitee) {
-      throw new NotFoundError('USER_NOT_FOUND', 'No existe ningún usuario con ese email o nombre.');
-    }
-    if (invitee.id === input.invitedByUserId) {
-      throw new DomainError('CANNOT_INVITE_SELF', 'No puedes invitarte a ti mismo.');
-    }
-    if (team.members.some((m) => m.userId === invitee.id)) {
-      throw new ConflictError('ALREADY_MEMBER', 'Ese usuario ya es miembro del equipo.');
-    }
-    if (team.invitations.some((i) => i.invitedUserId === invitee.id)) {
-      throw new ConflictError('INVITATION_EXISTS', 'Ya hay una invitación pendiente para ese usuario.');
+    const invitee = await prisma.user.findUnique({
+      where: { id: input.invitedUserId },
+      select: { id: true, name: true, deletedAt: true },
+    });
+    if (!invitee || invitee.deletedAt !== null) {
+      throw new NotFoundError('USER_NOT_FOUND', 'Usuario no encontrado.');
     }
 
     const invitation = await prisma.$transaction(async (tx) => {

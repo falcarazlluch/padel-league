@@ -46,6 +46,6 @@ export type CreateTeamInput = {
 export type InviteInput = {
   teamId: string;
   invitedByUserId: string;
-  /** email or username (we resolve to userId in the service). */
-  invitedUserIdentifier: string;
+  /** Resolved user id of the invitee. */
+  invitedUserId: string;
 };

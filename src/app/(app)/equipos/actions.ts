@@ -51,7 +51,7 @@ export async function createTeamAction(
 
 const inviteSchema = z.object({
   teamId: z.string().cuid(),
-  invitedUserIdentifier: z.string().min(1, 'Email o nombre obligatorio').max(255),
+  invitedUserId: z.string().cuid('Selecciona un jugador del listado.'),
 });
 
 export async function inviteToTeamAction(
@@ -66,7 +66,7 @@ export async function inviteToTeamAction(
     await TeamService.invite({
       teamId: parsed.data.teamId,
       invitedByUserId: user.id,
-      invitedUserIdentifier: parsed.data.invitedUserIdentifier,
+      invitedUserId: parsed.data.invitedUserId,
     });
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
