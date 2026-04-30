@@ -2,18 +2,20 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 
-type Candidate = { id: string; name: string; avatarUrl: string | null };
+type UserCandidate = { kind: 'user'; id: string; name: string; avatarUrl: string | null };
+type TeamCandidate = { kind: 'team'; id: string; name: string; logoUrl: string | null; memberCount: number };
+type Candidate = UserCandidate | TeamCandidate;
 
 interface Props {
   matchId: string;
-  /** Hidden form field name. Defaults to "invitedUserId". */
-  name?: string;
+  /** Free slots in the match. When < 2, team results are hidden. */
+  availableSlots: number;
 }
 
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 250;
 
-export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
+export function MatchEntityPicker({ matchId, availableSlots }: Props) {
   const inputId = useId();
   const listId = useId();
   const liveId = useId();
@@ -34,23 +36,40 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
     const timeout = setTimeout(() => {
       setLoading(true);
       setError(null);
-      const url = new URL('/api/users/search', window.location.origin);
-      url.searchParams.set('q', query.trim());
-      url.searchParams.set('matchId', matchId);
 
-      fetch(url.toString())
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`status ${res.status}`);
-          return (await res.json()) as Candidate[];
-        })
-        .then((rows) => {
-          setResults(rows);
+      const userUrl = new URL('/api/users/search', window.location.origin);
+      userUrl.searchParams.set('q', query.trim());
+      userUrl.searchParams.set('matchId', matchId);
+      const userPromise = fetch(userUrl.toString()).then(async (res) => {
+        if (!res.ok) throw new Error(`users ${res.status}`);
+        return (await res.json()) as Omit<UserCandidate, 'kind'>[];
+      });
+
+      const teamPromise = availableSlots >= 2
+        ? (() => {
+            const teamUrl = new URL('/api/teams/search', window.location.origin);
+            teamUrl.searchParams.set('q', query.trim());
+            teamUrl.searchParams.set('matchId', matchId);
+            return fetch(teamUrl.toString()).then(async (res) => {
+              if (!res.ok) throw new Error(`teams ${res.status}`);
+              return (await res.json()) as Omit<TeamCandidate, 'kind'>[];
+            });
+          })()
+        : Promise.resolve([] as Omit<TeamCandidate, 'kind'>[]);
+
+      Promise.all([userPromise, teamPromise])
+        .then(([users, teams]) => {
+          const merged: Candidate[] = [
+            ...teams.map((t) => ({ ...t, kind: 'team' as const })),
+            ...users.map((u) => ({ ...u, kind: 'user' as const })),
+          ];
+          setResults(merged);
           setHighlighted(0);
           setOpen(true);
           setLiveMessage(
-            rows.length === 0
+            merged.length === 0
               ? 'Sin resultados.'
-              : `${rows.length} resultado${rows.length === 1 ? '' : 's'}.`,
+              : `${merged.length} resultado${merged.length === 1 ? '' : 's'}.`,
           );
         })
         .catch(() => {
@@ -61,7 +80,7 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timeout);
-  }, [query, matchId, selected]);
+  }, [query, matchId, availableSlots, selected]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -113,14 +132,23 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
     }
   }
 
+  const selectedUserId = selected?.kind === 'user' ? selected.id : '';
+  const selectedTeamId = selected?.kind === 'team' ? selected.id : '';
+
   return (
     <div ref={containerRef} className="relative w-full">
-      <input type="hidden" name={name} value={selected?.id ?? ''} />
+      <input type="hidden" name="invitedUserId" value={selectedUserId} />
+      <input type="hidden" name="invitedTeamId" value={selectedTeamId} />
 
       {selected ? (
         <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
-          <Avatar name={selected.name} url={selected.avatarUrl} />
-          <span className="flex-1 font-medium text-slate-700">{selected.name}</span>
+          <Avatar candidate={selected} />
+          <span className="flex-1 font-medium text-slate-700">
+            {selected.name}
+            {selected.kind === 'team' && (
+              <span className="ml-2 text-xs text-slate-400">{selected.memberCount} jugadores</span>
+            )}
+          </span>
           <button
             type="button"
             onClick={clearSelection}
@@ -139,7 +167,7 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
           onChange={(e) => onChangeQuery(e.target.value)}
           onKeyDown={onKeyDown}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="Buscar jugador por nombre…"
+          placeholder="Buscar jugador o equipo por nombre…"
           autoComplete="off"
           role="combobox"
           aria-expanded={open}
@@ -161,12 +189,12 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
         >
           {loading && <li className="px-3 py-2 text-sm text-slate-400">Buscando…</li>}
           {!loading && results.length === 0 && (
-            <li className="px-3 py-2 text-sm text-slate-400">Sin resultados. Comprueba el nombre.</li>
+            <li className="px-3 py-2 text-sm text-slate-400">Sin resultados.</li>
           )}
           {!loading &&
             results.map((c, idx) => (
               <li
-                key={c.id}
+                key={`${c.kind}-${c.id}`}
                 role="option"
                 aria-selected={idx === highlighted}
                 onMouseEnter={() => setHighlighted(idx)}
@@ -178,8 +206,16 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
                   idx === highlighted ? 'bg-slate-100' : 'hover:bg-slate-50'
                 }`}
               >
-                <Avatar name={c.name} url={c.avatarUrl} />
-                <span className="text-slate-700">{c.name}</span>
+                <Avatar candidate={c} />
+                <span className="flex-1 text-slate-700">
+                  {c.name}
+                  {c.kind === 'team' && (
+                    <span className="ml-2 text-xs text-slate-400">{c.memberCount} jugadores</span>
+                  )}
+                </span>
+                <span className="text-xs text-slate-400 shrink-0">
+                  {c.kind === 'team' ? 'Equipo' : 'Jugador'}
+                </span>
               </li>
             ))}
         </ul>
@@ -190,7 +226,8 @@ export function MatchUserPicker({ matchId, name = 'invitedUserId' }: Props) {
   );
 }
 
-function Avatar({ name, url }: { name: string; url: string | null }) {
+function Avatar({ candidate }: { candidate: Candidate }) {
+  const url = candidate.kind === 'user' ? candidate.avatarUrl : candidate.logoUrl;
   if (url) {
     return (
       <span
@@ -200,10 +237,14 @@ function Avatar({ name, url }: { name: string; url: string | null }) {
       />
     );
   }
-  const initial = name.trim().charAt(0).toUpperCase();
+  const initial = candidate.name.trim().charAt(0).toUpperCase();
   return (
     <span
-      className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs font-bold flex items-center justify-center shrink-0"
+      className={`w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 ${
+        candidate.kind === 'team'
+          ? 'bg-gradient-to-br from-amber-500 to-amber-700'
+          : 'bg-gradient-to-br from-brand-navy to-brand-navy-light'
+      }`}
       aria-hidden
     >
       {initial}

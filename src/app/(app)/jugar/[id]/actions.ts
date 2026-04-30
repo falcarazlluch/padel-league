@@ -111,71 +111,56 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
   }
 }
 
-const inviteUserSchema = z.object({
-  matchId: z.string().cuid(),
-  invitedUserId: z.string().cuid('Selecciona un jugador del listado.'),
-});
+const inviteEntitySchema = z
+  .object({
+    matchId: z.string().cuid(),
+    invitedUserId: z.string().cuid().optional().or(z.literal('').transform(() => undefined)),
+    invitedTeamId: z.string().cuid().optional().or(z.literal('').transform(() => undefined)),
+  })
+  .refine((v) => Boolean(v.invitedUserId) !== Boolean(v.invitedTeamId), {
+    message: 'Selecciona un jugador o un equipo del listado.',
+  });
 
-export async function inviteUserToMatchAction(
+export async function inviteEntityToMatchAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await getSession();
-  const parsed = inviteUserSchema.safeParse({
+  const parsed = inviteEntitySchema.safeParse({
     matchId: formData.get('matchId'),
     invitedUserId: formData.get('invitedUserId'),
+    invitedTeamId: formData.get('invitedTeamId'),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   try {
-    const { invitationId, isNew } = await IndependentMatchService.inviteUser(
-      parsed.data.matchId,
-      user.id,
-      parsed.data.invitedUserId,
-    );
-
-    if (isNew) {
-      const token = await SignedTokenService.issue({
-        purpose: SignedTokenPurpose.INDEPENDENT_MATCH_INVITE,
-        subjectId: invitationId,
-        ttlSeconds: 7 * 24 * 60 * 60,
-      });
-
-      const matchUrl = `${env().APP_URL}/jugar/${parsed.data.matchId}?token=${token}`;
-      const match = await prisma.independentMatch.findUnique({
-        where: { id: parsed.data.matchId },
-        include: { organizer: { select: { name: true } } },
-      });
-      const invitee = await prisma.user.findUnique({
-        where: { id: parsed.data.invitedUserId },
-        select: { name: true, email: true },
-      });
-
-      // Email is best-effort; if the user has none configured we skip silently.
-      if (invitee?.email) {
-        const q = queue();
-        await q.start();
-        await q.publish('send-email', {
-          template: 'ind-match-invite',
-          to: invitee.email,
-          data: {
-            organizerName: match?.organizer.name ?? 'Organizador',
-            matchName: match?.name ?? 'Partido',
-            matchUrl,
-            scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
-            location: match?.location ?? undefined,
-          },
-          dedupKey: `ind-invite-${invitationId}`,
+    if (parsed.data.invitedUserId) {
+      const { invitationId, isNew } = await IndependentMatchService.inviteUser(
+        parsed.data.matchId,
+        user.id,
+        parsed.data.invitedUserId,
+      );
+      if (isNew) {
+        await issueInvitationToken(parsed.data.matchId, invitationId);
+        await sendUserInviteEmail(parsed.data.matchId, parsed.data.invitedUserId, invitationId);
+        await NotificationService.create({
+          userId: parsed.data.invitedUserId,
+          type: 'INDEPENDENT_MATCH_INVITE',
+          title: 'Invitación a partido',
+          body: `Te invitan a un partido.`,
+          metadata: { matchId: parsed.data.matchId },
         });
       }
-
-      await NotificationService.create({
-        userId: parsed.data.invitedUserId,
-        type: 'INDEPENDENT_MATCH_INVITE',
-        title: 'Invitación a partido',
-        body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}".`,
-        metadata: { matchId: parsed.data.matchId },
-      });
+    } else if (parsed.data.invitedTeamId) {
+      const { invitationId, isNew } = await IndependentMatchService.inviteTeam(
+        parsed.data.matchId,
+        user.id,
+        parsed.data.invitedTeamId,
+      );
+      if (isNew) {
+        await issueInvitationToken(parsed.data.matchId, invitationId);
+        await sendTeamInviteNotifications(parsed.data.matchId, parsed.data.invitedTeamId, invitationId);
+      }
     }
 
     revalidatePath(`/jugar/${parsed.data.matchId}`);
@@ -206,54 +191,91 @@ export async function cancelMatchInvitation(
   }
 }
 
-export async function respondToChallenge(
-  _prev: ActionResult | null,
-  formData: FormData,
-): Promise<ActionResult> {
-  const user = await getSession();
-  const matchId = formData.get('matchId');
-  const response = formData.get('response');
-  if (typeof matchId !== 'string' || (response !== 'accept' && response !== 'reject'))
-    return { error: 'Datos inválidos.' };
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-  try {
-    if (response === 'accept') {
-      await IndependentMatchService.acceptChallenge(matchId, user.id);
-    } else {
-      await IndependentMatchService.rejectChallenge(matchId, user.id);
-    }
+async function issueInvitationToken(matchId: string, invitationId: string): Promise<string> {
+  return SignedTokenService.issue({
+    purpose: SignedTokenPurpose.INDEPENDENT_MATCH_INVITE,
+    subjectId: invitationId,
+    ttlSeconds: 7 * 24 * 60 * 60,
+  });
+}
 
-    const match = await prisma.independentMatch.findUnique({
-      where: { id: matchId },
-      include: {
-        organizer: { select: { email: true, name: true } },
-        challengedTeam: { select: { name: true } },
-      },
-    });
+async function sendUserInviteEmail(matchId: string, invitedUserId: string, invitationId: string): Promise<void> {
+  const token = await issueInvitationToken(matchId, invitationId);
+  const matchUrl = `${env().APP_URL}/jugar/${matchId}?token=${token}`;
+  const match = await prisma.independentMatch.findUnique({
+    where: { id: matchId },
+    include: { organizer: { select: { name: true } } },
+  });
+  const invitee = await prisma.user.findUnique({
+    where: { id: invitedUserId },
+    select: { email: true },
+  });
+  if (!invitee?.email) return;
 
-    if (match?.organizer) {
-      const q = queue();
-      await q.start();
-      await q.publish('send-email', {
-        template: 'ind-match-challenge-response',
-        to: match.organizer.email,
-        data: {
-          challengedTeamName: match.challengedTeam?.name ?? 'Equipo',
-          matchName: match.name,
-          accepted: response === 'accept',
-          matchUrl: `${env().APP_URL}/jugar/${matchId}`,
-        },
-        dedupKey: `ind-challenge-response-${matchId}-${response}`,
-      });
-    }
+  const q = queue();
+  await q.start();
+  await q.publish('send-email', {
+    template: 'ind-match-invite',
+    to: invitee.email,
+    data: {
+      organizerName: match?.organizer.name ?? 'Organizador',
+      matchName: match?.name ?? 'Partido',
+      matchUrl,
+      scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
+      location: match?.location ?? undefined,
+    },
+    dedupKey: `ind-invite-${invitationId}`,
+  });
+}
 
-    revalidatePath(`/jugar/${matchId}`);
-    revalidatePath('/jugar');
-    return { success: true };
-  } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
-  }
+async function sendTeamInviteNotifications(matchId: string, invitedTeamId: string, invitationId: string): Promise<void> {
+  const team = await prisma.team.findUnique({
+    where: { id: invitedTeamId },
+    include: { members: { include: { user: { select: { id: true, email: true } } } } },
+  });
+  if (!team) return;
+
+  const token = await issueInvitationToken(matchId, invitationId);
+  const matchUrl = `${env().APP_URL}/jugar/${matchId}?token=${token}`;
+  const match = await prisma.independentMatch.findUnique({
+    where: { id: matchId },
+    include: { organizer: { select: { name: true } } },
+  });
+
+  // In-app notification per team member.
+  await NotificationService.createMany(
+    team.members.map((m) => ({
+      userId: m.userId,
+      type: 'INDEPENDENT_MATCH_INVITE' as const,
+      title: 'Invitación a partido',
+      body: `${match?.organizer.name ?? 'Alguien'} ha invitado a tu equipo "${team.name}" a "${match?.name ?? 'un partido'}".`,
+      metadata: { matchId },
+    })),
+  );
+
+  // Email per team member with an email.
+  const q = queue();
+  await q.start();
+  await Promise.all(
+    team.members
+      .filter((m) => Boolean(m.user.email))
+      .map((m) =>
+        q.publish('send-email', {
+          template: 'ind-match-invite',
+          to: m.user.email,
+          data: {
+            organizerName: match?.organizer.name ?? 'Organizador',
+            matchName: match?.name ?? 'Partido',
+            matchUrl,
+            scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
+            location: match?.location ?? undefined,
+          },
+          dedupKey: `ind-invite-${invitationId}-${m.userId}`,
+        }),
+      ),
+  );
 }
 
 export async function cancelMatch(formData: FormData): Promise<void> {

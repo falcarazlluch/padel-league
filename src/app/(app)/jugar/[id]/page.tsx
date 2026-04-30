@@ -7,7 +7,6 @@ import { IndependentMatchService, calculateAvailableSlots } from '@/modules/inde
 import { InvalidTokenError } from '@/shared/errors';
 import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
-import { ChallengePanel } from './_components/challenge-panel';
 import { CancelMatchButton } from './_components/cancel-match-button';
 import { CancelInvitationButton } from './_components/cancel-invitation-button';
 
@@ -56,11 +55,6 @@ export default async function JugarDetailPage({
   const isParticipant = match.participants.some((p) => p.userId === user.id);
   const availableSlots = calculateAvailableSlots(match.maxPlayers, match.participants.length);
 
-  const isChallengeMember =
-    match.type === 'TEAM_CHALLENGE' &&
-    match.status === 'PENDING_APPROVAL' &&
-    match.challengedTeam != null;
-
   return (
     <div className="max-w-2xl space-y-6">
       {tokenError && (
@@ -73,7 +67,7 @@ export default async function JugarDetailPage({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">
-              {match.type === 'TEAM_CHALLENGE' ? 'Reto de equipos' : 'Partido abierto'}
+              Partido abierto
             </p>
             <h1 className="text-2xl font-extrabold text-brand-navy">{match.name}</h1>
           </div>
@@ -90,10 +84,6 @@ export default async function JugarDetailPage({
         {match.location && <p className="text-sm text-gray-600">{match.location}</p>}
         {match.description && <p className="text-sm text-gray-500 mt-2">{match.description}</p>}
       </div>
-
-      {isChallengeMember && !isOrganizer && (
-        <ChallengePanel matchId={id} challengerTeamName={match.organizer.name} />
-      )}
 
       <section>
         <h2 className="text-sm font-semibold text-gray-700 mb-2">
@@ -116,33 +106,37 @@ export default async function JugarDetailPage({
         )}
       </section>
 
-      {match.type === 'OPEN' && match.status === 'OPEN' && match.visibility === 'PUBLIC' && !isOrganizer && !isParticipant && availableSlots > 0 && (
+      {match.status === 'OPEN' && match.visibility === 'PUBLIC' && !isOrganizer && !isParticipant && availableSlots > 0 && (
         <JoinPublicMatchButton matchId={id} />
       )}
 
       {isOrganizer && (
         <section className="space-y-4">
-          {['OPEN', 'PENDING_APPROVAL'].includes(match.status) && availableSlots > 0 && (
+          {match.status === 'OPEN' && availableSlots > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Invitar por email</h3>
-              <InviteForm matchId={id} />
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Invitar</h3>
+              <InviteForm matchId={id} availableSlots={availableSlots} />
               {match.invitations.length > 0 && (
                 <div className="mt-3">
                   <p className="text-xs text-gray-500 mb-1">Invitaciones enviadas:</p>
                   <ul className="space-y-1">
-                    {match.invitations.map((inv) => (
-                      <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
-                        <span>{inv.email}</span>
-                        {inv.acceptedAt ? (
-                          <span className="text-green-600">✓ Aceptada</span>
-                        ) : (
-                          <>
-                            <span className="text-gray-400">Pendiente</span>
-                            <CancelInvitationButton matchId={id} invitationId={inv.id} />
-                          </>
-                        )}
-                      </li>
-                    ))}
+                    {match.invitations.map((inv) => {
+                      const label = inv.email ?? inv.invitedUser?.name ?? inv.invitedTeam?.name ?? '—';
+                      const icon = inv.invitedTeam ? '🏆 ' : inv.invitedUser ? '👤 ' : '✉️ ';
+                      return (
+                        <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
+                          <span>{icon}{label}</span>
+                          {inv.acceptedAt ? (
+                            <span className="text-green-600">✓ Aceptada</span>
+                          ) : (
+                            <>
+                              <span className="text-gray-400">Pendiente</span>
+                              <CancelInvitationButton matchId={id} invitationId={inv.id} />
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

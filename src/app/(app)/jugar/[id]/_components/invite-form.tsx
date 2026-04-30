@@ -1,23 +1,28 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
-import { inviteByEmail, inviteUserToMatchAction } from '../actions';
-import { MatchUserPicker } from './match-user-picker';
+import { inviteByEmail, inviteEntityToMatchAction } from '../actions';
+import { MatchEntityPicker } from './match-entity-picker';
 
 type ActionResult = { error: string } | { success: true } | null;
 
-export function InviteForm({ matchId }: { matchId: string }) {
+interface Props {
+  matchId: string;
+  availableSlots: number;
+}
+
+export function InviteForm({ matchId, availableSlots }: Props) {
   const [showEmailFallback, setShowEmailFallback] = useState(false);
 
-  const [userState, userAction, userPending] = useActionState<ActionResult, FormData>(
-    inviteUserToMatchAction,
+  const [entityState, entityAction, entityPending] = useActionState<ActionResult, FormData>(
+    inviteEntityToMatchAction,
     null,
   );
-  const userFormRef = useRef<HTMLFormElement>(null);
+  const entityFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (userState && 'success' in userState) userFormRef.current?.reset();
-  }, [userState]);
+    if (entityState && 'success' in entityState) entityFormRef.current?.reset();
+  }, [entityState]);
 
   const [emailState, emailAction, emailPending] = useActionState<ActionResult, FormData>(
     inviteByEmail,
@@ -26,19 +31,19 @@ export function InviteForm({ matchId }: { matchId: string }) {
 
   return (
     <div className="space-y-3">
-      <form ref={userFormRef} action={userAction} className="flex flex-col gap-2">
+      <form ref={entityFormRef} action={entityAction} className="flex flex-col gap-2">
         <input type="hidden" name="matchId" value={matchId} />
-        <MatchUserPicker matchId={matchId} />
+        <MatchEntityPicker matchId={matchId} availableSlots={availableSlots} />
         <div className="flex items-center gap-2">
           <button
             type="submit"
-            disabled={userPending}
+            disabled={entityPending}
             className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
           >
-            {userPending ? 'Enviando…' : 'Invitar'}
+            {entityPending ? 'Enviando…' : 'Invitar'}
           </button>
-          {userState && 'error' in userState && <p className="text-xs text-red-600">{userState.error}</p>}
-          {userState && 'success' in userState && <p className="text-xs text-emerald-700">Invitación enviada.</p>}
+          {entityState && 'error' in entityState && <p className="text-xs text-red-600">{entityState.error}</p>}
+          {entityState && 'success' in entityState && <p className="text-xs text-emerald-700">Invitación enviada.</p>}
         </div>
       </form>
 
