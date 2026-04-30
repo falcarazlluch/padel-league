@@ -29,17 +29,14 @@ export function UserSearchPicker({ teamId, name = 'invitedUserId' }: Props) {
   const [selected, setSelected] = useState<Candidate | null>(null);
   const [liveMessage, setLiveMessage] = useState('');
 
-  // Debounced fetch on query change
+  // Debounced fetch on query change. The effect only schedules work — all
+  // setState happens inside the async setTimeout callback to satisfy
+  // react-hooks/set-state-in-effect.
   useEffect(() => {
-    if (selected) return;
-    if (query.trim().length < MIN_CHARS) {
-      setResults([]);
-      setOpen(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
+    if (selected || query.trim().length < MIN_CHARS) return;
     const timeout = setTimeout(() => {
+      setLoading(true);
+      setError(null);
       const url = new URL('/api/users/search', window.location.origin);
       url.searchParams.set('q', query.trim());
       url.searchParams.set('teamId', teamId);
@@ -68,6 +65,14 @@ export function UserSearchPicker({ teamId, name = 'invitedUserId' }: Props) {
 
     return () => clearTimeout(timeout);
   }, [query, teamId, selected]);
+
+  function onChangeQuery(value: string) {
+    setQuery(value);
+    if (value.trim().length < MIN_CHARS) {
+      setOpen(false);
+      setResults([]);
+    }
+  }
 
   // Close on click outside
   useEffect(() => {
@@ -135,7 +140,7 @@ export function UserSearchPicker({ teamId, name = 'invitedUserId' }: Props) {
           id={inputId}
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => onChangeQuery(e.target.value)}
           onKeyDown={onKeyDown}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder="Buscar jugador por nombre…"
