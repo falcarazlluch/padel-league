@@ -121,7 +121,7 @@ export const IndependentMatchService = {
 
   async listOpen(): Promise<(IndependentMatchRow & { confirmedCount: number })[]> {
     const matches = await prisma.independentMatch.findMany({
-      where: { type: 'OPEN', status: 'OPEN' },
+      where: { type: 'OPEN', status: 'OPEN', visibility: 'PUBLIC' },
       include: { _count: { select: { participants: { where: { status: 'ACCEPTED' } } } } },
       orderBy: { createdAt: 'desc' },
     });

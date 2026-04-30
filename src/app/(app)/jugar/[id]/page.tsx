@@ -5,8 +5,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService, calculateAvailableSlots } from '@/modules/independent-matches';
 import { InvalidTokenError } from '@/shared/errors';
-import { JoinRequestButton } from './_components/join-request-button';
-import { JoinRequestsPanel } from './_components/join-requests-panel';
+import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
 import { ChallengePanel } from './_components/challenge-panel';
 import { CancelMatchButton } from './_components/cancel-match-button';
@@ -55,7 +54,6 @@ export default async function JugarDetailPage({
 
   const isOrganizer = match.organizerId === user.id;
   const isParticipant = match.participants.some((p) => p.userId === user.id);
-  const hasPendingRequest = match.joinRequests.some((r) => r.userId === user.id);
   const availableSlots = calculateAvailableSlots(match.maxPlayers, match.participants.length);
 
   const isChallengeMember =
@@ -118,18 +116,12 @@ export default async function JugarDetailPage({
         )}
       </section>
 
-      {match.type === 'OPEN' && match.status === 'OPEN' && !isOrganizer && !isParticipant && !hasPendingRequest && availableSlots > 0 && (
-        <JoinRequestButton matchId={id} />
-      )}
-      {hasPendingRequest && (
-        <p className="text-sm text-amber-700 bg-gradient-to-r from-yellow-50 to-amber-100 border border-amber-200 rounded-xl px-4 py-2">
-          Tu solicitud está pendiente de aprobación.
-        </p>
+      {match.type === 'OPEN' && match.status === 'OPEN' && match.visibility === 'PUBLIC' && !isOrganizer && !isParticipant && availableSlots > 0 && (
+        <JoinPublicMatchButton matchId={id} />
       )}
 
       {isOrganizer && (
         <section className="space-y-4">
-          {match.type === 'OPEN' && <JoinRequestsPanel requests={match.joinRequests} matchId={id} />}
           {['OPEN', 'PENDING_APPROVAL'].includes(match.status) && availableSlots > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Invitar por email</h3>

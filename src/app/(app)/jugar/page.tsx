@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService, calculateAvailableSlots } from '@/modules/independent-matches';
+import { JoinPublicMatchInlineButton } from './[id]/_components/join-public-match-button';
 
 export const metadata = { title: 'Jugar — Padel League' };
 
@@ -74,40 +75,30 @@ export default async function JugarPage({
               {openMatches.map((m) => {
                 const available = calculateAvailableSlots(m.maxPlayers, m.confirmedCount);
                 return (
-                  <li key={m.id}>
-                    <Link
-                      href={`/jugar/${m.id}` as Route}
-                      className="block p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="font-bold text-brand-navy truncate">{m.name}</p>
-                          {m.scheduledAt && (
-                            <p className="text-sm text-slate-400 mt-0.5">
-                              {new Date(m.scheduledAt).toLocaleDateString('es-ES', {
-                                weekday: 'short',
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                          )}
-                          {m.location && (
-                            <p className="text-sm text-slate-400 truncate">{m.location}</p>
-                          )}
-                        </div>
-                        <span
-                          className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
-                            available === 0
-                              ? 'bg-gray-100 text-gray-500'
-                              : 'bg-emerald-50 text-emerald-700'
-                          }`}
-                        >
+                  <li key={m.id} className="block p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <Link href={`/jugar/${m.id}` as Route} className="min-w-0 flex-1">
+                        <p className="font-bold text-brand-navy truncate">{m.name}</p>
+                        {m.scheduledAt && (
+                          <p className="text-sm text-slate-400 mt-0.5">
+                            {new Intl.DateTimeFormat('es-ES', {
+                              weekday: 'short', day: 'numeric', month: 'short',
+                              hour: '2-digit', minute: '2-digit',
+                              timeZone: 'Europe/Madrid',
+                            }).format(new Date(m.scheduledAt))}
+                          </p>
+                        )}
+                        {m.location && <p className="text-sm text-slate-400 truncate">{m.location}</p>}
+                      </Link>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                          available === 0 ? 'bg-gray-100 text-gray-500' : 'bg-emerald-50 text-emerald-700'
+                        }`}>
                           {available === 0 ? 'Completo' : `${available} libre${available !== 1 ? 's' : ''}`}
                         </span>
+                        {available > 0 && <JoinPublicMatchInlineButton matchId={m.id} />}
                       </div>
-                    </Link>
+                    </div>
                   </li>
                 );
               })}
