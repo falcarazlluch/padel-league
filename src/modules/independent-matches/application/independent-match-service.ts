@@ -24,13 +24,9 @@ const MATCH_DETAIL_INCLUDE = {
     where: { status: 'ACCEPTED' as const },
     include: { user: { select: { id: true, name: true } } },
   },
-  joinRequests: {
-    where: { status: 'PENDING' as const },
-    include: { user: { select: { id: true, name: true } } },
-    orderBy: { createdAt: 'asc' as const },
-  },
   invitations: {
     orderBy: { createdAt: 'asc' as const },
+    include: { invitedUser: { select: { id: true, name: true } } },
   },
 } as const;
 
@@ -46,6 +42,7 @@ export const IndependentMatchService = {
           organizerId: input.organizerId,
           name: input.name,
           type: 'OPEN',
+          visibility: input.visibility,
           scheduledAt: input.scheduledAt ?? null,
           location: input.location ?? null,
           description: input.description ?? null,
@@ -172,101 +169,6 @@ export const IndependentMatchService = {
     return teams;
   },
 
-  async requestToJoin(matchId: string, userId: string): Promise<void> {
-    const match = await prisma.independentMatch.findUnique({
-      where: { id: matchId },
-      include: {
-        participants: { where: { status: 'ACCEPTED' } },
-        joinRequests: { where: { userId, status: 'PENDING' } },
-      },
-    });
-    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
-    if (match.type !== 'OPEN') throw new DomainError('NOT_OPEN_MATCH', 'Solo puedes unirte a partidos abiertos.');
-    if (match.status !== 'OPEN') throw new DomainError('MATCH_NOT_OPEN', 'Este partido ya no admite solicitudes.');
-    if (match.organizerId === userId) throw new DomainError('IS_ORGANIZER', 'Eres el organizador de este partido.');
-    if (match.participants.some((p) => p.userId === userId))
-      throw new ConflictError('ALREADY_PARTICIPANT', 'Ya eres participante de este partido.');
-    if (match.joinRequests.length > 0)
-      throw new ConflictError('REQUEST_EXISTS', 'Ya tienes una solicitud pendiente.');
-    if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
-      throw new DomainError('MATCH_FULL', 'Este partido ya está completo.');
-
-    await prisma.independentMatchJoinRequest.create({
-      data: { independentMatchId: matchId, userId },
-    });
-
-    NotificationService.create({
-      userId: match.organizerId,
-      type: 'INDEPENDENT_MATCH_JOIN_REQUEST',
-      title: 'Nueva solicitud para tu partido',
-      body: 'Alguien quiere unirse a tu partido.',
-      metadata: { matchId },
-    }).catch(() => undefined);
-  },
-
-  async approveJoinRequest(requestId: string, organizerId: string): Promise<void> {
-    const request = await prisma.independentMatchJoinRequest.findUnique({
-      where: { id: requestId },
-      include: {
-        match: { select: { organizerId: true, maxPlayers: true, name: true, id: true } },
-      },
-    });
-    if (!request) throw new NotFoundError('REQUEST_NOT_FOUND', 'Solicitud no encontrada.');
-    if (request.match.organizerId !== organizerId)
-      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede aprobar solicitudes.');
-    if (request.status !== 'PENDING')
-      throw new DomainError('REQUEST_NOT_PENDING', 'Esta solicitud ya fue procesada.');
-
-    await prisma.$transaction(async (tx) => {
-      const confirmedCount = await tx.independentMatchParticipant.count({
-        where: { independentMatchId: request.independentMatchId, status: 'ACCEPTED' },
-      });
-      if (confirmedCount >= request.match.maxPlayers)
-        throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
-
-      const isFull = confirmedCount + 1 >= request.match.maxPlayers;
-
-      await tx.independentMatchJoinRequest.update({
-        where: { id: requestId },
-        data: { status: 'APPROVED', respondedByUserId: organizerId, respondedAt: new Date() },
-      });
-      await tx.independentMatchParticipant.create({
-        data: { independentMatchId: request.independentMatchId, userId: request.userId, status: 'ACCEPTED' },
-      });
-      if (isFull) {
-        await tx.independentMatch.update({
-          where: { id: request.independentMatchId },
-          data: { status: 'CONFIRMED' },
-        });
-      }
-    });
-
-    NotificationService.create({
-      userId: request.userId,
-      type: 'INDEPENDENT_MATCH_CONFIRMED',
-      title: 'Solicitud aprobada',
-      body: `Te has unido al partido "${request.match.name}".`,
-      metadata: { matchId: request.independentMatchId },
-    }).catch(() => undefined);
-  },
-
-  async rejectJoinRequest(requestId: string, organizerId: string): Promise<void> {
-    const request = await prisma.independentMatchJoinRequest.findUnique({
-      where: { id: requestId },
-      include: { match: { select: { organizerId: true } } },
-    });
-    if (!request) throw new NotFoundError('REQUEST_NOT_FOUND', 'Solicitud no encontrada.');
-    if (request.match.organizerId !== organizerId)
-      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede rechazar solicitudes.');
-    if (request.status !== 'PENDING')
-      throw new DomainError('REQUEST_NOT_PENDING', 'Esta solicitud ya fue procesada.');
-
-    await prisma.independentMatchJoinRequest.update({
-      where: { id: requestId },
-      data: { status: 'REJECTED', respondedByUserId: organizerId, respondedAt: new Date() },
-    });
-  },
-
   async inviteByEmail(
     matchId: string,
     organizerId: string,
@@ -306,6 +208,55 @@ export const IndependentMatchService = {
     return { invitationId: invitation.id, isNew: true };
   },
 
+  async inviteUser(
+    matchId: string,
+    organizerId: string,
+    invitedUserId: string,
+  ): Promise<{ invitationId: string; isNew: boolean }> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: { participants: { where: { status: 'ACCEPTED' } } },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.organizerId !== organizerId)
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
+    if (!['OPEN', 'PENDING_APPROVAL'].includes(match.status))
+      throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
+    if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
+      throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
+    if (invitedUserId === organizerId)
+      throw new DomainError('CANNOT_INVITE_SELF', 'No puedes invitarte a ti mismo.');
+    if (match.participants.some((p) => p.userId === invitedUserId))
+      throw new ConflictError('ALREADY_PARTICIPANT', 'Esa persona ya está en el partido.');
+
+    const invitee = await prisma.user.findUnique({
+      where: { id: invitedUserId },
+      select: { id: true, deletedAt: true },
+    });
+    if (!invitee || invitee.deletedAt !== null)
+      throw new NotFoundError('USER_NOT_FOUND', 'Usuario no encontrado.');
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const existing = await prisma.independentMatchInvitation.findUnique({
+      where: { matchId_invitedUserId: { matchId, invitedUserId } },
+    });
+
+    if (existing && !existing.acceptedAt && existing.expiresAt > new Date()) {
+      return { invitationId: existing.id, isNew: false };
+    }
+
+    const invitation = existing
+      ? await prisma.independentMatchInvitation.update({
+          where: { id: existing.id },
+          data: { expiresAt, acceptedAt: null },
+        })
+      : await prisma.independentMatchInvitation.create({
+          data: { matchId, invitedUserId, expiresAt },
+        });
+
+    return { invitationId: invitation.id, isNew: true };
+  },
+
   async cancelInvitation(matchId: string, invitationId: string, organizerId: string): Promise<void> {
     const match = await prisma.independentMatch.findUnique({
       where: { id: matchId },
@@ -333,12 +284,15 @@ export const IndependentMatchService = {
 
     const invitation = await prisma.independentMatchInvitation.findUnique({
       where: { id: subjectId },
-      include: {
-        match: { include: { participants: { where: { status: 'ACCEPTED' } } } },
-      },
+      include: { match: { include: { participants: { where: { status: 'ACCEPTED' } } } } },
     });
     if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'Invitación no encontrada.');
     if (invitation.acceptedAt) throw new DomainError('ALREADY_ACCEPTED', 'Esta invitación ya fue usada.');
+
+    // For user-targeted invitations, only the targeted user can accept.
+    if (invitation.invitedUserId !== null && invitation.invitedUserId !== userId) {
+      throw new AuthorizationError('NOT_INVITEE', 'Esta invitación no es para ti.');
+    }
 
     const { match } = invitation;
     if (match.status === 'CANCELLED') throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
@@ -355,7 +309,6 @@ export const IndependentMatchService = {
     }
 
     await prisma.$transaction(async (tx) => {
-      // Authoritative count inside transaction — race-safe
       const confirmedCount = await tx.independentMatchParticipant.count({
         where: { independentMatchId: match.id, status: 'ACCEPTED' },
       });
@@ -387,6 +340,47 @@ export const IndependentMatchService = {
     }).catch(() => undefined);
 
     return match.id;
+  },
+
+  async joinPublicMatch(matchId: string, userId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: { participants: { where: { status: 'ACCEPTED' } } },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.visibility !== 'PUBLIC')
+      throw new DomainError('NOT_PUBLIC', 'Este partido no es público.');
+    if (match.status === 'CANCELLED')
+      throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+
+    if (match.participants.some((p) => p.userId === userId)) return; // idempotent
+
+    await prisma.$transaction(async (tx) => {
+      const confirmedCount = await tx.independentMatchParticipant.count({
+        where: { independentMatchId: match.id, status: 'ACCEPTED' },
+      });
+      if (confirmedCount >= match.maxPlayers)
+        throw new DomainError('MATCH_FULL', 'Este partido ya está completo.');
+
+      const isFull = confirmedCount + 1 >= match.maxPlayers;
+
+      await tx.independentMatchParticipant.upsert({
+        where: { independentMatchId_userId: { independentMatchId: match.id, userId } },
+        create: { independentMatchId: match.id, userId, status: 'ACCEPTED' },
+        update: { status: 'ACCEPTED' },
+      });
+      if (isFull) {
+        await tx.independentMatch.update({ where: { id: match.id }, data: { status: 'CONFIRMED' } });
+      }
+    });
+
+    NotificationService.create({
+      userId: match.organizerId,
+      type: 'INDEPENDENT_MATCH_CONFIRMED',
+      title: 'Alguien se unió a tu partido',
+      body: `Un jugador se unió a "${match.name}".`,
+      metadata: { matchId: match.id },
+    }).catch(() => undefined);
   },
 
   async acceptChallenge(matchId: string, userId: string): Promise<void> {

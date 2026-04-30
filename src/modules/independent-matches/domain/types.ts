@@ -1,9 +1,10 @@
-import type { IndependentMatchStatus, IndependentMatchType, JoinRequestStatus, ParticipantStatus } from '@prisma/client';
+import type { IndependentMatchStatus, IndependentMatchType, MatchVisibility, ParticipantStatus } from '@prisma/client';
 
 export type IndependentMatchRow = {
   id: string;
   name: string;
   type: IndependentMatchType;
+  visibility: MatchVisibility;
   organizerId: string;
   challengedTeamId: string | null;
   leagueId: string | null;
@@ -21,13 +22,20 @@ export type IndependentMatchDetail = IndependentMatchRow & {
   challengedTeam: { id: string; name: string } | null;
   league: { id: string; name: string; slug: string } | null;
   participants: { userId: string; user: { id: string; name: string }; status: ParticipantStatus }[];
-  joinRequests: { id: string; userId: string; user: { id: string; name: string }; status: JoinRequestStatus; createdAt: Date }[];
-  invitations: { id: string; email: string; acceptedAt: Date | null; createdAt: Date }[];
+  invitations: {
+    id: string;
+    email: string | null;
+    invitedUserId: string | null;
+    invitedUser: { id: string; name: string } | null;
+    acceptedAt: Date | null;
+    createdAt: Date;
+  }[];
 };
 
 export type CreateOpenMatchInput = {
   organizerId: string;
   name: string;
+  visibility: MatchVisibility;
   scheduledAt?: Date;
   location?: string;
   description?: string;

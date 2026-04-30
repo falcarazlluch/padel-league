@@ -8,10 +8,15 @@ import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
 import { UserSearchService } from '@/modules/users';
 import { logger } from '@/shared/logger';
 
-const querySchema = z.object({
-  q: z.string().trim().min(1).max(60),
-  teamId: z.string().cuid(),
-});
+const querySchema = z
+  .object({
+    q: z.string().trim().min(1).max(60),
+    teamId: z.string().cuid().optional(),
+    matchId: z.string().cuid().optional(),
+  })
+  .refine((v) => Boolean(v.teamId) !== Boolean(v.matchId), {
+    message: 'Provide either teamId or matchId.',
+  });
 
 export async function GET(request: Request): Promise<Response> {
   const cookieStore = await cookies();
@@ -23,7 +28,8 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     q: url.searchParams.get('q'),
-    teamId: url.searchParams.get('teamId'),
+    teamId: url.searchParams.get('teamId') ?? undefined,
+    matchId: url.searchParams.get('matchId') ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -32,16 +38,7 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  // Caller must be a member of the team they search candidates for.
-  const member = await prisma.teamMember.findFirst({
-    where: { teamId: parsed.data.teamId, userId: user.id },
-    select: { id: true },
-  });
-  if (!member) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  // Rate limit: 60 hits per 15-min window, scoped per user.
+  // Rate limit: 60 hits per 15-min window per user.
   try {
     await checkRateLimit(buildRateLimitKey('users.search', 'user', user.id), { limit: 60 });
   } catch {
@@ -49,9 +46,34 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const rows = await UserSearchService.searchCandidates({
+    if (parsed.data.teamId) {
+      // Team-invite scope: caller must be member of the team.
+      const member = await prisma.teamMember.findFirst({
+        where: { teamId: parsed.data.teamId, userId: user.id },
+        select: { id: true },
+      });
+      if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+      const rows = await UserSearchService.searchCandidates({
+        q: parsed.data.q,
+        teamId: parsed.data.teamId,
+        callerId: user.id,
+      });
+      return NextResponse.json(rows);
+    }
+
+    // Match-invite scope: caller must be the match organizer.
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: parsed.data.matchId! },
+      select: { organizerId: true },
+    });
+    if (!match || match.organizerId !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const rows = await UserSearchService.searchCandidatesForMatch({
       q: parsed.data.q,
-      teamId: parsed.data.teamId,
+      matchId: parsed.data.matchId!,
       callerId: user.id,
     });
     return NextResponse.json(rows);
