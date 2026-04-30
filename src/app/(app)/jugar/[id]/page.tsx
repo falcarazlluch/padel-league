@@ -9,7 +9,7 @@ import { JoinRequestButton } from './_components/join-request-button';
 import { JoinRequestsPanel } from './_components/join-requests-panel';
 import { InviteForm } from './_components/invite-form';
 import { ChallengePanel } from './_components/challenge-panel';
-import { cancelMatch } from './actions';
+import { CancelMatchButton } from './_components/cancel-match-button';
 
 export default async function JugarDetailPage({
   params,
@@ -86,12 +86,7 @@ export default async function JugarDetailPage({
           Organiza <strong className="text-brand-navy">{match.organizer.name}</strong>
         </p>
         {match.scheduledAt && (
-          <p className="text-sm text-gray-600 mt-1">
-            {new Date(match.scheduledAt).toLocaleDateString('es-ES', {
-              weekday: 'long', day: 'numeric', month: 'long',
-              hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
+          <p className="text-sm text-gray-600 mt-1">{formatScheduledAt(match.scheduledAt)}</p>
         )}
         {match.location && <p className="text-sm text-gray-600">{match.location}</p>}
         {match.description && <p className="text-sm text-gray-500 mt-2">{match.description}</p>}
@@ -154,19 +149,25 @@ export default async function JugarDetailPage({
             </div>
           )}
           {match.status !== 'CANCELLED' && match.status !== 'REJECTED' && (
-            <form action={cancelMatch}>
-              <input type="hidden" name="matchId" value={id} />
-              <button type="submit"
-                className="text-sm bg-red-50 border border-red-200 text-red-600 font-semibold rounded-xl px-4 py-2 hover:bg-red-100 transition-colors"
-                onClick={(e) => { if (!confirm('¿Seguro que quieres cancelar este partido?')) e.preventDefault(); }}>
-                Cancelar partido
-              </button>
-            </form>
+            <CancelMatchButton matchId={id} />
           )}
         </section>
       )}
     </div>
   );
+}
+
+// Pre-formatear en servidor con timezone explícito evita hydration mismatch
+// (servidor en UTC vs cliente en Europe/Madrid renderizarían horas distintas).
+function formatScheduledAt(date: Date): string {
+  return new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Madrid',
+  }).format(date);
 }
 
 function statusLabel(status: string): string {

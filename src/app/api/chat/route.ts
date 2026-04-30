@@ -45,9 +45,14 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ content: result.content });
   } catch (err) {
     logger().error({ err, userId: user.id }, 'help-chat.failed');
-    return NextResponse.json(
-      { error: 'No se pudo generar la respuesta. Inténtalo de nuevo en un minuto.' },
-      { status: 500 },
-    );
+    // Surface a short, sanitized hint so the user can self-diagnose without
+    // having to dig into Vercel function logs. The full error is in logs.
+    const reason = (err as Error)?.message ?? '';
+    let hint = 'No se pudo generar la respuesta.';
+    if (reason.includes('OPENAI_API_KEY')) hint = 'Falta configurar OPENAI_API_KEY.';
+    else if (reason.startsWith('OpenAI request failed')) hint = `OpenAI rechazó la petición: ${reason.replace('OpenAI request failed: ', '').slice(0, 120)}`;
+    else if (reason.includes('OpenAI returned empty')) hint = 'OpenAI devolvió respuesta vacía.';
+    else if (reason) hint = `Error interno: ${reason.slice(0, 120)}`;
+    return NextResponse.json({ error: hint }, { status: 500 });
   }
 }
