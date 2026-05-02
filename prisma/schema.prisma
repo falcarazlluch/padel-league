@@ -188,6 +188,7 @@ model User {
   avatarUrl       String?   @map("avatar_url")
   phone           String?
   role            UserRole  @default(PLAYER)
+  category        TeamCategory @default(INTERMEDIATE) @map("category")
 
   // 2FA — schema listo, feature OFF hasta Spec 7+
   twoFactorEnabled     Boolean  @default(false) @map("two_factor_enabled")
@@ -323,6 +324,7 @@ model League {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   finalizedAt     DateTime? @map("finalized_at")
+  registrationOpenNotifiedAt DateTime? @map("registration_open_notified_at")
 
   registrations      LeagueRegistration[]
   matches            Match[]
