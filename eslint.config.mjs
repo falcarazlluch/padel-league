@@ -63,7 +63,11 @@ export default tseslint.config(
       'boundaries/dependencies': ['error', {
         default: 'disallow',
         rules: [
-          { from: { type: 'app' },            allow: [{ to: { type: 'shared' } }, { to: { type: 'module-public' } }, { to: { type: 'module-present' } }] },
+          // app → worker is allowed exclusively for the cron-driven drainer
+          // (src/app/api/cron/**) which executes worker handlers in-process
+          // because Vercel doesn't run a long-lived worker. Tighten back to a
+          // file-scoped exception once boundaries plugin supports per-file rules.
+          { from: { type: 'app' },            allow: [{ to: { type: 'shared' } }, { to: { type: 'module-public' } }, { to: { type: 'module-present' } }, { to: { type: 'worker' } }] },
           { from: { type: 'worker' },         allow: [{ to: { type: 'shared' } }, { to: { type: 'module-public' } }] },
           { from: { type: 'shared' },         allow: [{ to: { type: 'shared' } }] },
           { from: { type: 'module-domain' },  allow: [{ to: { type: 'module-domain' } }] },

@@ -5,6 +5,10 @@ import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/db/client';
 import { LeagueNotificationService } from '@/modules/leagues';
+import { drainPendingJobs } from '@/worker/drainer';
+
+// Cron has up to 60s on Vercel Hobby and 800s on Pro; cap at 60s for safety.
+export const maxDuration = 60;
 
 function unauthorized() {
   return NextResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 });
@@ -72,10 +76,21 @@ export async function POST(req: Request): Promise<Response> {
     log.warn({ err }, 'cron.league-registration-open.error');
   }
 
+  // Drain queued jobs synchronously. Vercel does not run a long-lived worker,
+  // so this cron is the only consumer for pg-boss. Budget 50s of work, leaving
+  // ~10s headroom for the rest of the response under maxDuration=60.
+  let drainStats: Awaited<ReturnType<typeof drainPendingJobs>> | null = null;
+  try {
+    drainStats = await drainPendingJobs(q.raw(), { deadlineMs: 50_000 });
+  } catch (err) {
+    log.error({ err }, 'cron.drain.error');
+  }
+
   return NextResponse.json({
     ok: true,
     jobId: noopId,
     leaguesToFinalize: finalizeIds.length,
     registrationOpenNotified: notifiedLeagueIds.length,
+    drain: drainStats,
   });
 }
