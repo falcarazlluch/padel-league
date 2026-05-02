@@ -10,12 +10,22 @@ import { SESSION_COOKIE, SessionService } from '@/shared/auth/session';
 import { AuthenticationError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 import { getValidatedSession } from '@/shared/auth/session-cache';
+import { CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
 import type { Route } from 'next';
 
-export async function updateProfileAction(formData: FormData): Promise<{ error?: string; success?: string }> {
-  const nameRaw = formData.get('name');
-  const name = (typeof nameRaw === 'string' ? nameRaw : '').trim();
-  if (!name) return { error: 'El nombre no puede estar vacío.' };
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(1, 'El nombre no puede estar vacío.').max(100),
+  category: z.enum(CATEGORY_VALUES),
+});
+
+export async function updateProfileAction(
+  formData: FormData,
+): Promise<{ error?: string; success?: string }> {
+  const parsed = updateProfileSchema.safeParse({
+    name: typeof formData.get('name') === 'string' ? formData.get('name') : '',
+    category: formData.get('category'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -23,7 +33,11 @@ export async function updateProfileAction(formData: FormData): Promise<{ error?:
 
   try {
     const user = await getValidatedSession(token);
-    await prisma.user.update({ where: { id: user.id }, data: { name } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { name: parsed.data.name, category: parsed.data.category },
+    });
+    revalidatePath('/perfil');
     return { success: 'Perfil actualizado.' };
   } catch (err) {
     logger().error({ err }, 'update-profile.unexpected');

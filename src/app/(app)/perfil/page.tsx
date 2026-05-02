@@ -4,6 +4,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { AvatarUploader } from './avatar-uploader';
 import { updateProfileAction, changePasswordAction, revokeAllSessionsAction } from './actions';
+import { CATEGORY_VALUES, CATEGORY_LABEL } from '@/modules/leagues/presentation/category';
 
 export default async function PerfilPage() {
   const cookieStore = await cookies();
@@ -12,7 +13,7 @@ export default async function PerfilPage() {
   const sessionUser = await getValidatedSession(token);
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: sessionUser.id },
-    select: { id: true, name: true, email: true, avatarUrl: true },
+    select: { id: true, name: true, email: true, avatarUrl: true, category: true },
   });
 
   return (
@@ -40,6 +41,19 @@ export default async function PerfilPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Nombre y apellido</label>
             <input name="name" type="text" required defaultValue={user.name} placeholder="Ej: Juan García"
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nivel</label>
+            <select
+              name="category"
+              defaultValue={user.category}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            >
+              {CATEGORY_VALUES.map((c) => (
+                <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">Recibirás notificaciones de ligas de tu nivel.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
