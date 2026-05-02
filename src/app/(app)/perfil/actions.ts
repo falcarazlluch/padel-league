@@ -2,6 +2,8 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { prisma } from '@/shared/db/client';
 import { PasswordService } from '@/shared/auth/password';
 import { SESSION_COOKIE, SessionService } from '@/shared/auth/session';
@@ -64,6 +66,33 @@ export async function changePasswordAction(formData: FormData): Promise<{ error?
     logger().error({ err }, 'change-password.unexpected');
     return { error: 'Error inesperado.' };
   }
+}
+
+const setAvatarSchema = z.object({
+  blobUrl: z.string().url().regex(/^https:\/\/[^/]+\.public\.blob\.vercel-storage\.com\//, 'URL inválida.'),
+});
+
+export async function setAvatarAction(blobUrl: string): Promise<{ error?: string }> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) return { error: 'No autenticado.' };
+
+  const user = await getValidatedSession(token).catch(() => null);
+  if (!user) return { error: 'No autenticado.' };
+
+  const parsed = setAvatarSchema.safeParse({ blobUrl });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'URL inválida.' };
+
+  // Defensive: confirm the blob URL path references this user.
+  if (!parsed.data.blobUrl.includes(`avatars/${user.id}-`)) {
+    return { error: 'La URL del avatar no corresponde a tu cuenta.' };
+  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { avatarUrl: parsed.data.blobUrl },
+  });
+  revalidatePath('/perfil');
+  return {};
 }
 
 export async function revokeAllSessionsAction(): Promise<void> {

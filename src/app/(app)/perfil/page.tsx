@@ -1,13 +1,19 @@
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
+import { prisma } from '@/shared/db/client';
+import { AvatarUploader } from './avatar-uploader';
 import { updateProfileAction, changePasswordAction, revokeAllSessionsAction } from './actions';
 
 export default async function PerfilPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null; // layout will redirect
-  const user = await getValidatedSession(token);
+  const sessionUser = await getValidatedSession(token);
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: sessionUser.id },
+    select: { id: true, name: true, email: true, avatarUrl: true },
+  });
 
   return (
     <div className="max-w-xl space-y-6">
@@ -15,6 +21,14 @@ export default async function PerfilPage() {
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Mi cuenta</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">Perfil</h1>
       </div>
+
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+        <AvatarUploader
+          userId={user.id}
+          userName={user.name}
+          currentAvatarUrl={user.avatarUrl ?? null}
+        />
+      </section>
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos personales</h2>

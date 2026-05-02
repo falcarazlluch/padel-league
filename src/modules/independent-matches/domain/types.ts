@@ -20,7 +20,7 @@ export type IndependentMatchDetail = IndependentMatchRow & {
   organizer: { id: string; name: string };
   hostTeam: { id: string; name: string; logoUrl: string | null } | null;
   league: { id: string; name: string; slug: string } | null;
-  participants: { userId: string; user: { id: string; name: string }; status: ParticipantStatus }[];
+  participants: { userId: string; user: { id: string; name: string; avatarUrl: string | null }; status: ParticipantStatus }[];
   invitations: {
     id: string;
     email: string | null;

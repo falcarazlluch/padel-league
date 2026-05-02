@@ -5,6 +5,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService, calculateAvailableSlots } from '@/modules/independent-matches';
 import { InvalidTokenError } from '@/shared/errors';
+import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
 import { CancelMatchButton } from './_components/cancel-match-button';
@@ -95,9 +96,7 @@ export default async function JugarDetailPage({
           <ul className="space-y-1">
             {match.participants.map((p) => (
               <li key={p.userId} className="text-sm text-gray-700 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs flex items-center justify-center font-semibold shrink-0">
-                  {p.user.name[0]?.toUpperCase()}
-                </span>
+                <UserAvatar url={p.user.avatarUrl} name={p.user.name} size="sm" />
                 {p.user.name}
                 {p.userId === match.organizerId && <span className="text-xs text-gray-400">(organizador)</span>}
               </li>

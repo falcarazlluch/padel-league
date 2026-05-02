@@ -8,6 +8,7 @@ import { TeamService } from '@/modules/teams';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { isUserFacingError } from '@/shared/errors';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
+import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { InviteForm } from './invite-form';
 import { CancelInvitationButton } from './cancel-invitation-button';
 import { LogoUploader } from './logo-uploader';
@@ -71,9 +72,7 @@ export default async function EquipoDetailPage({
         <ul className="space-y-2">
           {team.members.map((m) => (
             <li key={m.userId} className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs flex items-center justify-center font-semibold shrink-0">
-                {m.name[0]?.toUpperCase()}
-              </span>
+              <UserAvatar url={m.avatarUrl} name={m.name} size="sm" />
               <span className="font-medium">{m.name}</span>
             </li>
           ))}

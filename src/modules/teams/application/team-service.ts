@@ -58,7 +58,7 @@ export const TeamService = {
       where: { members: { some: { userId } } },
       include: {
         members: {
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
         },
         _count: { select: { invitations: { where: { status: 'PENDING' } } } },
       },
@@ -75,6 +75,7 @@ export const TeamService = {
         userId: m.userId,
         name: m.user.name,
         email: m.user.email,
+        avatarUrl: m.user.avatarUrl,
       })),
       pendingInvitationCount: t._count.invitations,
     }));
@@ -86,7 +87,7 @@ export const TeamService = {
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       include: {
-        members: { include: { user: { select: { id: true, name: true, email: true } } } },
+        members: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } } },
         invitations: {
           where: { status: 'PENDING' },
           include: { invitedUser: { select: { id: true, name: true, email: true } } },
@@ -113,6 +114,7 @@ export const TeamService = {
         userId: m.userId,
         name: m.user.name,
         email: m.user.email,
+        avatarUrl: m.user.avatarUrl,
       })),
       pendingInvitationCount: team.invitations.length,
       invitations: team.invitations.map((i) => ({

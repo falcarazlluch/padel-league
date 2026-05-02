@@ -7,7 +7,7 @@ export type TeamSummary = {
   logoUrl: string | null;
   createdByUserId: string;
   createdAt: Date;
-  members: { userId: string; name: string; email: string }[];
+  members: { userId: string; name: string; email: string; avatarUrl: string | null }[];
   pendingInvitationCount: number;
 };
 

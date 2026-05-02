@@ -6,6 +6,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { TeamService } from '@/modules/teams';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
+import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { IncomingInvitationsList } from './incoming-invitations-list';
 
@@ -77,9 +78,7 @@ export default async function MisEquiposPage() {
               <ul className="space-y-1.5">
                 {team.members.map((m) => (
                   <li key={m.userId} className="flex items-center gap-2 text-sm text-slate-600">
-                    <span className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-xs flex items-center justify-center font-semibold shrink-0">
-                      {m.name[0]?.toUpperCase()}
-                    </span>
+                    <UserAvatar url={m.avatarUrl} name={m.name} size="sm" />
                     {m.name}
                   </li>
                 ))}

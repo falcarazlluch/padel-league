@@ -20,7 +20,7 @@ const MATCH_DETAIL_INCLUDE = {
   league: { select: { id: true, name: true, slug: true } },
   participants: {
     where: { status: 'ACCEPTED' as const },
-    include: { user: { select: { id: true, name: true } } },
+    include: { user: { select: { id: true, name: true, avatarUrl: true } } },
   },
   invitations: {
     orderBy: { createdAt: 'asc' as const },
