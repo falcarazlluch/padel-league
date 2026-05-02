@@ -4,6 +4,7 @@ import { env } from '@/shared/config/env';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/db/client';
+import { LeagueNotificationService } from '@/modules/leagues';
 
 function unauthorized() {
   return NextResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 });
@@ -51,5 +52,30 @@ export async function POST(req: Request): Promise<Response> {
     log.warn({ err }, 'cron.league-finalize.error');
   }
 
-  return NextResponse.json({ ok: true, jobId: noopId, leaguesToFinalize: finalizeIds.length });
+  // Notify level-matching users when a league enters its registration window.
+  // Idempotent: LeagueNotificationService gates on registrationOpenNotifiedAt.
+  const notifiedLeagueIds: string[] = [];
+  try {
+    const dueLeagues = await prisma.league.findMany({
+      where: {
+        registrationStart: { lte: new Date() },
+        registrationOpenNotifiedAt: null,
+      },
+      select: { id: true },
+    });
+    for (const l of dueLeagues) {
+      const { recipients } = await LeagueNotificationService.notifyRegistrationOpen(l.id);
+      notifiedLeagueIds.push(l.id);
+      log.info({ leagueId: l.id, recipients }, 'cron.league-registration-open.notified');
+    }
+  } catch (err) {
+    log.warn({ err }, 'cron.league-registration-open.error');
+  }
+
+  return NextResponse.json({
+    ok: true,
+    jobId: noopId,
+    leaguesToFinalize: finalizeIds.length,
+    registrationOpenNotified: notifiedLeagueIds.length,
+  });
 }
