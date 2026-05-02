@@ -110,6 +110,38 @@ export const IndependentMatchService = {
     });
   },
 
+  async getPendingInvitationsForUser(userId: string): Promise<IndependentMatchRow[]> {
+    const memberRows = await prisma.teamMember.findMany({
+      where: { userId },
+      select: { teamId: true },
+    });
+    const userTeamIds = memberRows.map((m) => m.teamId);
+
+    const matches = await prisma.independentMatch.findMany({
+      where: {
+        status: 'OPEN',
+        invitations: {
+          some: {
+            acceptedAt: null,
+            expiresAt: { gt: new Date() },
+            OR: [
+              { invitedUserId: userId },
+              ...(userTeamIds.length > 0 ? [{ invitedTeamId: { in: userTeamIds } }] : []),
+            ],
+          },
+        },
+        NOT: {
+          OR: [
+            { organizerId: userId },
+            { participants: { some: { userId, status: 'ACCEPTED' } } },
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return matches;
+  },
+
   async getById(id: string): Promise<IndependentMatchDetail> {
     const match = await prisma.independentMatch.findUnique({
       where: { id },
