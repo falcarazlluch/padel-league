@@ -1,8 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import type { Route } from 'next';
 
-type UnreadItem = { id: string; type: string; title: string; body: string; createdAt: string };
+type UnreadItem = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  href: string | null;
+};
 type UnreadData = { count: number; items: UnreadItem[] };
 
 export function NotificationsBadge() {
@@ -35,17 +44,21 @@ export function NotificationsBadge() {
 
   const count = data?.count ?? 0;
 
-  function handleMarkRead(id: string) {
-    void fetch(`/api/notifications/${id}/read`, { method: 'POST' }).then(() => {
-      setData((prev) =>
-        prev
-          ? {
-              count: Math.max(0, prev.count - 1),
-              items: prev.items.filter((n) => n.id !== id),
-            }
-          : prev,
-      );
-    });
+  function markRead(id: string) {
+    void fetch(`/api/notifications/${id}/read`, { method: 'POST' }).catch(() => undefined);
+    setData((prev) =>
+      prev
+        ? {
+            count: Math.max(0, prev.count - 1),
+            items: prev.items.filter((n) => n.id !== id),
+          }
+        : prev,
+    );
+  }
+
+  function handleNavigate(id: string) {
+    markRead(id);
+    setOpen(false);
   }
 
   return (
@@ -75,15 +88,28 @@ export function NotificationsBadge() {
           ) : (
             <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {data.items.map((n) => (
-                <li key={n.id} className="px-4 py-3 hover:bg-gray-50">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
-                    </div>
+                <li key={n.id} className="hover:bg-gray-50">
+                  <div className="flex items-start gap-2 px-4 py-3">
+                    {n.href ? (
+                      <Link
+                        href={n.href as Route}
+                        onClick={() => handleNavigate(n.id)}
+                        className="flex-1 min-w-0"
+                      >
+                        <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
+                      </Link>
+                    ) : (
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
+                      </div>
+                    )}
                     <button
-                      onClick={() => handleMarkRead(n.id)}
+                      onClick={() => markRead(n.id)}
                       className="text-xs text-brand-blue hover:text-brand-navy shrink-0 mt-0.5"
+                      aria-label="Marcar como leída"
+                      title="Marcar como leída"
                     >
                       ✓
                     </button>
