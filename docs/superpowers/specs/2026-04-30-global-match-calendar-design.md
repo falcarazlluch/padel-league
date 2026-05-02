@@ -37,7 +37,7 @@ Matches with `MatchStatus = 'DATE_PROPOSED'` are tentative — same colour as th
 | 3b | Match scope | Confirmed dates + tentative (`DATE_PROPOSED`) league matches. Cancelled matches excluded. |
 | 3c | League scope | Active + in registration + finalized leagues the user has been registered in. No filter on `League.status`. |
 | 4 | Location | Section inside `/dashboard`, at the bottom. |
-| 5 | View | Grid mensual by default, optional toggle to list. Preference persisted in `localStorage`. |
+| 5 | View | List by default, optional toggle to month grid. Preference persisted in `localStorage`. |
 | 6 | Visual styling | Pill-based with category-specific colour; dashed + faded for tentative. |
 
 ## Architecture
@@ -101,7 +101,7 @@ Edge case — multi-team within one league: a user in two teams of the same leag
 ### URL params
 
 - `cal=YYYY-MM` — selected month. Missing or malformed → current month in Madrid.
-- `view=grid|list` — selected view. Missing → `grid`.
+- `view=grid|list` — selected view. Missing → `list`.
 
 `<CalendarNav>` (client) reads the current `cal` and `view` from props and renders:
 - `<Link href="?cal=2026-03&view=...">←</Link>` and `<Link href="?cal=2026-05&view=...">→</Link>`.

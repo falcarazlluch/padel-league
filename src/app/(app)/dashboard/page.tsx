@@ -48,7 +48,7 @@ export default async function DashboardPage({
       calMonth = m;
     }
   }
-  const calView: 'grid' | 'list' = sp.view === 'list' ? 'list' : 'grid';
+  const calView: 'grid' | 'list' = sp.view === 'grid' ? 'grid' : 'list';
 
   const [leagueCount, matchCount, userLeagues, recentCommentaries, pendingCategoryProposals] = await Promise.all([
     prisma.league.count({ where: { status: 'ACTIVE' } }),
