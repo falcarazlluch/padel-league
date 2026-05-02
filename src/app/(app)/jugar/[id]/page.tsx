@@ -122,11 +122,17 @@ export default async function JugarDetailPage({
                     {match.invitations.map((inv) => {
                       const label = inv.email ?? inv.invitedUser?.name ?? inv.invitedTeam?.name ?? '—';
                       const icon = inv.invitedTeam ? '🏆 ' : inv.invitedUser ? '👤 ' : '✉️ ';
+                      const expired = !inv.acceptedAt && inv.expiresAt.getTime() < Date.now();
                       return (
                         <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
                           <span>{icon}{label}</span>
                           {inv.acceptedAt ? (
                             <span className="text-green-600">✓ Aceptada</span>
+                          ) : expired ? (
+                            <>
+                              <span className="text-slate-500">⏰ Caducada</span>
+                              <CancelInvitationButton matchId={id} invitationId={inv.id} />
+                            </>
                           ) : (
                             <>
                               <span className="text-gray-400">Pendiente</span>

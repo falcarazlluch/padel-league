@@ -29,6 +29,7 @@ export type IndependentMatchDetail = IndependentMatchRow & {
     invitedTeamId: string | null;
     invitedTeam: { id: string; name: string; logoUrl: string | null } | null;
     acceptedAt: Date | null;
+    expiresAt: Date;
     createdAt: Date;
   }[];
 };
