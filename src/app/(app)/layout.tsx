@@ -20,6 +20,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   try {
     currentUser = await getValidatedSession(token);
   } catch {
+    // Cookie is present but the session is invalid (expired, revoked, or
+    // user deleted). We MUST clear the cookie before redirecting — otherwise
+    // middleware sees the cookie on /login and bounces back to /dashboard,
+    // looping until the browser gives up with ERR_TOO_MANY_REDIRECTS.
+    cookieStore.delete(SESSION_COOKIE);
     redirect('/login');
   }
 
