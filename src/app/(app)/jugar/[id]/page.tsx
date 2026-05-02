@@ -55,6 +55,10 @@ export default async function JugarDetailPage({
   const isOrganizer = match.organizerId === user.id;
   const isParticipant = match.participants.some((p) => p.userId === user.id);
   const availableSlots = calculateAvailableSlots(match.maxPlayers, match.participants.length);
+  // Server-component: Date.now() is read once per request render, which is
+  // safe here. react-hooks/purity flags it conservatively for client components.
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -122,7 +126,7 @@ export default async function JugarDetailPage({
                     {match.invitations.map((inv) => {
                       const label = inv.email ?? inv.invitedUser?.name ?? inv.invitedTeam?.name ?? '—';
                       const icon = inv.invitedTeam ? '🏆 ' : inv.invitedUser ? '👤 ' : '✉️ ';
-                      const expired = !inv.acceptedAt && inv.expiresAt.getTime() < Date.now();
+                      const expired = !inv.acceptedAt && inv.expiresAt.getTime() < nowMs;
                       return (
                         <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
                           <span>{icon}{label}</span>
