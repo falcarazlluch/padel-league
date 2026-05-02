@@ -87,6 +87,9 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
           matchUrl,
           scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
           location: match?.location ?? undefined,
+          addToCalendarUrl: match?.scheduledAt
+            ? `${env().APP_URL}/api/calendar/independent-match/${parsed.data.matchId}/event.ics`
+            : undefined,
         },
         dedupKey: `ind-invite-${invitationId}`,
       });
@@ -225,6 +228,9 @@ async function sendUserInviteEmail(matchId: string, invitedUserId: string, invit
       matchUrl,
       scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
       location: match?.location ?? undefined,
+      addToCalendarUrl: match?.scheduledAt
+        ? `${env().APP_URL}/api/calendar/independent-match/${matchId}/event.ics`
+        : undefined,
     },
     dedupKey: `ind-invite-${invitationId}`,
   });
@@ -271,6 +277,9 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
             matchUrl,
             scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
             location: match?.location ?? undefined,
+            addToCalendarUrl: match?.scheduledAt
+              ? `${env().APP_URL}/api/calendar/independent-match/${matchId}/event.ics`
+              : undefined,
           },
           dedupKey: `ind-invite-${invitationId}-${m.userId}`,
         }),
