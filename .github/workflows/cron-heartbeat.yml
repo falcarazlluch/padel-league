@@ -1,0 +1,29 @@
+name: Drain queue (heartbeat)
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub Actions cron can be delayed during peak load,
+    # but typically fires within a couple of minutes of the slot.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Hit /api/cron/heartbeat
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://padel-league-mu.vercel.app' }}
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail --max-time 90 \
+               -H "Authorization: Bearer ${CRON_SECRET}" \
+               "${APP_URL}/api/cron/heartbeat" \
+               -o response.json
+          echo "--- response ---"
+          cat response.json
