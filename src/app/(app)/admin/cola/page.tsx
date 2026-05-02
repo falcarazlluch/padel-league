@@ -50,10 +50,14 @@ export default async function ColaPage() {
   const user = await getValidatedSession(token);
   if (user.role !== 'SUPER_ADMIN') redirect('/dashboard' as Route);
 
-  const [stats, deadLetters] = await Promise.all([
+  const [stats, deadLetters, emailCounts, commentaryCount] = await Promise.all([
     loadQueueStats(),
     prisma.jobDeadLetter.findMany({ orderBy: { failedAt: 'desc' }, take: 50 }),
+    prisma.emailLog.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.matchCommentary.count(),
   ]);
+
+  const emailByStatus = Object.fromEntries(emailCounts.map((e) => [e.status, e._count._all]));
 
   const totalPending = stats.reduce((acc, s) => acc + s.queued + s.active + s.deferred, 0);
 
@@ -70,6 +74,27 @@ export default async function ColaPage() {
         </div>
         <DrainNowButton />
       </div>
+
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-400">Emails enviados</p>
+          <p className="text-2xl font-extrabold text-brand-navy">{emailByStatus['SENT'] ?? 0}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{emailByStatus['DELIVERED'] ?? 0} entregados</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-400">Emails fallidos</p>
+          <p className="text-2xl font-extrabold text-rose-700">{emailByStatus['FAILED'] ?? 0}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{emailByStatus['QUEUED'] ?? 0} en cola</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-400">Crónicas generadas</p>
+          <p className="text-2xl font-extrabold text-brand-navy">{commentaryCount}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-400">Total pendientes</p>
+          <p className={`text-2xl font-extrabold ${totalPending > 0 ? 'text-brand-navy' : 'text-slate-400'}`}>{totalPending}</p>
+        </div>
+      </section>
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
         <h2 className="text-base font-semibold text-brand-navy mb-3">
