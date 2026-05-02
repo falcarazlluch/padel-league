@@ -1,4 +1,3 @@
-import { renderToStaticMarkup } from 'react-dom/server';
 import * as React from 'react';
 import { EmailService } from '@/shared/email/service';
 import { prisma } from '@/shared/db/client';
@@ -19,7 +18,24 @@ function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
-function renderTemplate(template: string, data: EmailData): { subject: string; html: string } {
+// react-dom/server is loaded lazily to keep it out of the Next.js app-route
+// build graph (Next 15 refuses to bundle it). At runtime it resolves from
+// node_modules in both the worker process and the Vercel serverless cron.
+let renderToStaticMarkupRef:
+  | ((node: React.ReactElement) => string)
+  | null = null;
+
+async function getRenderToStaticMarkup(): Promise<(node: React.ReactElement) => string> {
+  if (renderToStaticMarkupRef) return renderToStaticMarkupRef;
+  const mod = (await import(
+    /* webpackIgnore: true */ 'react-dom/server'
+  )) as { renderToStaticMarkup: (node: React.ReactElement) => string };
+  renderToStaticMarkupRef = mod.renderToStaticMarkup;
+  return renderToStaticMarkupRef;
+}
+
+async function renderTemplate(template: string, data: EmailData): Promise<{ subject: string; html: string }> {
+  const renderToStaticMarkup = await getRenderToStaticMarkup();
   switch (template) {
     case 'invitation':
       return {
@@ -131,7 +147,7 @@ export async function sendEmailHandler(data: JobMap['send-email']): Promise<void
   });
 
   try {
-    const { subject, html } = renderTemplate(template, templateData);
+    const { subject, html } = await renderTemplate(template, templateData);
     await prisma.emailLog.update({ where: { id: log.id }, data: { subject } });
 
     const providerId = await EmailService.send({ to, subject, html });
