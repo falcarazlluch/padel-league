@@ -23,8 +23,8 @@ export default async function AcceptInvitationPage({
           Crea tu cuenta para unirte a PadelLeague.
         </p>
         <div>
-          <label htmlFor="name" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Nombre</label>
-          <input id="name" name="name" type="text" required
+          <label htmlFor="name" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Nombre y apellido</label>
+          <input id="name" name="name" type="text" required placeholder="Ej: Juan García"
             style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }} />
         </div>
         <div>

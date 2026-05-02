@@ -50,13 +50,14 @@ export function RegistroForm({ defaultCode = '' }: { defaultCode?: string }) {
         />
       </div>
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+        <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">Nombre y apellido</label>
         <input
           id="name"
           name="name"
           type="text"
           required
           autoComplete="name"
+          placeholder="Ej: Juan García"
           className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
         />
       </div>

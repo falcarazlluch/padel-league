@@ -23,8 +23,8 @@ export default async function PerfilPage() {
           className="space-y-4"
         >
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
-            <input name="name" type="text" required defaultValue={user.name}
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre y apellido</label>
+            <input name="name" type="text" required defaultValue={user.name} placeholder="Ej: Juan García"
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
           </div>
           <div>
