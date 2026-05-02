@@ -10,6 +10,7 @@ import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from '../ligas/[slug]/_components/commentary-feed-card';
 import { CategoryProposalBanner } from './category-proposal-banner';
 import { WinLossChart } from './win-loss-chart';
+import { CalendarSection } from './_components/calendar-section';
 
 function greeting(): string {
   // Server-rendered with Europe/Madrid timezone for consistent UX.
@@ -26,11 +27,28 @@ function greeting(): string {
   return 'Buenas noches';
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cal?: string; view?: string }>;
+}) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login');
   const user = await getValidatedSession(token);
+
+  const sp = await searchParams;
+  const today = new Date();
+  let calYear = today.getUTCFullYear();
+  let calMonth = today.getUTCMonth() + 1;
+  if (sp.cal && /^\d{4}-\d{2}$/.test(sp.cal)) {
+    const [y, m] = sp.cal.split('-').map(Number);
+    if (y && m && m >= 1 && m <= 12) {
+      calYear = y;
+      calMonth = m;
+    }
+  }
+  const calView: 'grid' | 'list' = sp.view === 'list' ? 'list' : 'grid';
 
   const [leagueCount, matchCount, userLeagues, recentCommentaries, pendingCategoryProposals] = await Promise.all([
     prisma.league.count({ where: { status: 'ACTIVE' } }),
@@ -297,6 +315,8 @@ export default async function DashboardPage() {
           </ul>
         </section>
       )}
+
+      <CalendarSection userId={user.id} year={calYear} month={calMonth} view={calView} />
     </div>
   );
 }

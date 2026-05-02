@@ -18,7 +18,7 @@ function dayKey(d: Date): string {
 
 function formatDayHeading(iso: string): string {
   const [y, m, dd] = iso.split('-').map(Number);
-  const d = new Date(Date.UTC(y!, m! - 1, dd!));
+  const d = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, dd ?? 1));
   return new Intl.DateTimeFormat('es-ES', {
     weekday: 'long',
     day: 'numeric',
