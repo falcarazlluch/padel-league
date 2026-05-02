@@ -1,0 +1,127 @@
+import { prisma } from '@/shared/db/client';
+import { env } from '@/shared/config/env';
+import type { CalendarEvent } from './types';
+
+const DEFAULT_DURATION_MINUTES = 90;
+const DEFAULT_ALARM_MINUTES = 60;
+
+export type BuildResult =
+  | { kind: 'ok'; event: CalendarEvent; filename: string }
+  | { kind: 'not-found' }
+  | { kind: 'forbidden' }
+  | { kind: 'no-date' };
+
+function makeFilename(slug: string): string {
+  // Conservative ASCII filename — strip diacritics + non-alphanumerics.
+  const cleaned = slug
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .slice(0, 60);
+  return `${cleaned || 'partido'}.ics`;
+}
+
+export async function buildIndependentMatchEvent(matchId: string, callerUserId: string): Promise<BuildResult> {
+  const match = await prisma.independentMatch.findUnique({
+    where: { id: matchId },
+    include: {
+      organizer: { select: { id: true, name: true } },
+      participants: {
+        where: { status: 'ACCEPTED' },
+        include: { user: { select: { id: true, name: true } } },
+      },
+      invitations: {
+        where: { acceptedAt: null },
+        select: { invitedUserId: true, invitedTeamId: true, expiresAt: true },
+      },
+      hostTeam: { select: { id: true, members: { select: { userId: true } } } },
+    },
+  });
+  if (!match) return { kind: 'not-found' };
+  if (!match.scheduledAt) return { kind: 'no-date' };
+
+  if (match.visibility === 'PRIVATE') {
+    const isOrganizer = match.organizerId === callerUserId;
+    const isParticipant = match.participants.some((p) => p.user.id === callerUserId);
+    const isInvitedUser = match.invitations.some(
+      (i) => i.invitedUserId === callerUserId && i.expiresAt > new Date(),
+    );
+    const teamInviteIds = match.invitations
+      .filter((i) => i.invitedTeamId !== null && i.expiresAt > new Date())
+      .map((i) => i.invitedTeamId as string);
+    const isHostTeamMember = match.hostTeam?.members.some((m) => m.userId === callerUserId) ?? false;
+
+    let isInvitedTeamMember = false;
+    if (teamInviteIds.length > 0) {
+      const member = await prisma.teamMember.findFirst({
+        where: { userId: callerUserId, teamId: { in: teamInviteIds } },
+        select: { id: true },
+      });
+      isInvitedTeamMember = !!member;
+    }
+
+    if (!isOrganizer && !isParticipant && !isInvitedUser && !isHostTeamMember && !isInvitedTeamMember) {
+      return { kind: 'forbidden' };
+    }
+  }
+
+  const participantNames = match.participants.map((p) => p.user.name);
+  const description =
+    `Organiza ${match.organizer.name}` +
+    (participantNames.length > 0 ? `\nParticipantes: ${participantNames.join(', ')}` : '') +
+    `\n\nVer en la app: ${env().APP_URL}/jugar/${match.id}`;
+
+  const event: CalendarEvent = {
+    uid: `match-${match.id}@padelleague.app`,
+    sequence: Math.floor(match.updatedAt.getTime() / 1000),
+    summary: match.name,
+    description,
+    location: match.location,
+    url: `${env().APP_URL}/jugar/${match.id}`,
+    startUtc: match.scheduledAt,
+    durationMinutes: DEFAULT_DURATION_MINUTES,
+    alarmMinutes: DEFAULT_ALARM_MINUTES,
+  };
+
+  return { kind: 'ok', event, filename: makeFilename(match.name) };
+}
+
+export async function buildLeagueMatchEvent(matchId: string, _callerUserId: string): Promise<BuildResult> {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      teamA: {
+        include: { members: { include: { user: { select: { id: true, name: true } } } } },
+      },
+      teamB: {
+        include: { members: { include: { user: { select: { id: true, name: true } } } } },
+      },
+      league: { select: { id: true, name: true, slug: true } },
+    },
+  });
+  if (!match) return { kind: 'not-found' };
+  if (!match.scheduledAt) return { kind: 'no-date' };
+
+  // League matches are visible to any logged-in user — no per-match auth check.
+
+  const teamARoster = match.teamA.members.map((m) => m.user.name).join(', ');
+  const teamBRoster = match.teamB.members.map((m) => m.user.name).join(', ');
+  const description =
+    `${match.teamA.name}: ${teamARoster}\n${match.teamB.name}: ${teamBRoster}\n\nLiga: ${match.league.name}\n\nVer en la app: ${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`;
+
+  const event: CalendarEvent = {
+    uid: `match-${match.id}@padelleague.app`,
+    sequence: Math.floor(match.updatedAt.getTime() / 1000),
+    summary: `${match.teamA.name} vs ${match.teamB.name}`,
+    description,
+    location: null, // league `Match` model has no location field today.
+    url: `${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`,
+    startUtc: match.scheduledAt,
+    durationMinutes: DEFAULT_DURATION_MINUTES,
+    alarmMinutes: DEFAULT_ALARM_MINUTES,
+  };
+
+  return { kind: 'ok', event, filename: makeFilename(`${match.teamA.name}-vs-${match.teamB.name}`) };
+}
