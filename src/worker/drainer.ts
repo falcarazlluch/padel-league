@@ -89,20 +89,21 @@ export async function drainPendingJobs(
             'drain.job.fail',
           );
 
-          // Record the real error to JobDeadLetter on the final attempt so the
-          // /admin/cola UI shows actionable info instead of empty rows. (Drained
-          // pg-boss-native dead-letter jobs don't carry the error message.)
+          // Record EVERY failure to JobDeadLetter so we get fast feedback in
+          // /admin/cola without having to wait through 3 retries first. The
+          // error column distinguishes attempts via the prefix.
+          const attemptInfo = `[attempt ${retryCount + 1}/${retryLimit}${willRetry ? '' : ' final'}]`;
+          await prisma.jobDeadLetter
+            .create({
+              data: {
+                jobName: name,
+                jobId: job.id,
+                payload: payload as object,
+                error: `${attemptInfo} ${errorMessage}`,
+              },
+            })
+            .catch((dlErr) => log.error({ dlErr, jobId: job.id }, 'drain.dl.persist.fail'));
           if (!willRetry) {
-            await prisma.jobDeadLetter
-              .create({
-                data: {
-                  jobName: name,
-                  jobId: job.id,
-                  payload: payload as object,
-                  error: errorMessage,
-                },
-              })
-              .catch((dlErr) => log.error({ dlErr, jobId: job.id }, 'drain.dl.persist.fail'));
             stats.deadLettered++;
           }
 

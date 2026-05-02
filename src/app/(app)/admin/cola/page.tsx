@@ -50,11 +50,17 @@ export default async function ColaPage() {
   const user = await getValidatedSession(token);
   if (user.role !== 'SUPER_ADMIN') redirect('/dashboard' as Route);
 
-  const [stats, deadLetters, emailCounts, commentaryCount] = await Promise.all([
+  const [stats, deadLetters, emailCounts, commentaryCount, recentFailedEmails] = await Promise.all([
     loadQueueStats(),
     prisma.jobDeadLetter.findMany({ orderBy: { failedAt: 'desc' }, take: 50 }),
     prisma.emailLog.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.matchCommentary.count(),
+    prisma.emailLog.findMany({
+      where: { status: 'FAILED' },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, toEmail: true, template: true, errorMessage: true, createdAt: true },
+    }),
   ]);
 
   const emailByStatus = Object.fromEntries(emailCounts.map((e) => [e.status, e._count._all]));
@@ -132,6 +138,30 @@ export default async function ColaPage() {
           </table>
         </div>
       </section>
+
+      {recentFailedEmails.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-brand-navy mb-3">
+            Emails fallidos — últimos {recentFailedEmails.length}
+          </h2>
+          <ul className="space-y-2">
+            {recentFailedEmails.map((e) => (
+              <li key={e.id} className="bg-white rounded-xl border border-rose-200/60 shadow-sm p-4">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                  <span className="text-xs">
+                    <span className="font-mono text-rose-700">{e.template}</span>
+                    <span className="text-slate-500"> → {e.toEmail}</span>
+                  </span>
+                  <span className="text-xs text-slate-400">{formatDate(e.createdAt)}</span>
+                </div>
+                <p className="text-sm text-slate-700 mt-1 break-words">
+                  {e.errorMessage ?? '(sin mensaje)'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <div className="flex items-baseline justify-between gap-3 mb-3">
