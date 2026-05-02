@@ -206,6 +206,15 @@ export const CategoryProposalService = {
           where: { id: proposal.teamId },
           data: { category: proposal.toCategory },
         });
+        // Push the new level to every member of the team. Last write wins for users
+        // belonging to multiple teams of different levels — accepted in spec Q1.
+        const memberIds = proposal.team.members.map((m) => m.userId);
+        if (memberIds.length > 0) {
+          await tx.user.updateMany({
+            where: { id: { in: memberIds } },
+            data: { category: proposal.toCategory },
+          });
+        }
       }
     });
   },
