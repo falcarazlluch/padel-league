@@ -50,7 +50,7 @@ export async function createOpenMatch(
     name: formData.get('name'),
     visibility: formData.get('visibility'),
     hostKind: formData.get('hostKind'),
-    hostTeamId: formData.get('hostTeamId'),
+    hostTeamId: formData.get('hostTeamId') ?? undefined,
     scheduledAt: formData.get('scheduledAt') || undefined,
     location: formData.get('location') || undefined,
     description: formData.get('description') || undefined,
