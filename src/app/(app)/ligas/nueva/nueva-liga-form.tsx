@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
 import { createLeagueAction } from '../actions';
 
-const initialState = { error: undefined as string | undefined };
+const initialState: { error?: string; values?: { name: string; description: string; category: string; registrationStart: string; registrationEnd: string; startDate: string; endDate: string } } = {};
 
 export function NuevaLigaForm() {
   const router = useRouter();
@@ -28,6 +28,7 @@ export function NuevaLigaForm() {
           type="text"
           required
           placeholder="Ej: Liga Verano 2025"
+          defaultValue={state.values?.name ?? ''}
           className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
         />
       </div>
@@ -40,6 +41,7 @@ export function NuevaLigaForm() {
           name="description"
           rows={3}
           placeholder="Descripción opcional..."
+          defaultValue={state.values?.description ?? ''}
           className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all resize-none"
         />
       </div>
@@ -50,7 +52,7 @@ export function NuevaLigaForm() {
         <select
           id="category"
           name="category"
-          defaultValue="INTERMEDIATE"
+          defaultValue={state.values?.category ?? 'INTERMEDIATE'}
           required
           className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
         >
@@ -72,6 +74,7 @@ export function NuevaLigaForm() {
             name="registrationStart"
             type="date"
             required
+            defaultValue={state.values?.registrationStart ?? ''}
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           />
         </div>
@@ -84,6 +87,7 @@ export function NuevaLigaForm() {
             name="registrationEnd"
             type="date"
             required
+            defaultValue={state.values?.registrationEnd ?? ''}
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           />
         </div>
@@ -98,6 +102,7 @@ export function NuevaLigaForm() {
             name="startDate"
             type="date"
             required
+            defaultValue={state.values?.startDate ?? ''}
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           />
         </div>
@@ -110,6 +115,7 @@ export function NuevaLigaForm() {
             name="endDate"
             type="date"
             required
+            defaultValue={state.values?.endDate ?? ''}
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           />
         </div>

@@ -31,14 +31,41 @@ const createLeagueSchema = z.object({
   category: categoryEnum.optional(),
 });
 
+type CreateLeagueState = {
+  error?: string;
+  values?: {
+    name: string;
+    description: string;
+    category: string;
+    registrationStart: string;
+    registrationEnd: string;
+    startDate: string;
+    endDate: string;
+  };
+};
+
 export async function createLeagueAction(
-  _prev: { error?: string },
+  _prev: CreateLeagueState | null,
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<CreateLeagueState> {
+  const getRaw = (key: string): string => {
+    const v = formData.get(key);
+    return typeof v === 'string' ? v : '';
+  };
+  const submittedValues = {
+    name: getRaw('name'),
+    description: getRaw('description'),
+    category: getRaw('category'),
+    registrationStart: getRaw('registrationStart'),
+    registrationEnd: getRaw('registrationEnd'),
+    startDate: getRaw('startDate'),
+    endDate: getRaw('endDate'),
+  };
+
   const user = await getSession();
   const parsed = createLeagueSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+    return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.', values: submittedValues };
   }
   const { name, description, registrationStart, registrationEnd, startDate, endDate, category } = parsed.data;
   let slug: string;
@@ -55,7 +82,7 @@ export async function createLeagueAction(
     });
     slug = league.slug;
   } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message };
+    if (isUserFacingError(err)) return { error: (err as Error).message, values: submittedValues };
     throw err;
   }
   redirect(`/ligas/${slug}` as Route);
