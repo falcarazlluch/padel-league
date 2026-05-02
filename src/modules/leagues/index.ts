@@ -17,3 +17,4 @@ export type {
   ResolveDisputeInput,
 } from './domain/types';
 export { CATEGORY_VALUES, CATEGORY_LABEL, categoryBadgeClass } from './domain/category';
+export { LeagueNotificationService } from './application/league-notification-service';
