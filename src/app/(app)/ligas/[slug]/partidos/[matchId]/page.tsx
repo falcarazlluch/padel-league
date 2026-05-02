@@ -13,6 +13,7 @@ import { ConfirmRejectPanel } from './confirm-reject-panel';
 import { ScheduleSection } from './schedule-section';
 import { CommentaryAdminActions } from './_components/commentary-admin-actions';
 import { CommentaryGenerateButton } from './_components/commentary-generate-button';
+import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -216,6 +217,11 @@ export default async function MatchDetailPage({
             <> · Jugado: {match.scheduledAt.toLocaleDateString('es-ES')}</>
           )}
         </p>
+        {match.scheduledAt && (
+          <div className="mt-3">
+            <AddToCalendarButton href={`/api/calendar/league-match/${match.id}/event.ics`} />
+          </div>
+        )}
       </div>
 
       {/* Confirmed result */}

@@ -10,6 +10,7 @@ import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
 import { CancelMatchButton } from './_components/cancel-match-button';
 import { CancelInvitationButton } from './_components/cancel-invitation-button';
+import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 
 export default async function JugarDetailPage({
   params,
@@ -84,7 +85,10 @@ export default async function JugarDetailPage({
           Organiza <strong className="text-brand-navy">{match.organizer.name}</strong>
         </p>
         {match.scheduledAt && (
-          <p className="text-sm text-gray-600 mt-1">{formatScheduledAt(match.scheduledAt)}</p>
+          <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
+            <p className="text-sm text-gray-600">{formatScheduledAt(match.scheduledAt)}</p>
+            <AddToCalendarButton href={`/api/calendar/independent-match/${id}/event.ics`} />
+          </div>
         )}
         {match.location && <p className="text-sm text-gray-600">{match.location}</p>}
         {match.description && <p className="text-sm text-gray-500 mt-2">{match.description}</p>}
