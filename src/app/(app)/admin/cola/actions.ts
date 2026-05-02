@@ -8,6 +8,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { queue } from '@/shared/queue/client';
 import { prisma } from '@/shared/db/client';
+import { MatchCommentaryService } from '@/modules/match-commentary';
 import { drainPendingJobs } from '@/worker/drainer';
 
 async function requireSuperAdmin() {
@@ -31,4 +32,37 @@ export async function clearDeadLettersAction(): Promise<void> {
   await requireSuperAdmin();
   await prisma.jobDeadLetter.deleteMany({});
   revalidatePath('/admin/cola');
+}
+
+export type CommentaryDebugResult =
+  | { ok: true; created: boolean; existed: boolean }
+  | { error: string };
+
+export async function generateCommentaryNowAction(
+  _prev: CommentaryDebugResult | null,
+  formData: FormData,
+): Promise<CommentaryDebugResult> {
+  await requireSuperAdmin();
+  const matchId = String(formData.get('matchId') ?? '').trim();
+  const type = String(formData.get('type') ?? 'RECAP') as 'PREVIEW' | 'RECAP';
+  if (!matchId) return { error: 'Falta matchId.' };
+
+  const before = await prisma.matchCommentary.findUnique({
+    where: { matchId_type: { matchId, type } },
+    select: { id: true },
+  });
+
+  try {
+    await MatchCommentaryService.generate(matchId, type, { regenerate: true });
+  } catch (err) {
+    return { error: (err as Error).message ?? String(err) };
+  }
+
+  const after = await prisma.matchCommentary.findUnique({
+    where: { matchId_type: { matchId, type } },
+    select: { id: true },
+  });
+
+  revalidatePath('/admin/cola');
+  return { ok: true, created: !!after, existed: !!before };
 }

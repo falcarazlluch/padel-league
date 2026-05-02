@@ -7,6 +7,7 @@ import { queue } from '@/shared/queue/client';
 import { prisma } from '@/shared/db/client';
 import { ALL_JOB_NAMES } from '@/shared/queue/jobs';
 import { DrainNowButton, ClearDeadLettersButton } from './drain-now-button';
+import { GenerateCommentaryForm } from './generate-commentary-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,6 +138,15 @@ export default async function ColaPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+        <h2 className="text-base font-semibold text-brand-navy mb-1">Generar crónica (debug)</h2>
+        <p className="text-xs text-slate-500 mb-3">
+          Llama a <code className="bg-slate-100 px-1 rounded">MatchCommentaryService.generate()</code> en el momento, sin pasar por la cola.
+          Sirve para ver el error exacto si la generación falla. Pega el <code className="bg-slate-100 px-1 rounded">id</code> de un match desde la URL del partido.
+        </p>
+        <GenerateCommentaryForm />
       </section>
 
       {recentFailedEmails.length > 0 && (
