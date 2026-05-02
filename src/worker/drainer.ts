@@ -59,7 +59,12 @@ export async function drainPendingJobs(
       const handler = HANDLERS[name];
       if (!handler) continue;
 
-      const jobs = await boss.fetch<JobMap[typeof name] & { __requestId?: string }>(name, { batchSize });
+      // includeMetadata: true gives us retryCount / retryLimit so we can detect
+      // the final attempt and persist a JobDeadLetter row with the real error.
+      const jobs = await boss.fetch<JobMap[typeof name] & { __requestId?: string }>(name, {
+        batchSize,
+        includeMetadata: true,
+      });
       if (jobs.length === 0) continue;
       workDone = true;
 
@@ -74,44 +79,50 @@ export async function drainPendingJobs(
           await boss.complete(name, job.id);
           stats.processed++;
         } catch (err) {
-          log.error({ err, jobId: job.id, queue: name }, 'drain.job.fail');
+          const errorMessage = String((err as Error)?.message ?? err).slice(0, 2000);
+          const retryCount = job.retryCount ?? 0;
+          const retryLimit = job.retryLimit ?? 0;
+          const willRetry = retryCount + 1 < retryLimit;
+
+          log.error(
+            { err, jobId: job.id, queue: name, retryCount, retryLimit, willRetry },
+            'drain.job.fail',
+          );
+
+          // Record the real error to JobDeadLetter on the final attempt so the
+          // /admin/cola UI shows actionable info instead of empty rows. (Drained
+          // pg-boss-native dead-letter jobs don't carry the error message.)
+          if (!willRetry) {
+            await prisma.jobDeadLetter
+              .create({
+                data: {
+                  jobName: name,
+                  jobId: job.id,
+                  payload: payload as object,
+                  error: errorMessage,
+                },
+              })
+              .catch((dlErr) => log.error({ dlErr, jobId: job.id }, 'drain.dl.persist.fail'));
+            stats.deadLettered++;
+          }
+
           await boss
-            .fail(name, job.id, { error: String((err as Error)?.message ?? err) })
+            .fail(name, job.id, { error: errorMessage })
             .catch((failErr) => log.error({ failErr, jobId: job.id }, 'drain.job.fail.recordError'));
           stats.failed++;
         }
       }
     }
 
-    // Dead-letter queue: persist exhausted-retry jobs to JobDeadLetter so they
-    // are visible for ops, then mark complete so they don't loop.
+    // Drain pg-boss native dead-letter routing too, so the queue doesn't bloat
+    // with empty-payload entries from earlier retry-exhausted jobs.
     if (Date.now() < deadline) {
-      const dlJobs = await boss.fetch<{
-        __originalName?: string;
-        __originalId?: string;
-        error?: string;
-        [k: string]: unknown;
-      }>(DEAD_LETTER_QUEUE, { batchSize });
+      const dlJobs = await boss.fetch<Record<string, unknown>>(DEAD_LETTER_QUEUE, { batchSize });
       if (dlJobs.length > 0) workDone = true;
-
       for (const job of dlJobs) {
-        const { __originalName, __originalId, error, ...payload } = job.data;
-        try {
-          await prisma.jobDeadLetter.create({
-            data: {
-              jobName: __originalName ?? job.name,
-              jobId: __originalId ?? job.id,
-              payload: payload as object,
-              error: typeof error === 'string' ? error : String(error ?? ''),
-            },
-          });
-          stats.deadLettered++;
-        } catch (err) {
-          log.error({ err }, 'drain.dead-letter.persist.fail');
-        }
         await boss
           .complete(DEAD_LETTER_QUEUE, job.id)
-          .catch((err) => log.error({ err, jobId: job.id }, 'drain.dead-letter.complete.fail'));
+          .catch((err) => log.error({ err, jobId: job.id }, 'drain.dl-queue.complete.fail'));
       }
     }
 

@@ -6,7 +6,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { queue } from '@/shared/queue/client';
 import { prisma } from '@/shared/db/client';
 import { ALL_JOB_NAMES } from '@/shared/queue/jobs';
-import { DrainNowButton } from './drain-now-button';
+import { DrainNowButton, ClearDeadLettersButton } from './drain-now-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,9 +109,12 @@ export default async function ColaPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-semibold text-brand-navy mb-3">
-          Dead letters — últimos {deadLetters.length}
-        </h2>
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <h2 className="text-base font-semibold text-brand-navy">
+            Dead letters — últimos {deadLetters.length}
+          </h2>
+          {deadLetters.length > 0 && <ClearDeadLettersButton />}
+        </div>
         {deadLetters.length === 0 ? (
           <p className="text-sm text-slate-400">No hay jobs fallidos sin recuperar.</p>
         ) : (

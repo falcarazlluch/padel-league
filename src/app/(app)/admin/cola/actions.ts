@@ -7,6 +7,7 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { queue } from '@/shared/queue/client';
+import { prisma } from '@/shared/db/client';
 import { drainPendingJobs } from '@/worker/drainer';
 
 async function requireSuperAdmin() {
@@ -23,5 +24,11 @@ export async function drainNowAction(): Promise<void> {
   const q = queue();
   await q.start();
   await drainPendingJobs(q.raw(), { deadlineMs: 50_000 });
+  revalidatePath('/admin/cola');
+}
+
+export async function clearDeadLettersAction(): Promise<void> {
+  await requireSuperAdmin();
+  await prisma.jobDeadLetter.deleteMany({});
   revalidatePath('/admin/cola');
 }
