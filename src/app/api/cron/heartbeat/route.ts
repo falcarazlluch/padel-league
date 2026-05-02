@@ -14,7 +14,7 @@ function unauthorized() {
   return NextResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function runHeartbeat(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization') ?? '';
   const expected = `Bearer ${env().CRON_SECRET}`;
   const authBuf = Buffer.from(auth, 'utf8');
@@ -93,4 +93,14 @@ export async function POST(req: Request): Promise<Response> {
     registrationOpenNotified: notifiedLeagueIds.length,
     drain: drainStats,
   });
+}
+
+// Vercel Cron sends GET by default; we expose both verbs so manual curl
+// (POST with Bearer) and the platform invocation work the same way.
+export async function GET(req: Request): Promise<Response> {
+  return runHeartbeat(req);
+}
+
+export async function POST(req: Request): Promise<Response> {
+  return runHeartbeat(req);
 }
