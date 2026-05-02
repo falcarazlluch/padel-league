@@ -11,6 +11,21 @@ import { CommentaryFeedCard } from '../ligas/[slug]/_components/commentary-feed-
 import { CategoryProposalBanner } from './category-proposal-banner';
 import { WinLossChart } from './win-loss-chart';
 
+function greeting(): string {
+  // Server-rendered with Europe/Madrid timezone for consistent UX.
+  const now = new Date();
+  const hourMadrid = Number(
+    new Intl.DateTimeFormat('es-ES', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Madrid',
+    }).format(now),
+  );
+  if (hourMadrid >= 5 && hourMadrid < 12) return 'Buenos días';
+  if (hourMadrid >= 12 && hourMadrid < 21) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -115,7 +130,7 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Panel de control</p>
-        <h1 className="text-2xl font-extrabold text-brand-navy">Bienvenido, {user.name}</h1>
+        <h1 className="text-2xl font-extrabold text-brand-navy">{greeting()}, {user.name}</h1>
       </div>
 
       <CategoryProposalBanner
