@@ -87,6 +87,11 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               Códigos de registro
             </Link>
           )}
+          {isSuperAdmin && (
+            <Link href={'/admin/cola' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/cola'))}>
+              Cola
+            </Link>
+          )}
           <div className="border-t border-gray-100" />
           <Link href={'/perfil' as Route} onClick={close} className={linkClass(pathname.startsWith('/perfil'))}>
             Mi perfil

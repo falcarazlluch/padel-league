@@ -56,6 +56,13 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           >
             Códigos
           </Link>
+          <Link
+            href={'/admin/cola' as Route}
+            className={linkClass(pathname.startsWith('/admin/cola'))}
+            aria-current={pathname.startsWith('/admin/cola') ? 'page' : undefined}
+          >
+            Cola
+          </Link>
         </>
       )}
     </div>
