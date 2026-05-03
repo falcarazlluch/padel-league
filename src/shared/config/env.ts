@@ -18,12 +18,17 @@ function normalizeEnv(raw: NodeJS.ProcessEnv | Record<string, string | undefined
 // stderr instead of tearing down the entire app at boot. Reason: a typo in
 // RESEND_FROM_EMAIL on Vercel was crashing every request that touched env(),
 // which is most of the app.
+//
+// Accepts two shapes:
+//   1. `local@domain.tld`             — bare email
+//   2. `Display Name <local@domain.tld>` — Resend's "from" with display name
+const PLAIN_EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const NAMED_EMAIL_RE = /^.+\s*<[^@\s]+@[^@\s]+\.[^@\s]+>$/;
 const optionalEmail = z.preprocess((v) => {
   if (typeof v !== 'string') return undefined;
   const trimmed = v.trim();
   if (trimmed === '') return undefined;
-  // RFC 5322 is overkill — this catches the realistic typos
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
+  if (!PLAIN_EMAIL_RE.test(trimmed) && !NAMED_EMAIL_RE.test(trimmed)) {
     console.warn(`[env] discarding non-email value for optional email field: ${trimmed.slice(0, 40)}`);
     return undefined;
   }
