@@ -5,19 +5,27 @@ import Link from 'next/link';
 import { useActionState } from 'react';
 import type { MatchStatus } from '@prisma/client';
 import { acceptProposalFromList } from '../actions';
+import { TeamWithStack } from '../../_components/team-with-stack';
+import type { StackPlayer } from '../../_components/player-stack';
+
+interface TeamSide {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  members: StackPlayer[];
+}
 
 type Props = {
   matchId: string;
   leagueSlug: string;
   leagueName: string;
-  teamAName: string;
-  teamBName: string;
+  teamA: TeamSide;
+  teamB: TeamSide;
   status: MatchStatus;
   scheduledAt: string | null;   // ISO string
   proposalState: 'none' | 'mine' | 'rival';
   proposedDate: string | null;  // ISO string
   winnerTeamId: string | null;
-  teamAId: string;
   daysToDeadline: number;
 };
 
@@ -34,9 +42,9 @@ function cardStyle(status: MatchStatus, proposalState: 'none' | 'mine' | 'rival'
 }
 
 export function MatchCardMisPartidos({
-  matchId, leagueSlug, leagueName, teamAName, teamBName,
+  matchId, leagueSlug, leagueName, teamA, teamB,
   status, scheduledAt, proposalState, proposedDate,
-  winnerTeamId, teamAId, daysToDeadline,
+  winnerTeamId, daysToDeadline,
 }: Props) {
   const [acceptResult, acceptAction, acceptPending] = useActionState(acceptProposalFromList, null);
 
@@ -56,13 +64,19 @@ export function MatchCardMisPartidos({
     : null;
 
   return (
-    <div className={`rounded-2xl p-4 space-y-2 ${cardStyle(status, proposalState)}`}>
+    <div className={`rounded-2xl p-4 space-y-3 ${cardStyle(status, proposalState)}`}>
       <div className="flex items-center justify-between gap-2">
-        <Link href={matchHref} className="font-bold text-brand-navy text-sm hover:underline">
-          {teamAName} <span className="text-gray-400 font-normal">vs</span> {teamBName}
-        </Link>
-        <span className="text-xs text-brand-blue bg-brand-blue/10 px-2 py-0.5 rounded-full font-medium shrink-0">{leagueName}</span>
+        <span className="text-xs text-slate-400 truncate">{leagueName}</span>
+        {dateStr && status !== 'SCHEDULED' && (
+          <span className="text-xs text-slate-400 shrink-0">{dateStr}</span>
+        )}
       </div>
+
+      <Link href={matchHref} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 hover:opacity-90 transition-opacity">
+        <TeamWithStack team={teamA} highlight={isFinished && winnerTeamId === teamA.id} />
+        <span className="text-slate-400 text-sm px-1">vs</span>
+        <TeamWithStack team={teamB} highlight={isFinished && winnerTeamId === teamB.id} reverse />
+      </Link>
 
       {status === 'SCHEDULED' && (
         <p className="text-xs text-yellow-700">
@@ -78,12 +92,8 @@ export function MatchCardMisPartidos({
       {status === 'DATE_CONFIRMED' && (
         <p className="text-xs text-blue-700">✅ Programado: {dateStr}</p>
       )}
-      {isFinished && (
-        <p className="text-xs text-green-700 font-medium">
-          {winnerTeamId
-            ? `Ganador: ${winnerTeamId === teamAId ? teamAName : teamBName}`
-            : 'Empate'}
-        </p>
+      {isFinished && winnerTeamId === null && (
+        <p className="text-xs text-slate-500">Empate</p>
       )}
       {status === 'EXPIRED_UNPLAYED' && (
         <p className="text-xs text-gray-500">Partido no jugado</p>
@@ -99,7 +109,7 @@ export function MatchCardMisPartidos({
       )}
 
       {status === 'DATE_PROPOSED' && proposalState === 'rival' && (
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <form action={acceptAction}>
             <input type="hidden" name="matchId" value={matchId} />
             <button

@@ -1,8 +1,8 @@
 import Image from 'next/image';
 
-type Size = 'sm' | 'md' | 'lg';
+type Size = 'sm' | 'md' | 'lg' | 'xl';
 
-const SIZE_PX: Record<Size, number> = { sm: 24, md: 32, lg: 48 };
+const SIZE_PX: Record<Size, number> = { sm: 24, md: 32, lg: 48, xl: 40 };
 
 export function TeamLogo({
   url,

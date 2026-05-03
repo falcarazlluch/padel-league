@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
+import { TeamWithStack } from './team-with-stack';
+import type { StackPlayer } from './player-stack';
 
 interface SetRow {
   setNumber: number;
@@ -7,14 +9,20 @@ interface SetRow {
   gamesB: number;
 }
 
+interface TeamSide {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  members: StackPlayer[];
+}
+
 interface Props {
   matchId: string;
   leagueSlug: string;
   leagueName?: string;
   scheduledAt: Date | null;
-  teamAName: string;
-  teamBName: string;
-  teamAId: string;
+  teamA: TeamSide;
+  teamB: TeamSide;
   winnerTeamId: string | null;
   sets: SetRow[];
   /** When true the match was admin-resolved without play; mark differently. */
@@ -38,16 +46,15 @@ export function MatchResultRow({
   leagueSlug,
   leagueName,
   scheduledAt,
-  teamAName,
-  teamBName,
-  teamAId,
+  teamA,
+  teamB,
   winnerTeamId,
   sets,
   adminResolved,
   expiredUnplayed,
 }: Props) {
-  const teamAWon = winnerTeamId === teamAId;
-  const teamBWon = winnerTeamId !== null && winnerTeamId !== teamAId;
+  const teamAWon = winnerTeamId === teamA.id;
+  const teamBWon = winnerTeamId !== null && winnerTeamId !== teamA.id;
   const draw = winnerTeamId === null && !expiredUnplayed && sets.length > 0;
 
   return (
@@ -55,7 +62,7 @@ export function MatchResultRow({
       href={`/ligas/${leagueSlug}/partidos/${matchId}` as Route}
       className="block bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-4"
     >
-      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
         <p className="text-xs text-slate-400">
           {formatDate(scheduledAt)}
           {leagueName ? ` · ${leagueName}` : ''}
@@ -73,9 +80,7 @@ export function MatchResultRow({
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <div className={`text-right ${teamAWon ? 'font-bold text-brand-navy' : 'text-slate-600'}`}>
-          {teamAName}
-        </div>
+        <TeamWithStack team={teamA} highlight={teamAWon} />
         <div className="flex items-center gap-1 px-2 text-sm font-mono">
           {expiredUnplayed ? (
             <span className="text-slate-400">—</span>
@@ -85,20 +90,19 @@ export function MatchResultRow({
             sets
               .sort((a, b) => a.setNumber - b.setNumber)
               .map((s) => (
-                <span key={s.setNumber} className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs">
+                <span
+                  key={s.setNumber}
+                  className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs"
+                >
                   {s.gamesA}-{s.gamesB}
                 </span>
               ))
           )}
         </div>
-        <div className={`${teamBWon ? 'font-bold text-brand-navy' : 'text-slate-600'}`}>
-          {teamBName}
-        </div>
+        <TeamWithStack team={teamB} highlight={teamBWon} reverse />
       </div>
 
-      {draw && (
-        <p className="text-xs text-slate-400 mt-2 text-center">Empate</p>
-      )}
+      {draw && <p className="text-xs text-slate-400 mt-2 text-center">Empate</p>}
     </Link>
   );
 }

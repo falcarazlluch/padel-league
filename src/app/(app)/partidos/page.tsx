@@ -9,6 +9,7 @@ import { IndependentMatchService } from '@/modules/independent-matches';
 import { MatchCardMisPartidos } from './_components/match-card-mis-partidos';
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { PendingInvitationActions } from '../jugar/_components/pending-invitation-actions';
+import { PlayerStack } from '../_components/player-stack';
 
 export const metadata = { title: 'Mis partidos — Padel League' };
 
@@ -29,8 +30,16 @@ export default async function MisPartidosPage() {
       },
       include: {
         league: { select: { id: true, name: true, slug: true } },
-        teamA: { include: { members: { select: { userId: true } } } },
-        teamB: { include: { members: { select: { userId: true } } } },
+        teamA: {
+          include: {
+            members: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+          },
+        },
+        teamB: {
+          include: {
+            members: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+          },
+        },
         confirmedResult: true,
         schedulingProposals: {
           where: { status: 'PROPOSED' },
@@ -40,7 +49,22 @@ export default async function MisPartidosPage() {
       },
       orderBy: { deadlineAt: 'asc' },
     }),
-    IndependentMatchService.getForUser(user.id),
+    prisma.independentMatch.findMany({
+      where: {
+        status: { notIn: ['CANCELLED', 'REJECTED'] },
+        OR: [
+          { organizerId: user.id },
+          { participants: { some: { userId: user.id, status: 'ACCEPTED' } } },
+        ],
+      },
+      include: {
+        participants: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
     IndependentMatchService.getPendingInvitationsForUser(user.id),
   ]);
 
@@ -75,9 +99,18 @@ export default async function MisPartidosPage() {
       matchId: m.id,
       leagueSlug: m.league.slug,
       leagueName: m.league.name,
-      teamAName: m.teamA.name,
-      teamBName: m.teamB.name,
-      teamAId: m.teamAId,
+      teamA: {
+        id: m.teamA.id,
+        name: m.teamA.name,
+        logoUrl: m.teamA.logoUrl,
+        members: m.teamA.members.map((mb) => mb.user),
+      },
+      teamB: {
+        id: m.teamB.id,
+        name: m.teamB.name,
+        logoUrl: m.teamB.logoUrl,
+        members: m.teamB.members.map((mb) => mb.user),
+      },
       status: m.status,
       scheduledAt: m.scheduledAt?.toISOString() ?? null,
       daysToDeadline: Math.ceil((m.deadlineAt.getTime() - now) / 86_400_000),
@@ -190,18 +223,23 @@ export default async function MisPartidosPage() {
                 href={`/jugar/${m.id}` as Route}
                 className="block bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-4"
               >
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
                     <p className="font-bold text-brand-navy truncate">{m.name}</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {'Partido abierto'}
-                      {dateStr ? ` · ${dateStr}` : ''}
+                      {dateStr ?? 'Sin fecha'}
                       {m.location ? ` · ${m.location}` : ''}
                     </p>
                   </div>
                   <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${statusClass}`}>
                     {statusLabel}
                   </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <PlayerStack players={m.participants.map((p) => p.user)} />
+                  <p className="text-xs text-slate-500 shrink-0">
+                    {m.participants.length}/{m.maxPlayers}
+                  </p>
                 </div>
               </Link>
             );

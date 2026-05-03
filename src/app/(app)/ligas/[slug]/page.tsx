@@ -103,8 +103,22 @@ export default async function LigaDetailPage({
   const matchesWithSets = await prisma.match.findMany({
     where: { leagueId: league.id },
     include: {
-      teamA: { select: { id: true, name: true } },
-      teamB: { select: { id: true, name: true } },
+      teamA: {
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          members: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+        },
+      },
+      teamB: {
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          members: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+        },
+      },
       confirmedResult: { include: { sets: { orderBy: { setNumber: 'asc' } } } },
     },
     orderBy: [{ round: 'asc' }, { deadlineAt: 'asc' }],
@@ -292,9 +306,18 @@ export default async function LigaDetailPage({
                     matchId={m.id}
                     leagueSlug={slug}
                     scheduledAt={m.scheduledAt}
-                    teamAName={m.teamA.name}
-                    teamBName={m.teamB.name}
-                    teamAId={m.teamAId}
+                    teamA={{
+                      id: m.teamA.id,
+                      name: m.teamA.name,
+                      logoUrl: m.teamA.logoUrl,
+                      members: m.teamA.members.map((mb) => mb.user),
+                    }}
+                    teamB={{
+                      id: m.teamB.id,
+                      name: m.teamB.name,
+                      logoUrl: m.teamB.logoUrl,
+                      members: m.teamB.members.map((mb) => mb.user),
+                    }}
                     winnerTeamId={m.winnerTeamId}
                     sets={m.confirmedResult?.sets ?? []}
                     adminResolved={m.status === 'ADMIN_RESOLVED'}

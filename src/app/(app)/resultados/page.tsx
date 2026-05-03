@@ -7,6 +7,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { MatchResultRow } from '../_components/match-result-row';
+import { PlayerStack } from '../_components/player-stack';
 
 export const metadata = { title: 'Resultados — Padel League' };
 
@@ -40,8 +41,22 @@ export default async function ResultadosPage() {
       },
       include: {
         league: { select: { slug: true, name: true } },
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
+        teamA: {
+          select: {
+            id: true,
+            name: true,
+            logoUrl: true,
+            members: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+          },
+        },
+        teamB: {
+          select: {
+            id: true,
+            name: true,
+            logoUrl: true,
+            members: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+          },
+        },
         confirmedResult: { include: { sets: { orderBy: { setNumber: 'asc' } } } },
       },
       orderBy: [{ scheduledAt: 'desc' }, { updatedAt: 'desc' }],
@@ -59,7 +74,7 @@ export default async function ResultadosPage() {
       include: {
         participants: {
           where: { status: 'ACCEPTED' },
-          include: { user: { select: { id: true, name: true } } },
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
         },
       },
       orderBy: [{ scheduledAt: 'desc' }],
@@ -93,9 +108,18 @@ export default async function ResultadosPage() {
               leagueSlug={m.league.slug}
               leagueName={m.league.name}
               scheduledAt={m.scheduledAt}
-              teamAName={m.teamA.name}
-              teamBName={m.teamB.name}
-              teamAId={m.teamAId}
+              teamA={{
+                id: m.teamA.id,
+                name: m.teamA.name,
+                logoUrl: m.teamA.logoUrl,
+                members: m.teamA.members.map((mb) => mb.user),
+              }}
+              teamB={{
+                id: m.teamB.id,
+                name: m.teamB.name,
+                logoUrl: m.teamB.logoUrl,
+                members: m.teamB.members.map((mb) => mb.user),
+              }}
               winnerTeamId={m.winnerTeamId}
               sets={m.confirmedResult?.sets ?? []}
               adminResolved={m.status === 'ADMIN_RESOLVED'}
@@ -115,14 +139,17 @@ export default async function ResultadosPage() {
                   href={`/jugar/${m.id}` as Route}
                   className="block bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-4"
                 >
-                  <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+                  <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
                     <p className="font-bold text-brand-navy truncate">{m.name}</p>
                     <span className="text-xs text-slate-400">{formatIndependentDate(m.scheduledAt)}</span>
                   </div>
-                  <p className="text-xs text-slate-500">
-                    {m.location ? `${m.location} · ` : ''}
-                    {m.participants.length} jugador{m.participants.length === 1 ? '' : 'es'}
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <PlayerStack players={m.participants.map((p) => p.user)} />
+                    <p className="text-xs text-slate-500 shrink-0">
+                      {m.location ? `${m.location} · ` : ''}
+                      {m.participants.length}/{m.maxPlayers}
+                    </p>
+                  </div>
                 </Link>
               </li>
             ))}

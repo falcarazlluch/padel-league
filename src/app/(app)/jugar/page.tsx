@@ -8,6 +8,8 @@ import { IndependentMatchService, calculateAvailableSlots } from '@/modules/inde
 import { JoinPublicMatchInlineButton } from './[id]/_components/join-public-match-button';
 import { PendingInvitationActions } from './_components/pending-invitation-actions';
 import { PartidosSubnav } from '../_components/partidos-subnav';
+import { PlayerStack } from '../_components/player-stack';
+import { prisma } from '@/shared/db/client';
 
 export const metadata = { title: 'Jugar — Padel League' };
 
@@ -22,9 +24,39 @@ export default async function JugarPage({
   if (!token) redirect('/login' as Route);
   const user = await getValidatedSession(token).catch(() => redirect('/login' as Route));
 
+  const now = new Date();
   const [openMatches, myMatches, pendingInvitations] = await Promise.all([
-    IndependentMatchService.listOpen(),
-    IndependentMatchService.getForUser(user.id),
+    prisma.independentMatch.findMany({
+      where: {
+        status: 'OPEN',
+        visibility: 'PUBLIC',
+        OR: [{ scheduledAt: null }, { scheduledAt: { gt: now } }],
+      },
+      include: {
+        participants: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
+        _count: { select: { participants: { where: { status: 'ACCEPTED' } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.independentMatch.findMany({
+      where: {
+        status: { notIn: ['CANCELLED', 'REJECTED'] },
+        OR: [
+          { organizerId: user.id },
+          { participants: { some: { userId: user.id, status: 'ACCEPTED' } } },
+        ],
+      },
+      include: {
+        participants: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
     IndependentMatchService.getPendingInvitationsForUser(user.id),
   ]);
 
@@ -48,10 +80,10 @@ export default async function JugarPage({
               {(() => {
                 const myMatchIds = new Set(myMatches.map((m) => m.id));
                 return openMatches.map((m) => {
-                  const available = calculateAvailableSlots(m.maxPlayers, m.confirmedCount);
+                  const available = calculateAvailableSlots(m.maxPlayers, m._count.participants);
                   return (
                     <li key={m.id} className="block p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-4 mb-3">
                         <Link href={`/jugar/${m.id}` as Route} className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-bold text-brand-navy truncate">{m.name}</p>
@@ -84,6 +116,12 @@ export default async function JugarPage({
                             <JoinPublicMatchInlineButton matchId={m.id} />
                           ) : null}
                         </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <PlayerStack players={m.participants.map((p) => p.user)} />
+                        <p className="text-xs text-slate-500 shrink-0">
+                          {m.participants.length}/{m.maxPlayers} jugadores
+                        </p>
                       </div>
                     </li>
                   );
@@ -135,7 +173,7 @@ export default async function JugarPage({
                     href={`/jugar/${m.id}` as Route}
                     className="block p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="min-w-0">
                         <p className="font-bold text-brand-navy truncate">{m.name}</p>
                         <p className="text-xs text-slate-400 uppercase tracking-wide mt-0.5">
@@ -143,6 +181,12 @@ export default async function JugarPage({
                         </p>
                       </div>
                       <StatusBadge status={m.status} />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <PlayerStack players={m.participants.map((p) => p.user)} />
+                      <p className="text-xs text-slate-500 shrink-0">
+                        {m.participants.length}/{m.maxPlayers}
+                      </p>
                     </div>
                   </Link>
                 </li>
