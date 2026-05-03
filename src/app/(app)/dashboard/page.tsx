@@ -11,6 +11,7 @@ import { CommentaryFeedCard } from '../ligas/[slug]/_components/commentary-feed-
 import { CategoryProposalBanner } from './category-proposal-banner';
 import { WinLossChart } from './win-loss-chart';
 import { CalendarSection } from './_components/calendar-section';
+import { ScrollToTopOnMount } from './_components/scroll-to-top';
 
 function greeting(): string {
   // Server-rendered with Europe/Madrid timezone for consistent UX.
@@ -146,6 +147,7 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-8">
+      <ScrollToTopOnMount />
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Panel de control</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">{greeting()}, {user.name}</h1>
