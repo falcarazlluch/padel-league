@@ -51,7 +51,7 @@ export default async function ColaPage() {
   const user = await getValidatedSession(token);
   if (user.role !== 'SUPER_ADMIN') redirect('/dashboard' as Route);
 
-  const [stats, deadLetters, emailCounts, commentaryCount, recentFailedEmails] = await Promise.all([
+  const [stats, deadLetters, emailCounts, commentaryCount, recentFailedEmails, recentSentEmails] = await Promise.all([
     loadQueueStats(),
     prisma.jobDeadLetter.findMany({ orderBy: { failedAt: 'desc' }, take: 50 }),
     prisma.emailLog.groupBy({ by: ['status'], _count: { _all: true } }),
@@ -61,6 +61,21 @@ export default async function ColaPage() {
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: { id: true, toEmail: true, template: true, errorMessage: true, createdAt: true },
+    }),
+    prisma.emailLog.findMany({
+      where: { status: { in: ['SENT', 'DELIVERED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        toEmail: true,
+        template: true,
+        subject: true,
+        providerMessageId: true,
+        sentAt: true,
+        status: true,
+        createdAt: true,
+      },
     }),
   ]);
 
@@ -148,6 +163,33 @@ export default async function ColaPage() {
         </p>
         <GenerateCommentaryForm />
       </section>
+
+      {recentSentEmails.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-brand-navy mb-3">
+            Emails enviados — últimos {recentSentEmails.length}
+          </h2>
+          <ul className="space-y-2">
+            {recentSentEmails.map((e) => (
+              <li key={e.id} className="bg-white rounded-xl border border-emerald-200/60 shadow-sm p-4">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                  <span className="text-xs">
+                    <span className="font-mono text-emerald-700">{e.template}</span>
+                    <span className="text-slate-500"> → {e.toEmail}</span>
+                  </span>
+                  <span className="text-xs text-slate-400">{formatDate(e.sentAt ?? e.createdAt)}</span>
+                </div>
+                <p className="text-sm text-slate-700 mt-1 truncate">{e.subject}</p>
+                {e.providerMessageId && (
+                  <p className="text-[11px] text-slate-400 mt-1 font-mono break-all">
+                    Resend ID: {e.providerMessageId}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {recentFailedEmails.length > 0 && (
         <section>
