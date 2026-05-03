@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { env } from '@/shared/config/env';
 import { queue } from '@/shared/queue/client';
@@ -24,11 +24,19 @@ async function runHeartbeat(req: Request): Promise<Response> {
   const valid =
     authBuf.length === expectedBuf.length && timingSafeEqual(authBuf, expectedBuf);
   if (!valid) {
-    // Log lengths only — never the values — so we can tell whether the
-    // header was missing (auth length 0), oversized (extra chars), or just
-    // structurally different from what env expects.
+    // Log lengths + truncated SHA-256 of each side so we can tell whether
+    // the strings genuinely differ in content (different hashes) or only in
+    // length, without leaking the secret itself.
+    const authHash = createHash('sha256').update(auth).digest('hex').slice(0, 12);
+    const expectedHash = createHash('sha256').update(expected).digest('hex').slice(0, 12);
     logger().warn(
-      { authLen: authBuf.length, expectedLen: expectedBuf.length, hasHeader: auth.length > 0 },
+      {
+        authLen: authBuf.length,
+        expectedLen: expectedBuf.length,
+        authHash,
+        expectedHash,
+        hasHeader: auth.length > 0,
+      },
       'cron.heartbeat.unauthorized',
     );
     return unauthorized();
