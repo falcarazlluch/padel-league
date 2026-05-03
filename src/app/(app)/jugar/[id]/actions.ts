@@ -15,6 +15,20 @@ import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
 import { NotificationService } from '@/modules/notifications';
 
+/** Human-friendly date+time for emails: e.g. "sábado, 13 de mayo de 2026, 18:30". */
+function formatScheduledAt(date: Date | null | undefined): string | undefined {
+  if (!date) return undefined;
+  return new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Madrid',
+  }).format(date);
+}
+
 async function getSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -85,7 +99,7 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
           organizerName: match?.organizer.name ?? 'Organizador',
           matchName: match?.name ?? 'Partido',
           matchUrl,
-          scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
+          scheduledAt: formatScheduledAt(match?.scheduledAt),
           location: match?.location ?? undefined,
           addToCalendarUrl: match?.scheduledAt
             ? `${env().APP_URL}/api/calendar/independent-match/${parsed.data.matchId}/event.ics`
@@ -265,7 +279,7 @@ async function sendUserInviteEmail(matchId: string, invitedUserId: string, invit
       organizerName: match?.organizer.name ?? 'Organizador',
       matchName: match?.name ?? 'Partido',
       matchUrl,
-      scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
+      scheduledAt: formatScheduledAt(match?.scheduledAt),
       location: match?.location ?? undefined,
       addToCalendarUrl: match?.scheduledAt
         ? `${env().APP_URL}/api/calendar/independent-match/${matchId}/event.ics`
@@ -314,7 +328,7 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
             organizerName: match?.organizer.name ?? 'Organizador',
             matchName: match?.name ?? 'Partido',
             matchUrl,
-            scheduledAt: match?.scheduledAt?.toLocaleDateString('es-ES') ?? undefined,
+            scheduledAt: formatScheduledAt(match?.scheduledAt),
             location: match?.location ?? undefined,
             addToCalendarUrl: match?.scheduledAt
               ? `${env().APP_URL}/api/calendar/independent-match/${matchId}/event.ics`

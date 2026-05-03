@@ -19,7 +19,7 @@ export function LeaveMatchButton({ matchId }: { matchId: string }) {
         onClick={() => setConfirming(true)}
         className="text-sm font-semibold px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-xl hover:bg-rose-50 transition-colors"
       >
-        Bajarme del partido
+        Cancelar asistencia
       </button>
     );
   }
@@ -27,14 +27,14 @@ export function LeaveMatchButton({ matchId }: { matchId: string }) {
   return (
     <form action={action} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
       <input type="hidden" name="matchId" value={matchId} />
-      <p className="text-sm text-slate-700">¿Seguro que te bajas? Se avisará al resto.</p>
+      <p className="text-sm text-slate-700">¿Cancelas tu asistencia? Se avisará al resto.</p>
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={pending}
           className="text-sm font-bold px-3 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 disabled:opacity-50 transition-colors"
         >
-          {pending ? 'Procesando…' : 'Sí, bajarme'}
+          {pending ? 'Procesando…' : 'Sí, cancelar'}
         </button>
         <button
           type="button"

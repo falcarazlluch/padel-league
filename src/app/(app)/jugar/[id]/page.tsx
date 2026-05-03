@@ -4,13 +4,14 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService, calculateAvailableSlots, isMatchPast } from '@/modules/independent-matches';
-import { InvalidTokenError } from '@/shared/errors';
+import { prisma } from '@/shared/db/client';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
 import { CancelMatchButton } from './_components/cancel-match-button';
 import { CancelInvitationButton } from './_components/cancel-invitation-button';
 import { LeaveMatchButton } from './_components/leave-match-button';
+import { PendingInvitationActions } from '../_components/pending-invitation-actions';
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 
 export default async function JugarDetailPage({
@@ -34,23 +35,11 @@ export default async function JugarDetailPage({
     return redirect(`/login?next=${next}` as Route);
   });
 
-  let tokenError: string | null = null;
-  if (token) {
-    try {
-      await IndependentMatchService.acceptInvitation(token, user.id);
-      redirect(`/jugar/${id}` as Route);
-    } catch (err) {
-      if (err instanceof InvalidTokenError) {
-        tokenError = 'El enlace de invitación no es válido o ha caducado.';
-      } else if ((err as Error).message?.includes('completo')) {
-        tokenError = 'Este partido ya está completo.';
-      } else if ((err as Error).message?.includes('cancelado')) {
-        tokenError = 'Este partido fue cancelado.';
-      } else {
-        throw err;
-      }
-    }
-  }
+  // The email link historically auto-accepted via `?token=`. We no longer do
+  // that — the invitee lands on the page, reviews date/players/location and
+  // confirms manually below. The token query param is kept for compatibility
+  // (older emails still link with it) but ignored.
+  void token;
 
   const match = await IndependentMatchService.getById(id).catch(() => notFound());
 
@@ -58,6 +47,31 @@ export default async function JugarDetailPage({
   const isParticipant = match.participants.some((p) => p.userId === user.id);
   const availableSlots = calculateAvailableSlots(match.maxPlayers, match.participants.length);
   const matchPast = isMatchPast(match);
+
+  // Pending invitation lookup (user-direct or via team membership) so the page
+  // can show inline accept/reject buttons when the visitor was invited but is
+  // not yet a participant.
+  let hasPendingInvitation = false;
+  if (!isOrganizer && !isParticipant && !matchPast && match.status === 'OPEN') {
+    const userTeams = await prisma.teamMember.findMany({
+      where: { userId: user.id },
+      select: { teamId: true },
+    });
+    const userTeamIds = userTeams.map((t) => t.teamId);
+    const inv = await prisma.independentMatchInvitation.findFirst({
+      where: {
+        matchId: id,
+        acceptedAt: null,
+        expiresAt: { gt: new Date() },
+        OR: [
+          { invitedUserId: user.id },
+          ...(userTeamIds.length > 0 ? [{ invitedTeamId: { in: userTeamIds } }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    hasPendingInvitation = !!inv;
+  }
   // Server-component: Date.now() is read once per request render, which is
   // safe here. react-hooks/purity flags it conservatively for client components.
   // eslint-disable-next-line react-hooks/purity
@@ -65,9 +79,17 @@ export default async function JugarDetailPage({
 
   return (
     <div className="max-w-2xl space-y-6">
-      {tokenError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
-          {tokenError}
+      {hasPendingInvitation && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-1">
+              Tienes una invitación pendiente
+            </p>
+            <p className="text-sm text-slate-700">
+              Revisa los detalles del partido y confirma tu asistencia.
+            </p>
+          </div>
+          <PendingInvitationActions matchId={id} />
         </div>
       )}
 

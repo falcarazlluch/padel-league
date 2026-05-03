@@ -250,7 +250,7 @@ export function renderIndMatchInvite({
       ${heading(`Te invitan a "${matchName}"`)}
       ${paragraph(`<strong>${escapeHtml(organizerName)}</strong> te invita a unirte al partido.`)}
       ${infoBox(info)}
-      ${cta(matchUrl, 'Ver partido y unirme', 'yellow')}
+      ${cta(matchUrl, 'Ver partido y confirmar', 'yellow')}
       ${addToCalendarUrl ? secondaryLink(addToCalendarUrl, '📅 Añadir al calendario') : ''}
       ${smallNote('El enlace es válido durante 7 días. Si no esperabas esta invitación, puedes ignorar este email.')}
     `,
