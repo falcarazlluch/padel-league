@@ -33,9 +33,10 @@ const createOpenSchema = z
       .refine((d) => d === undefined || !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
     location: z.string().max(200).optional(),
     description: z.string().max(500).optional(),
+    // Always 2x2 — 1v1 is no longer offered (padel is doubles).
     maxPlayers: z.coerce
       .number()
-      .refine((n): n is 2 | 4 => n === 2 || n === 4, { message: 'El máximo de jugadores debe ser 2 o 4.' }),
+      .refine((n): n is 4 => n === 4, { message: 'Los partidos son siempre de 4 jugadores.' }),
   })
   .refine((v) => v.hostKind === 'USER' || (v.hostKind === 'TEAM' && Boolean(v.hostTeamId)), {
     message: 'Selecciona el equipo organizador.',
@@ -60,13 +61,12 @@ export async function createOpenMatch(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   const { hostKind, hostTeamId, ...rest } = parsed.data;
-  const effectiveMaxPlayers = hostKind === 'TEAM' ? (4 as const) : rest.maxPlayers;
 
   try {
     const match = await IndependentMatchService.createOpen({
       ...rest,
       organizerId: user.id,
-      maxPlayers: effectiveMaxPlayers,
+      maxPlayers: 4,
       hostTeamId: hostKind === 'TEAM' ? hostTeamId : undefined,
     });
     revalidatePath('/jugar');

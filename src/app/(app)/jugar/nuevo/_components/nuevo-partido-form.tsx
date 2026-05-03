@@ -123,28 +123,8 @@ export function NuevoPartidoForm({ myTeams }: Props) {
         </p>
       </fieldset>
 
-      {hostKind === 'USER' && (
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
-            Jugadores
-          </label>
-          <div className="flex gap-2">
-            <label className="flex-1 cursor-pointer">
-              <input type="radio" name="maxPlayers" value="2" defaultChecked className="peer sr-only" />
-              <span className="block text-center text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 peer-checked:bg-brand-navy peer-checked:text-white peer-checked:border-brand-navy transition-colors">
-                2 (1v1)
-              </span>
-            </label>
-            <label className="flex-1 cursor-pointer">
-              <input type="radio" name="maxPlayers" value="4" className="peer sr-only" />
-              <span className="block text-center text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 peer-checked:bg-brand-navy peer-checked:text-white peer-checked:border-brand-navy transition-colors">
-                4 (2v2)
-              </span>
-            </label>
-          </div>
-        </div>
-      )}
-      {hostKind === 'TEAM' && <input type="hidden" name="maxPlayers" value="4" />}
+      {/* maxPlayers always 4 (2x2). 1v1 was removed; padel is doubles. */}
+      <input type="hidden" name="maxPlayers" value="4" />
 
       <div>
         <label htmlFor="scheduledAt" className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">

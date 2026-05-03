@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { loginAction } from './actions';
+import { PasswordInput } from '../_components/password-input';
 
 export function LoginForm({ next }: { next: string }) {
   const [state, formAction] = useActionState<{ error?: string }, FormData>(
@@ -40,14 +41,7 @@ export function LoginForm({ next }: { next: string }) {
         <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
           Contraseña
         </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
-        />
+        <PasswordInput id="password" name="password" required autoComplete="current-password" />
       </div>
       <SubmitButton />
       <Link
