@@ -18,7 +18,7 @@ jobs:
       - name: Hit /api/cron/heartbeat
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          APP_URL: ${{ vars.APP_URL || 'https://mypadelleague.es' }}
+          APP_URL: ${{ vars.APP_URL || 'https://www.mypadelleague.es' }}
         run: |
           set -uo pipefail
           if [ -z "${CRON_SECRET}" ]; then
