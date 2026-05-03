@@ -7,6 +7,8 @@ import {
 } from '@/shared/errors';
 import { NotificationService } from '@/modules/notifications';
 import { SignedTokenService, SignedTokenPurpose } from '@/shared/auth/signed-tokens';
+import { queue } from '@/shared/queue/client';
+import { env } from '@/shared/config/env';
 import type {
   CreateOpenMatchInput,
   IndependentMatchDetail,
@@ -36,11 +38,13 @@ export function calculateAvailableSlots(maxPlayers: number, confirmedCount: numb
 }
 
 /** True if the match has a scheduledAt in the past (i.e. already happened). */
-export function isMatchPast(match: { scheduledAt: Date | null }): boolean {
-  return match.scheduledAt !== null && match.scheduledAt.getTime() < Date.now();
+export function isMatchPast(match: { scheduledAt?: Date | null }): boolean {
+  // Use `!= null` so both undefined (test mocks) and null (no date set) skip
+  // the past check without crashing on .getTime().
+  return match.scheduledAt != null && match.scheduledAt.getTime() < Date.now();
 }
 
-function assertMatchNotPast(match: { scheduledAt: Date | null; name: string }): void {
+function assertMatchNotPast(match: { scheduledAt?: Date | null; name: string }): void {
   if (isMatchPast(match)) {
     throw new DomainError('MATCH_PAST', `"${match.name}" ya ha pasado y no admite cambios.`);
   }
@@ -511,7 +515,13 @@ export const IndependentMatchService = {
   async cancelMatch(matchId: string, organizerId: string): Promise<void> {
     const match = await prisma.independentMatch.findUnique({
       where: { id: matchId },
-      include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
+      include: {
+        participants: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, email: true, name: true } } },
+        },
+        organizer: { select: { name: true } },
+      },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
     if (match.organizerId !== organizerId)
@@ -524,21 +534,92 @@ export const IndependentMatchService = {
       data: { status: 'CANCELLED' },
     });
 
-    const otherParticipantIds = match.participants
-      .map((p) => p.userId)
-      .filter((id) => id !== organizerId);
+    const others = match.participants
+      .map((p) => p.user)
+      .filter((u) => u.id !== organizerId);
 
-    if (otherParticipantIds.length > 0) {
-      NotificationService.createMany(
-        otherParticipantIds.map((userId) => ({
-          userId,
-          type: 'INDEPENDENT_MATCH_CANCELLED' as const,
-          title: 'Partido cancelado',
-          body: `El partido "${match.name}" ha sido cancelado.`,
-          metadata: { matchId },
-        })),
-      ).catch(() => undefined);
-    }
+    if (others.length === 0) return;
+
+    NotificationService.createMany(
+      others.map((u) => ({
+        userId: u.id,
+        type: 'INDEPENDENT_MATCH_CANCELLED' as const,
+        title: 'Partido cancelado',
+        body: `${match.organizer.name} ha cancelado el partido "${match.name}".`,
+        metadata: { matchId },
+      })),
+    ).catch(() => undefined);
+
+    void notifyParticipantsByEmail(others, {
+      kind: 'cancelled',
+      matchId,
+      matchName: match.name,
+      headline: 'Partido cancelado',
+      body: `${match.organizer.name} ha cancelado el partido "${match.name}".`,
+      dedupKeyBase: `ind-cancelled-${matchId}`,
+    });
+  },
+
+  async leaveMatch(matchId: string, userId: string): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, email: true, name: true } } },
+        },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.status === 'CANCELLED')
+      throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+    if (match.organizerId === userId)
+      throw new DomainError('ORGANIZER_CANNOT_LEAVE', 'Como organizador, debes cancelar el partido en lugar de bajarte.');
+
+    const leaver = match.participants.find((p) => p.userId === userId);
+    if (!leaver)
+      throw new DomainError('NOT_PARTICIPANT', 'No estás apuntado a este partido.');
+
+    await prisma.$transaction(async (tx) => {
+      await tx.independentMatchParticipant.delete({
+        where: { independentMatchId_userId: { independentMatchId: matchId, userId } },
+      });
+      // If the match was full (CONFIRMED) and now has free slots, revert to OPEN
+      // so others can join again.
+      if (match.status === 'CONFIRMED') {
+        await tx.independentMatch.update({
+          where: { id: matchId },
+          data: { status: 'OPEN' },
+        });
+      }
+    });
+
+    const others = match.participants
+      .map((p) => p.user)
+      .filter((u) => u.id !== userId);
+    if (others.length === 0) return;
+
+    const headline = `${leaver.user.name} se ha bajado del partido`;
+    const body = `${leaver.user.name} ya no jugará "${match.name}".`;
+
+    NotificationService.createMany(
+      others.map((u) => ({
+        userId: u.id,
+        type: 'INDEPENDENT_MATCH_CANCELLED' as const,
+        title: headline,
+        body,
+        metadata: { matchId },
+      })),
+    ).catch(() => undefined);
+
+    void notifyParticipantsByEmail(others, {
+      kind: 'left',
+      matchId,
+      matchName: match.name,
+      headline,
+      body,
+      dedupKeyBase: `ind-left-${matchId}-${userId}-${Date.now()}`,
+    });
   },
 } as const;
 
@@ -548,6 +629,40 @@ export const IndependentMatchService = {
 
 async function acceptInvitationById(invitationId: string, userId: string): Promise<string> {
   return IndependentMatchService._acceptInvitationByIdLegacy(invitationId, userId);
+}
+
+async function notifyParticipantsByEmail(
+  recipients: { id: string; email: string; name: string }[],
+  args: {
+    kind: 'cancelled' | 'left';
+    matchId: string;
+    matchName: string;
+    headline: string;
+    body: string;
+    dedupKeyBase: string;
+  },
+): Promise<void> {
+  const matchUrl = `${env().APP_URL}/jugar/${args.matchId}`;
+  const q = queue();
+  await q.start();
+  await Promise.all(
+    recipients
+      .filter((r) => Boolean(r.email))
+      .map((r) =>
+        q.publish('send-email', {
+          template: 'ind-match-update',
+          to: r.email,
+          data: {
+            kind: args.kind,
+            matchName: args.matchName,
+            headline: args.headline,
+            body: args.body,
+            matchUrl,
+          },
+          dedupKey: `${args.dedupKeyBase}-${r.id}`,
+        }),
+      ),
+  );
 }
 
 async function findPendingInvitationForUser(

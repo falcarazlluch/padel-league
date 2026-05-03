@@ -326,6 +326,25 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
   );
 }
 
+export async function leaveMatchAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const matchId = formData.get('matchId');
+  if (typeof matchId !== 'string') return { error: 'Datos inválidos.' };
+  try {
+    await IndependentMatchService.leaveMatch(matchId, user.id);
+    revalidatePath('/jugar');
+    revalidatePath('/partidos');
+    revalidatePath(`/jugar/${matchId}`);
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
 export async function cancelMatch(formData: FormData): Promise<void> {
   const user = await getSession();
   const matchId = formData.get('matchId');

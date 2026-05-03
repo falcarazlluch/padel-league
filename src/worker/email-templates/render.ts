@@ -161,6 +161,31 @@ export function renderIndMatchChallenge({
   `.trim();
 }
 
+interface IndMatchUpdateProps {
+  matchName: string;
+  /** First-line headline shown big at the top, e.g. 'Partido cancelado'. */
+  headline: string;
+  /** Free text body, single paragraph. */
+  body: string;
+  /** Optional link back to the match page. */
+  matchUrl?: string;
+}
+export const indMatchUpdateSubject = (matchName: string, kind: 'cancelled' | 'left'): string =>
+  kind === 'cancelled' ? `Partido cancelado: ${matchName}` : `Cambio en tu partido: ${matchName}`;
+export function renderIndMatchUpdate({ matchName, headline, body, matchUrl }: IndMatchUpdateProps): string {
+  const cta = matchUrl
+    ? `<a href="${attr(matchUrl)}" style="${primaryButton('#0D1E45')}">Ver partido</a>`
+    : '';
+  return `
+    <div style="${containerStyle}">
+      <h1>${escapeHtml(headline)}</h1>
+      <p>${escapeHtml(body)}</p>
+      <p style="${footerNote}">Partido afectado: <strong>${escapeHtml(matchName)}</strong></p>
+      ${cta}
+    </div>
+  `.trim();
+}
+
 interface IndMatchChallengeResponseProps {
   challengedTeamName: string;
   matchName: string;

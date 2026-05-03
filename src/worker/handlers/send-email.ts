@@ -16,6 +16,8 @@ import {
   indMatchChallengeSubject,
   renderIndMatchChallengeResponse,
   indMatchChallengeResponseSubject,
+  renderIndMatchUpdate,
+  indMatchUpdateSubject,
 } from '../email-templates/render';
 import type { JobMap } from '@/shared/queue/jobs';
 
@@ -96,6 +98,19 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
           matchUrl: str(data['matchUrl'], ''),
         }),
       };
+    case 'ind-match-update': {
+      const kind: 'cancelled' | 'left' = data['kind'] === 'left' ? 'left' : 'cancelled';
+      const matchName = str(data['matchName'], 'Partido');
+      return {
+        subject: indMatchUpdateSubject(matchName, kind),
+        html: renderIndMatchUpdate({
+          matchName,
+          headline: str(data['headline'], kind === 'cancelled' ? 'Partido cancelado' : 'Un jugador se ha bajado'),
+          body: str(data['body'], ''),
+          matchUrl: typeof data['matchUrl'] === 'string' ? data['matchUrl'] : undefined,
+        }),
+      };
+    }
     default:
       throw new Error(`Unknown email template: ${template}`);
   }

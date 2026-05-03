@@ -10,6 +10,7 @@ import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
 import { CancelMatchButton } from './_components/cancel-match-button';
 import { CancelInvitationButton } from './_components/cancel-invitation-button';
+import { LeaveMatchButton } from './_components/leave-match-button';
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 
 export default async function JugarDetailPage({
@@ -122,6 +123,10 @@ export default async function JugarDetailPage({
 
       {!matchPast && match.status === 'OPEN' && match.visibility === 'PUBLIC' && !isOrganizer && !isParticipant && availableSlots > 0 && (
         <JoinPublicMatchButton matchId={id} />
+      )}
+
+      {!matchPast && !isOrganizer && isParticipant && match.status !== 'CANCELLED' && (
+        <LeaveMatchButton matchId={id} />
       )}
 
       {isOrganizer && (
