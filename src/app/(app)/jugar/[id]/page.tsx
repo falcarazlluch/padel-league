@@ -11,6 +11,7 @@ import { InviteForm } from './_components/invite-form';
 import { CancelMatchButton } from './_components/cancel-match-button';
 import { CancelInvitationButton } from './_components/cancel-invitation-button';
 import { LeaveMatchButton } from './_components/leave-match-button';
+import { MatchChat } from './_components/match-chat';
 import { PendingInvitationActions } from '../_components/pending-invitation-actions';
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 
@@ -72,6 +73,13 @@ export default async function JugarDetailPage({
     });
     hasPendingInvitation = !!inv;
   }
+
+  // Anyone with chat access can see the chat: organizer, accepted participants
+  // and pending invitees (which we already inferred above for the banner).
+  const canChat = isOrganizer || isParticipant || hasPendingInvitation;
+  const chatMessages = canChat
+    ? await IndependentMatchService.listChatMessages(id, user.id).catch(() => [])
+    : [];
   // Server-component: Date.now() is read once per request render, which is
   // safe here. react-hooks/purity flags it conservatively for client components.
   // eslint-disable-next-line react-hooks/purity
@@ -193,6 +201,21 @@ export default async function JugarDetailPage({
             <CancelMatchButton matchId={id} />
           )}
         </section>
+      )}
+
+      {canChat && (
+        <MatchChat
+          matchId={id}
+          currentUserId={user.id}
+          messages={chatMessages.map((m) => ({
+            id: m.id,
+            userId: m.userId,
+            userName: m.userName,
+            avatarUrl: m.avatarUrl,
+            content: m.content,
+            createdAt: m.createdAt.toISOString(),
+          }))}
+        />
       )}
     </div>
   );

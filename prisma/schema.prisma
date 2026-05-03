@@ -150,6 +150,7 @@ enum NotificationType {
   LEAGUE_REGISTRATION_ADDED
   LEAGUE_REGISTRATION_REMOVED
   LEAGUE_REGISTRATION_OPEN
+  INDEPENDENT_MATCH_CHAT
 }
 
 enum SignedTokenPurpose {
@@ -215,6 +216,7 @@ model User {
   resolvedDisputes              Dispute[]                     @relation("DisputeResolver")
   independentMatches            IndependentMatch[]            @relation("IndependentOrganizer")
   indParticipations             IndependentMatchParticipant[]
+  indChatMessages               IndependentMatchChatMessage[] @relation("IndMatchChatAuthor")
   matchInvitationsReceived      IndependentMatchInvitation[]
   editedCommentaries            MatchCommentary[]             @relation("CommentaryEditor")
   extensionsProposed            DeadlineExtensionProposal[]   @relation("ExtensionProposer")
@@ -609,9 +611,24 @@ model IndependentMatch {
   league       League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
   participants IndependentMatchParticipant[]
   invitations  IndependentMatchInvitation[]
+  chatMessages IndependentMatchChatMessage[]
 
   @@index([status, scheduledAt])
   @@map("independent_matches")
+}
+
+model IndependentMatchChatMessage {
+  id        String   @id @default(cuid())
+  matchId   String   @map("match_id")
+  userId    String   @map("user_id")
+  content   String   @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  match IndependentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User             @relation("IndMatchChatAuthor", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@map("independent_match_chat_messages")
 }
 
 model IndependentMatchParticipant {

@@ -340,6 +340,26 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
   );
 }
 
+export async function postChatMessageAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const matchId = formData.get('matchId');
+  const content = formData.get('content');
+  if (typeof matchId !== 'string' || typeof content !== 'string') {
+    return { error: 'Datos inválidos.' };
+  }
+  try {
+    await IndependentMatchService.postChatMessage(matchId, user.id, content);
+    revalidatePath(`/jugar/${matchId}`);
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
 export async function leaveMatchAction(
   _prev: ActionResult | null,
   formData: FormData,

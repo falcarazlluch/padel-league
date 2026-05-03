@@ -560,6 +560,83 @@ export const IndependentMatchService = {
     });
   },
 
+  async listChatMessages(
+    matchId: string,
+    userId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      userId: string;
+      userName: string;
+      avatarUrl: string | null;
+      content: string;
+      createdAt: Date;
+    }>
+  > {
+    const allowed = await canAccessChat(matchId, userId);
+    if (!allowed) {
+      throw new AuthorizationError('NOT_CHAT_MEMBER', 'No tienes acceso al chat de este partido.');
+    }
+    const rows = await prisma.independentMatchChatMessage.findMany({
+      where: { matchId },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+    return rows.map((m) => ({
+      id: m.id,
+      userId: m.user.id,
+      userName: m.user.name,
+      avatarUrl: m.user.avatarUrl,
+      content: m.content,
+      createdAt: m.createdAt,
+    }));
+  },
+
+  async postChatMessage(matchId: string, userId: string, content: string): Promise<void> {
+    const trimmed = content.trim();
+    if (trimmed.length === 0) {
+      throw new DomainError('EMPTY_MESSAGE', 'El mensaje no puede estar vacío.');
+    }
+    if (trimmed.length > 2000) {
+      throw new DomainError('MESSAGE_TOO_LONG', 'Máximo 2000 caracteres.');
+    }
+    const allowed = await canAccessChat(matchId, userId);
+    if (!allowed) {
+      throw new AuthorizationError('NOT_CHAT_MEMBER', 'No tienes acceso al chat de este partido.');
+    }
+
+    const match = await prisma.independentMatch.findUniqueOrThrow({
+      where: { id: matchId },
+      select: { name: true },
+    });
+    const author = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { name: true },
+    });
+
+    await prisma.independentMatchChatMessage.create({
+      data: { matchId, userId, content: trimmed },
+    });
+
+    // Notify everyone with chat access except the author. We compute that set
+    // using the same predicate as canAccessChat: organizer + accepted
+    // participants + pending invitees (direct or via team).
+    const recipients = await chatRecipientUserIds(matchId);
+    const otherIds = [...recipients].filter((uid) => uid !== userId);
+    if (otherIds.length === 0) return;
+
+    const preview = trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
+    NotificationService.createMany(
+      otherIds.map((uid) => ({
+        userId: uid,
+        type: 'INDEPENDENT_MATCH_CHAT' as const,
+        title: `${author.name} en "${match.name}"`,
+        body: preview,
+        metadata: { matchId },
+      })),
+    ).catch(() => undefined);
+  },
+
   async leaveMatch(matchId: string, userId: string): Promise<void> {
     const match = await prisma.independentMatch.findUnique({
       where: { id: matchId },
@@ -663,6 +740,60 @@ async function notifyParticipantsByEmail(
         }),
       ),
   );
+}
+
+/**
+ * Chat access policy: organizer + ACCEPTED participants + invitees with a
+ * pending non-expired invitation (direct or via team membership).
+ */
+async function canAccessChat(matchId: string, userId: string): Promise<boolean> {
+  const match = await prisma.independentMatch.findUnique({
+    where: { id: matchId },
+    select: { organizerId: true },
+  });
+  if (!match) return false;
+  if (match.organizerId === userId) return true;
+
+  const participating = await prisma.independentMatchParticipant.findFirst({
+    where: { independentMatchId: matchId, userId, status: 'ACCEPTED' },
+    select: { id: true },
+  });
+  if (participating) return true;
+
+  const pending = await findPendingInvitationForUser(matchId, userId);
+  return !!pending;
+}
+
+/** Userids of every chat-enabled user (organizer + participants + pending invitees). */
+async function chatRecipientUserIds(matchId: string): Promise<Set<string>> {
+  const match = await prisma.independentMatch.findUnique({
+    where: { id: matchId },
+    select: {
+      organizerId: true,
+      participants: {
+        where: { status: 'ACCEPTED' },
+        select: { userId: true },
+      },
+      invitations: {
+        where: { acceptedAt: null, expiresAt: { gt: new Date() } },
+        select: {
+          invitedUserId: true,
+          invitedTeam: { select: { members: { select: { userId: true } } } },
+        },
+      },
+    },
+  });
+  const set = new Set<string>();
+  if (!match) return set;
+  set.add(match.organizerId);
+  for (const p of match.participants) set.add(p.userId);
+  for (const inv of match.invitations) {
+    if (inv.invitedUserId) set.add(inv.invitedUserId);
+    if (inv.invitedTeam) {
+      for (const m of inv.invitedTeam.members) set.add(m.userId);
+    }
+  }
+  return set;
 }
 
 async function findPendingInvitationForUser(
