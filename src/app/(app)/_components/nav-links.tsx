@@ -13,6 +13,9 @@ function linkClass(active: boolean) {
 export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const pathname = usePathname();
 
+  const partidosActive =
+    pathname.startsWith('/partidos') || pathname === '/jugar' || pathname.startsWith('/jugar?') || pathname.startsWith('/jugar/');
+
   return (
     <div className="flex items-center gap-6">
       <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))} aria-current={pathname.startsWith('/ligas') ? 'page' : undefined}>
@@ -21,17 +24,14 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       <Link href={'/equipos' as Route} className={linkClass(pathname.startsWith('/equipos'))} aria-current={pathname.startsWith('/equipos') ? 'page' : undefined}>
         Mis equipos
       </Link>
-      <Link href={'/partidos' as Route} className={linkClass(pathname.startsWith('/partidos'))} aria-current={pathname.startsWith('/partidos') ? 'page' : undefined}>
-        Mis partidos
-      </Link>
-      <Link href={'/jugar' as Route} className={linkClass(pathname.startsWith('/jugar'))} aria-current={pathname.startsWith('/jugar') ? 'page' : undefined}>
-        Jugar
+      <Link href={'/partidos' as Route} className={linkClass(partidosActive)} aria-current={partidosActive ? 'page' : undefined}>
+        Partidos
       </Link>
       <Link href={'/reglamento' as Route} className={linkClass(pathname.startsWith('/reglamento'))} aria-current={pathname.startsWith('/reglamento') ? 'page' : undefined}>
         Reglamento
       </Link>
       <Link href={'/como-funciona' as Route} className={linkClass(pathname.startsWith('/como-funciona'))} aria-current={pathname.startsWith('/como-funciona') ? 'page' : undefined}>
-        Cómo funciona
+        Ayuda
       </Link>
       {isSuperAdmin && (
         <>

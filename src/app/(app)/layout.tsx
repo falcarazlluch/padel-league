@@ -52,20 +52,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <div className="hidden md:flex items-center gap-4">
             <Link
               href="/perfil"
-              className="text-sm font-medium text-white/70 hover:text-white transition-colors"
+              className="text-sm font-medium text-white/90 hover:text-white transition-colors max-w-[12rem] truncate"
+              title="Mi perfil"
             >
-              Mi perfil
+              {currentUser.name}
             </Link>
-            <form action="/api/auth/logout" method="post">
-              <button
-                type="submit"
-                className="text-sm font-medium text-white/50 hover:text-white/90 transition-colors"
-              >
-                Salir
-              </button>
-            </form>
           </div>
-          <MobileMenu isSuperAdmin={currentUser.role === 'SUPER_ADMIN'} />
+          <MobileMenu
+            isSuperAdmin={currentUser.role === 'SUPER_ADMIN'}
+            userName={currentUser.name}
+            userEmail={currentUser.email}
+          />
         </div>
       </nav>
       <main className="max-w-6xl w-full mx-auto px-6 py-8 flex-1">{children}</main>

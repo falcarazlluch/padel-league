@@ -11,7 +11,13 @@ function linkClass(active: boolean) {
     : 'block px-4 py-3 text-sm font-medium text-slate-700 hover:bg-gray-50 border-l-4 border-transparent transition-colors';
 }
 
-export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+interface Props {
+  isSuperAdmin: boolean;
+  userName: string;
+  userEmail: string;
+}
+
+export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const ref = useRef<HTMLDivElement>(null);
@@ -27,6 +33,9 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   }, []);
 
   const close = () => setOpen(false);
+
+  const partidosActive =
+    pathname.startsWith('/partidos') || pathname === '/jugar' || pathname.startsWith('/jugar?') || pathname.startsWith('/jugar/');
 
   return (
     <div ref={ref} className="md:hidden relative">
@@ -54,56 +63,45 @@ export function MobileMenu({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
       {open && (
         <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-xs bg-white border border-slate-200/80 rounded-2xl shadow-lg z-50 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white">
+            <p className="text-sm font-bold truncate">{userName}</p>
+            <p className="text-[11px] text-white/70 truncate">{userEmail}</p>
+          </div>
           <Link href={'/ligas' as Route} onClick={close} className={linkClass(pathname.startsWith('/ligas'))}>
             Ligas
           </Link>
           <Link href={'/equipos' as Route} onClick={close} className={linkClass(pathname.startsWith('/equipos'))}>
             Mis equipos
           </Link>
-          <Link href={'/partidos' as Route} onClick={close} className={linkClass(pathname.startsWith('/partidos'))}>
-            Mis partidos
-          </Link>
-          <Link href={'/jugar' as Route} onClick={close} className={linkClass(pathname.startsWith('/jugar'))}>
-            Jugar
+          <Link href={'/partidos' as Route} onClick={close} className={linkClass(partidosActive)}>
+            Partidos
           </Link>
           <Link href={'/reglamento' as Route} onClick={close} className={linkClass(pathname.startsWith('/reglamento'))}>
             Reglamento
           </Link>
           <Link href={'/como-funciona' as Route} onClick={close} className={linkClass(pathname.startsWith('/como-funciona'))}>
-            Cómo funciona
+            Ayuda
           </Link>
           {isSuperAdmin && (
-            <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
-              Disputas
-            </Link>
-          )}
-          {isSuperAdmin && (
-            <Link href={'/admin/usuarios' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/usuarios'))}>
-              Usuarios
-            </Link>
-          )}
-          {isSuperAdmin && (
-            <Link href={'/admin/codigos-registro' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/codigos-registro'))}>
-              Códigos de registro
-            </Link>
-          )}
-          {isSuperAdmin && (
-            <Link href={'/admin/cola' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/cola'))}>
-              Cola
-            </Link>
+            <>
+              <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
+                Disputas
+              </Link>
+              <Link href={'/admin/usuarios' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/usuarios'))}>
+                Usuarios
+              </Link>
+              <Link href={'/admin/codigos-registro' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/codigos-registro'))}>
+                Códigos de registro
+              </Link>
+              <Link href={'/admin/cola' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/cola'))}>
+                Cola
+              </Link>
+            </>
           )}
           <div className="border-t border-gray-100" />
           <Link href={'/perfil' as Route} onClick={close} className={linkClass(pathname.startsWith('/perfil'))}>
             Mi perfil
           </Link>
-          <form action="/api/auth/logout" method="post">
-            <button
-              type="submit"
-              className="block w-full text-left px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors"
-            >
-              Salir
-            </button>
-          </form>
         </div>
       )}
     </div>

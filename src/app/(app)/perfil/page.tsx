@@ -85,16 +85,24 @@ export default async function PerfilPage() {
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sesiones</h2>
-        <p className="text-sm text-slate-400">
-          Cierra sesión en todos tus dispositivos.
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sesión</h2>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <form action="/api/auth/logout" method="post">
+            <button type="submit"
+              className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 transition-opacity">
+              Cerrar sesión
+            </button>
+          </form>
+          <form action={revokeAllSessionsAction}>
+            <button type="submit"
+              className="w-full sm:w-auto px-4 py-2.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl hover:bg-red-100 transition-colors">
+              Cerrar todas las sesiones
+            </button>
+          </form>
+        </div>
+        <p className="text-[11px] text-slate-400">
+          &ldquo;Cerrar sesión&rdquo; sale de este dispositivo. &ldquo;Cerrar todas&rdquo; cierra también las del resto de dispositivos donde hayas iniciado sesión.
         </p>
-        <form action={revokeAllSessionsAction}>
-          <button type="submit"
-            className="px-4 py-2.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl hover:bg-red-100 transition-colors">
-            Cerrar todas las sesiones
-          </button>
-        </form>
       </section>
     </div>
   );
