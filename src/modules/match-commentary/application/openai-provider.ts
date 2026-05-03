@@ -38,7 +38,7 @@ export const OpenAIProvider: AIProvider = {
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.85,
-        max_tokens: 200,
+        max_tokens: 120,
       });
       const content = completion.choices[0]?.message?.content?.trim();
       if (!content) {

@@ -37,7 +37,7 @@ export function CommentaryFeedCard({ item, showLeague = false }: Props) {
           </span>
         )}
       </div>
-      <p className="text-sm text-slate-600 leading-relaxed line-clamp-3 whitespace-pre-line">{content}</p>
+      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{content}</p>
       <p className="text-xs text-slate-400 mt-2 truncate">
         ✨ {showLeague ? `${match.league.name} · ` : ''}
         {type === 'PREVIEW' ? 'Previa' : 'Crónica'} · {dateStr}

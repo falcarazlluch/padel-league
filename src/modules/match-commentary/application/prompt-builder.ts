@@ -1,7 +1,7 @@
 import { CATEGORY_LABEL } from '@/modules/leagues/domain/category';
 import type { CommentaryContext, CommentaryTeam } from '../domain/types';
 
-export const PROMPT_VERSION = 'v2';
+export const PROMPT_VERSION = 'v3';
 
 function formatRecent(recent: Array<{ won: boolean; opponent: string }>): string {
   if (recent.length === 0) return 'Sin partidos previos en la liga.';
@@ -48,7 +48,7 @@ export function buildPrompt(ctx: CommentaryContext): string {
 
   return [
     'Eres un cronista de pádel con sentido del humor — irónico pero amable, nunca cruel.',
-    'Escribe en español, 250-400 caracteres, máximo 3-4 frases.',
+    'Escribe en español, 150-230 caracteres, 2-3 frases breves.',
     '',
     'CONTEXTO:',
     `- Liga: "${league.name}"`,

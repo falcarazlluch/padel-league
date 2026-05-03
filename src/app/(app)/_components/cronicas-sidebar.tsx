@@ -134,7 +134,7 @@ export function CronicasSidebar({ items }: { items: SidebarItem[] }) {
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 mb-1">{c.leagueName}</p>
-                <p className="text-xs text-slate-600 leading-relaxed line-clamp-3 whitespace-pre-line">
+                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
                   {c.content}
                 </p>
               </Link>
