@@ -36,6 +36,7 @@ export default async function EditarLigaPage({
         initialDescription={league.description ?? ''}
         initialRegistrationStart={league.registrationStart.toISOString().slice(0, 10)}
         initialRegistrationEnd={league.registrationEnd.toISOString().slice(0, 10)}
+        initialStartDate={league.startDate.toISOString().slice(0, 10)}
         initialEndDate={league.endDate.toISOString().slice(0, 10)}
         initialCategory={league.category}
         canDelete={currentUser.role === 'SUPER_ADMIN'}

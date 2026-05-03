@@ -187,6 +187,7 @@ export const LeagueService = {
       description?: string | null;
       registrationStart?: Date;
       registrationEnd?: Date;
+      startDate?: Date;
       endDate?: Date;
       category?: TeamCategory;
     },
@@ -211,7 +212,7 @@ export const LeagueService = {
     const merged = {
       registrationStart: input.registrationStart ?? league.registrationStart,
       registrationEnd: input.registrationEnd ?? league.registrationEnd,
-      startDate: league.startDate,
+      startDate: input.startDate ?? league.startDate,
       endDate: input.endDate ?? league.endDate,
     };
     validateLeagueDates(merged);
@@ -223,6 +224,7 @@ export const LeagueService = {
         ...(input.description !== undefined && { description: input.description }),
         ...(input.registrationStart !== undefined && { registrationStart: input.registrationStart }),
         ...(input.registrationEnd !== undefined && { registrationEnd: input.registrationEnd }),
+        ...(input.startDate !== undefined && { startDate: input.startDate }),
         ...(input.endDate !== undefined && { endDate: input.endDate }),
         ...(input.category !== undefined && { category: input.category }),
       },

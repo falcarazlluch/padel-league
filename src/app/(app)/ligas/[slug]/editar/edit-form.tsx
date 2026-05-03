@@ -14,6 +14,7 @@ type Props = {
   initialDescription: string;
   initialRegistrationStart: string; // YYYY-MM-DD
   initialRegistrationEnd: string;   // YYYY-MM-DD
+  initialStartDate: string;         // YYYY-MM-DD
   initialEndDate: string;           // YYYY-MM-DD
   initialCategory: TeamCategory;
   canDelete: boolean;
@@ -21,7 +22,8 @@ type Props = {
 
 export function EditLeagueForm({
   leagueId, slug, initialName, initialDescription,
-  initialRegistrationStart, initialRegistrationEnd, initialEndDate,
+  initialRegistrationStart, initialRegistrationEnd,
+  initialStartDate, initialEndDate,
   initialCategory, canDelete,
 }: Props) {
   const router = useRouter();
@@ -132,18 +134,33 @@ export function EditLeagueForm({
           </div>
         </div>
 
-        <div>
-          <label htmlFor="endDate" className="block text-sm font-medium text-slate-700 mb-1">
-            Fecha fin <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="endDate"
-            name="endDate"
-            type="date"
-            required
-            defaultValue={initialEndDate}
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="startDate" className="block text-sm font-medium text-slate-700 mb-1">
+              Fecha inicio liga <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="startDate"
+              name="startDate"
+              type="date"
+              required
+              defaultValue={initialStartDate}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
+          <div>
+            <label htmlFor="endDate" className="block text-sm font-medium text-slate-700 mb-1">
+              Fecha fin <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="endDate"
+              name="endDate"
+              type="date"
+              required
+              defaultValue={initialEndDate}
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
         </div>
 
         <div className="flex gap-3 pt-2">

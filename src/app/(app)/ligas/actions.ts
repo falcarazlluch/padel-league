@@ -106,6 +106,7 @@ const updateLeagueSchema = z.object({
   description: z.string().max(500).optional(),
   registrationStart: dateString.optional(),
   registrationEnd: dateString.optional(),
+  startDate: dateString.optional(),
   endDate: dateString,
   category: categoryEnum.optional(),
 });
@@ -122,6 +123,7 @@ export async function updateLeagueAction(
     description: formData.get('description') || undefined,
     registrationStart: formData.get('registrationStart') || undefined,
     registrationEnd: formData.get('registrationEnd') || undefined,
+    startDate: formData.get('startDate') || undefined,
     endDate: formData.get('endDate'),
     category: formData.get('category') || undefined,
   });
@@ -134,6 +136,7 @@ export async function updateLeagueAction(
       endDate: new Date(parsed.data.endDate),
       ...(parsed.data.registrationStart && { registrationStart: new Date(parsed.data.registrationStart) }),
       ...(parsed.data.registrationEnd && { registrationEnd: new Date(parsed.data.registrationEnd) }),
+      ...(parsed.data.startDate && { startDate: new Date(parsed.data.startDate) }),
       ...(parsed.data.category && { category: parsed.data.category }),
     });
   } catch (err) {
