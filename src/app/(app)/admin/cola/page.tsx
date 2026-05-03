@@ -6,7 +6,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { queue } from '@/shared/queue/client';
 import { prisma } from '@/shared/db/client';
 import { ALL_JOB_NAMES } from '@/shared/queue/jobs';
-import { DrainNowButton, ClearDeadLettersButton } from './drain-now-button';
+import { DrainNowButton, ClearDeadLettersButton, ClearEmailLogButton } from './drain-now-button';
 import { GenerateCommentaryForm } from './generate-commentary-form';
 
 export const dynamic = 'force-dynamic';
@@ -163,6 +163,12 @@ export default async function ColaPage() {
         </p>
         <GenerateCommentaryForm />
       </section>
+
+      {(recentSentEmails.length > 0 || recentFailedEmails.length > 0) && (
+        <div className="flex justify-end">
+          <ClearEmailLogButton />
+        </div>
+      )}
 
       {recentSentEmails.length > 0 && (
         <section>

@@ -34,6 +34,12 @@ export async function clearDeadLettersAction(): Promise<void> {
   revalidatePath('/admin/cola');
 }
 
+export async function clearEmailLogAction(): Promise<void> {
+  await requireSuperAdmin();
+  await prisma.emailLog.deleteMany({});
+  revalidatePath('/admin/cola');
+}
+
 export type CommentaryDebugResult =
   | { ok: true; created: boolean; existed: boolean }
   | { error: string };
