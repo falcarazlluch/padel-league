@@ -26,19 +26,16 @@ jobs:
             exit 1
           fi
           echo "Secret length: ${#CRON_SECRET}"
-          # Hash 'Bearer <secret>' so we can compare with Vercel's logged
-          # expectedHash without leaking the value. Should match exactly.
-          bearer_hash=$(printf '%s' "Bearer ${CRON_SECRET}" | sha256sum | cut -c1-12)
-          echo "Local Bearer hash (first 12 hex): ${bearer_hash}"
-          # Write headers to a separate file so we can verify what curl sent.
-          # -L follows redirects (Vercel issues a 307 from non-primary domain
-           #  variants to the primary one, which would otherwise look like a
-           #  failure to curl).
+          # Auth via ?key= query param: GitHub Actions <-> Vercel was stripping
+          # the Authorization header somewhere in transit, so we use the query
+          # param fallback the route accepts. The route does timing-safe
+          # equality on this value just like with the header.
           status=$(curl --silent --show-error --location --max-time 90 \
-                       --header "Authorization: Bearer ${CRON_SECRET}" \
                        --header "User-Agent: gha-padel-cron/1.0" \
                        -w "%{http_code}" \
                        -o response.body \
+                       --get \
+                       --data-urlencode "key=${CRON_SECRET}" \
                        "${APP_URL}/api/cron/heartbeat")
           echo "HTTP status: ${status}"
           echo "--- body ---"

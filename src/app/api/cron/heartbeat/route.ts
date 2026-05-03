@@ -15,32 +15,54 @@ function unauthorized() {
 }
 
 async function runHeartbeat(req: Request): Promise<Response> {
-  // Trim both sides defensively: paste-into-Vercel-UI tends to add trailing
-  // newlines, and GitHub secrets sometimes pick up whitespace too.
+  // Trim defensively: paste-into-Vercel-UI sometimes adds trailing newlines.
+  const expectedSecret = env().CRON_SECRET.trim();
+  const expectedBearer = `Bearer ${expectedSecret}`;
+
+  // Accept either an Authorization: Bearer <secret> header OR a `?key=<secret>`
+  // query param. The header is preferred, but some intermediaries strip it
+  // (cross-host redirects, certain CDN configs), so the query param is a
+  // robust fallback. Both compares use timing-safe equality.
   const auth = (req.headers.get('authorization') ?? '').trim();
-  const expected = `Bearer ${env().CRON_SECRET.trim()}`;
-  const authBuf = Buffer.from(auth, 'utf8');
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const valid =
-    authBuf.length === expectedBuf.length && timingSafeEqual(authBuf, expectedBuf);
+  const url = new URL(req.url);
+  const queryKey = (url.searchParams.get('key') ?? '').trim();
+
+  let valid = false;
+  let usedSource: 'header' | 'query' | 'none' = 'none';
+  if (auth.length > 0) {
+    const a = Buffer.from(auth, 'utf8');
+    const e = Buffer.from(expectedBearer, 'utf8');
+    if (a.length === e.length && timingSafeEqual(a, e)) {
+      valid = true;
+      usedSource = 'header';
+    }
+  }
+  if (!valid && queryKey.length > 0) {
+    const a = Buffer.from(queryKey, 'utf8');
+    const e = Buffer.from(expectedSecret, 'utf8');
+    if (a.length === e.length && timingSafeEqual(a, e)) {
+      valid = true;
+      usedSource = 'query';
+    }
+  }
+
   if (!valid) {
-    // Log lengths + truncated SHA-256 of each side so we can tell whether
-    // the strings genuinely differ in content (different hashes) or only in
-    // length, without leaking the secret itself.
     const authHash = createHash('sha256').update(auth).digest('hex').slice(0, 12);
-    const expectedHash = createHash('sha256').update(expected).digest('hex').slice(0, 12);
+    const expectedHash = createHash('sha256').update(expectedBearer).digest('hex').slice(0, 12);
     logger().warn(
       {
-        authLen: authBuf.length,
-        expectedLen: expectedBuf.length,
+        authLen: auth.length,
+        expectedLen: expectedBearer.length,
         authHash,
         expectedHash,
         hasHeader: auth.length > 0,
+        hasQueryKey: queryKey.length > 0,
       },
       'cron.heartbeat.unauthorized',
     );
     return unauthorized();
   }
+  logger().info({ usedSource }, 'cron.heartbeat.authorized');
 
   const q = queue();
   await q.start();
