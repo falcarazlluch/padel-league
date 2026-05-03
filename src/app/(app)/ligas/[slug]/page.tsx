@@ -11,6 +11,7 @@ import { ActivateLeagueButton } from './activate-button';
 import { PartidosTab } from './_components/partidos-tab';
 import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from './_components/commentary-feed-card';
+import { MatchResultRow } from '@/app/(app)/_components/match-result-row';
 import { LeagueRegistrationPanel } from './registration-panel';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
@@ -127,6 +128,12 @@ export default async function LigaDetailPage({
     ? await MatchCommentaryService.listForLeague(league.id, 20)
     : [];
 
+  const finalizedMatches = tab === 'resultados'
+    ? matchesWithSets
+        .filter((m) => m.status === 'CONFIRMED' || m.status === 'ADMIN_RESOLVED' || m.status === 'EXPIRED_UNPLAYED')
+        .sort((a, b) => (b.scheduledAt?.getTime() ?? 0) - (a.scheduledAt?.getTime() ?? 0))
+    : [];
+
   const registrationWindow = computeRegistrationWindow(
     league.status,
     league.registrationStart,
@@ -222,11 +229,11 @@ export default async function LigaDetailPage({
       {/* Tabs: Clasificación / Partidos / Crónicas */}
       {teams.length > 0 && (
         <section>
-          <div className="flex border-b border-gray-200 mb-4">
+          <div className="flex border-b border-gray-200 mb-4 flex-wrap">
             <Link
               href={`/ligas/${slug}` as Route}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                tab !== 'partidos' && tab !== 'cronicas'
+                tab !== 'partidos' && tab !== 'cronicas' && tab !== 'resultados'
                   ? 'border-brand-yellow text-brand-navy font-bold'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
@@ -242,6 +249,16 @@ export default async function LigaDetailPage({
               }`}
             >
               Partidos
+            </Link>
+            <Link
+              href={`/ligas/${slug}?tab=resultados` as Route}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === 'resultados'
+                  ? 'border-brand-yellow text-brand-navy font-bold'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              Resultados
             </Link>
             <Link
               href={`/ligas/${slug}?tab=cronicas` as Route}
@@ -264,6 +281,30 @@ export default async function LigaDetailPage({
             />
           )}
 
+          {tab === 'resultados' && (
+            finalizedMatches.length === 0 ? (
+              <p className="text-sm text-slate-400">Aún no hay resultados en esta liga.</p>
+            ) : (
+              <div className="space-y-3">
+                {finalizedMatches.map((m) => (
+                  <MatchResultRow
+                    key={m.id}
+                    matchId={m.id}
+                    leagueSlug={slug}
+                    scheduledAt={m.scheduledAt}
+                    teamAName={m.teamA.name}
+                    teamBName={m.teamB.name}
+                    teamAId={m.teamAId}
+                    winnerTeamId={m.winnerTeamId}
+                    sets={m.confirmedResult?.sets ?? []}
+                    adminResolved={m.status === 'ADMIN_RESOLVED'}
+                    expiredUnplayed={m.status === 'EXPIRED_UNPLAYED'}
+                  />
+                ))}
+              </div>
+            )
+          )}
+
           {tab === 'cronicas' && (
             cronicas.length === 0 ? (
               <p className="text-sm text-slate-400">Aún no hay crónicas en esta liga.</p>
@@ -276,7 +317,7 @@ export default async function LigaDetailPage({
             )
           )}
 
-          {tab !== 'partidos' && tab !== 'cronicas' && (
+          {tab !== 'partidos' && tab !== 'cronicas' && tab !== 'resultados' && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
