@@ -304,7 +304,8 @@ export default async function DashboardPage({
       )}
 
       {recentCommentaries.length > 0 && (
-        <section>
+        // Hidden on xl+ where the same content lives in the right-edge sidebar.
+        <section className="xl:hidden">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Últimas crónicas</p>
           <ul className="space-y-2">
             {recentCommentaries.map((c) => (
