@@ -10,6 +10,8 @@ import { NavLinks } from './_components/nav-links';
 import { MobileMenu } from './_components/mobile-menu';
 import { Footer } from './_components/footer';
 import { HelpChatWidget } from './_components/help-chat-widget';
+import { CronicasSidebar } from './_components/cronicas-sidebar';
+import { MatchCommentaryService } from '@/modules/match-commentary';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -27,6 +29,24 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     cookieStore.delete(SESSION_COOKIE);
     redirect('/login');
   }
+
+  const recentCronicas = await MatchCommentaryService.listForUser(currentUser.id, 10).catch(() => []);
+  const sidebarItems = recentCronicas.map((c) => {
+    const setsA = c.match.confirmedResult?.sets.filter((s) => s.gamesA > s.gamesB).length ?? null;
+    const setsB = c.match.confirmedResult?.sets.filter((s) => s.gamesB > s.gamesA).length ?? null;
+    return {
+      id: c.id,
+      type: c.type,
+      generatedAt: c.generatedAt.toISOString(),
+      content: c.content,
+      matchHref: `/ligas/${c.match.league.slug}/partidos/${c.match.id}`,
+      teamAName: c.match.teamA.name,
+      teamBName: c.match.teamB.name,
+      setsA: c.type === 'RECAP' ? setsA : null,
+      setsB: c.type === 'RECAP' ? setsB : null,
+      leagueName: c.match.league.name,
+    };
+  });
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(160deg,#e8eef8 0%,#f0f4fb 40%,#f5f7fa 100%)' }}>
@@ -76,7 +96,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           />
         </div>
       </nav>
-      <main className="max-w-6xl w-full mx-auto px-6 py-8 flex-1">{children}</main>
+      <div className="flex-1 w-full mx-auto max-w-7xl px-6 py-8 flex gap-6">
+        <main className="flex-1 min-w-0">{children}</main>
+        <CronicasSidebar items={sidebarItems} />
+      </div>
       <Footer />
       <HelpChatWidget />
     </div>
