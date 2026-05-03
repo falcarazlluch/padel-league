@@ -143,23 +143,44 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
 export async function sendEmailHandler(data: JobMap['send-email']): Promise<void> {
   const { template, to, data: templateData, dedupKey } = data;
 
+  // Resolve the EmailLog row to use for this attempt: reuse an existing one if
+  // dedupKey already produced one (so retries don't blow the unique
+  // constraint), short-circuit if it already succeeded.
+  let log: { id: string };
   if (dedupKey) {
     const existing = await prisma.emailLog.findUnique({ where: { dedupKey } });
     if (existing?.status === 'SENT' || existing?.status === 'DELIVERED') {
       logger().info({ dedupKey }, 'send-email.skipped.duplicate');
       return;
     }
+    if (existing) {
+      // Retry of a previously QUEUED/FAILED attempt — reuse the row so we
+      // don't violate the unique(dedup_key) constraint, and reset the
+      // status/error fields so the new attempt is observable.
+      log = await prisma.emailLog.update({
+        where: { id: existing.id },
+        data: {
+          toEmail: to,
+          template,
+          subject: '',
+          status: 'QUEUED',
+          attempt: { increment: 1 },
+          errorMessage: null,
+        },
+        select: { id: true },
+      });
+    } else {
+      log = await prisma.emailLog.create({
+        data: { toEmail: to, template, subject: '', status: 'QUEUED', dedupKey },
+        select: { id: true },
+      });
+    }
+  } else {
+    log = await prisma.emailLog.create({
+      data: { toEmail: to, template, subject: '', status: 'QUEUED' },
+      select: { id: true },
+    });
   }
-
-  const log = await prisma.emailLog.create({
-    data: {
-      toEmail: to,
-      template,
-      subject: '',
-      status: 'QUEUED',
-      dedupKey: dedupKey ?? null,
-    },
-  });
 
   try {
     const { subject, html } = renderTemplate(template, templateData);
