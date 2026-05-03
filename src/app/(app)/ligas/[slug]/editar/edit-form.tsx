@@ -105,7 +105,7 @@ export function EditLeagueForm({
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="registrationStart" className="block text-sm font-medium text-slate-700 mb-1">
               Inicio inscripción <span className="text-red-500">*</span>
@@ -134,7 +134,7 @@ export function EditLeagueForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="startDate" className="block text-sm font-medium text-slate-700 mb-1">
               Fecha inicio liga <span className="text-red-500">*</span>

@@ -64,7 +64,7 @@ export function NuevaLigaForm() {
         </select>
         <p className="text-xs text-slate-500 mt-1">Define el nivel competitivo de la liga.</p>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="registrationStart" className="block text-sm font-medium text-slate-700 mb-1">
             Inicio inscripción <span className="text-red-500">*</span>
@@ -92,7 +92,7 @@ export function NuevaLigaForm() {
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="startDate" className="block text-sm font-medium text-slate-700 mb-1">
             Inicio liga <span className="text-red-500">*</span>
