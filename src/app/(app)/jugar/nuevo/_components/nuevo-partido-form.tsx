@@ -25,6 +25,7 @@ export function NuevoPartidoForm({ myTeams }: Props) {
   );
 
   const [hostKind, setHostKind] = useState<'USER' | 'TEAM'>('USER');
+  const [dateMode, setDateMode] = useState<'fixed' | 'open'>('fixed');
   const canHostAsTeam = myTeams.length > 0;
 
   return (
@@ -126,17 +127,56 @@ export function NuevoPartidoForm({ myTeams }: Props) {
       {/* maxPlayers always 4 (2x2). 1v1 was removed; padel is doubles. */}
       <input type="hidden" name="maxPlayers" value="4" />
 
-      <div>
-        <label htmlFor="scheduledAt" className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
-          Fecha (opcional)
-        </label>
-        <input
-          id="scheduledAt"
-          name="scheduledAt"
-          type="datetime-local"
-          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
-        />
-      </div>
+      <fieldset className="border border-slate-200 rounded-xl p-3">
+        <legend className="px-1 text-xs font-bold text-slate-500 uppercase tracking-widest">Fecha y hora</legend>
+        <div className="flex gap-2 mt-1">
+          <label className="flex-1 cursor-pointer">
+            <input
+              type="radio"
+              name="dateMode"
+              value="fixed"
+              checked={dateMode === 'fixed'}
+              onChange={() => setDateMode('fixed')}
+              className="peer sr-only"
+            />
+            <span className="block text-center text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 peer-checked:bg-brand-navy peer-checked:text-white peer-checked:border-brand-navy transition-colors">
+              Fecha definida
+            </span>
+          </label>
+          <label className="flex-1 cursor-pointer">
+            <input
+              type="radio"
+              name="dateMode"
+              value="open"
+              checked={dateMode === 'open'}
+              onChange={() => setDateMode('open')}
+              className="peer sr-only"
+            />
+            <span className="block text-center text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 peer-checked:bg-brand-navy peer-checked:text-white peer-checked:border-brand-navy transition-colors">
+              Por definir
+            </span>
+          </label>
+        </div>
+
+        {dateMode === 'fixed' ? (
+          <div className="mt-3">
+            <label htmlFor="scheduledAt" className="block text-xs font-medium text-slate-600 mb-1">
+              ¿Cuándo?
+            </label>
+            <input
+              id="scheduledAt"
+              name="scheduledAt"
+              type="datetime-local"
+              required
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+            />
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-slate-500">
+            El partido aparecerá como &ldquo;abierto a fechas&rdquo;. Podéis acordar la fecha por el chat del partido y editarlo después.
+          </p>
+        )}
+      </fieldset>
 
       <div>
         <label htmlFor="location" className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">

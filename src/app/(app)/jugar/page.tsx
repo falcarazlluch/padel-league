@@ -93,15 +93,15 @@ export default async function JugarPage({
                               </span>
                             )}
                           </div>
-                          {m.scheduledAt && (
-                            <p className="text-sm text-slate-400 mt-0.5">
-                              {new Intl.DateTimeFormat('es-ES', {
-                                weekday: 'short', day: 'numeric', month: 'short',
-                                hour: '2-digit', minute: '2-digit',
-                                timeZone: 'Europe/Madrid',
-                              }).format(new Date(m.scheduledAt))}
-                            </p>
-                          )}
+                          <p className="text-sm text-slate-400 mt-0.5">
+                            {m.scheduledAt
+                              ? new Intl.DateTimeFormat('es-ES', {
+                                  weekday: 'short', day: 'numeric', month: 'short',
+                                  hour: '2-digit', minute: '2-digit',
+                                  timeZone: 'Europe/Madrid',
+                                }).format(new Date(m.scheduledAt))
+                              : 'Fecha por definir'}
+                          </p>
                           {m.location && <p className="text-sm text-slate-400 truncate">{m.location}</p>}
                         </Link>
                         <div className="flex flex-col items-end gap-2 shrink-0">
@@ -150,7 +150,7 @@ export default async function JugarPage({
                         <Link href={`/jugar/${m.id}` as Route} className="min-w-0 flex-1">
                           <p className="font-bold text-brand-navy truncate">{m.name}</p>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {dateStr ?? 'Sin fecha'}
+                            {dateStr ?? 'Fecha por definir'}
                             {m.location ? ` · ${m.location}` : ''}
                           </p>
                           <p className="text-xs text-amber-700 uppercase tracking-wide mt-1">Invitación pendiente</p>

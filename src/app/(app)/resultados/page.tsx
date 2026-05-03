@@ -14,7 +14,7 @@ export const metadata = { title: 'Resultados — Padel League' };
 const FINAL_STATUSES = ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] as const;
 
 function formatIndependentDate(date: Date | null): string {
-  if (!date) return 'Sin fecha';
+  if (!date) return 'Fecha por definir';
   return new Intl.DateTimeFormat('es-ES', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
