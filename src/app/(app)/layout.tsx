@@ -48,8 +48,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
-          <NotificationsBadge />
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2">
             <Link
               href="/perfil"
               className="text-sm font-medium text-white/90 hover:text-white transition-colors max-w-[12rem] truncate"
@@ -57,7 +56,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             >
               {currentUser.name}
             </Link>
+            <Link
+              href="/perfil"
+              className="text-white/70 hover:text-white transition-colors p-1"
+              aria-label="Configuración de mi perfil"
+              title="Configuración"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </Link>
           </div>
+          <NotificationsBadge />
           <MobileMenu
             isSuperAdmin={currentUser.role === 'SUPER_ADMIN'}
             userName={currentUser.name}
