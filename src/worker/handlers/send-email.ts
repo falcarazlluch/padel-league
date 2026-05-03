@@ -18,6 +18,8 @@ import {
   indMatchChallengeResponseSubject,
   renderIndMatchUpdate,
   indMatchUpdateSubject,
+  renderFriendInvite,
+  friendInviteSubject,
 } from '../email-templates/render';
 import type { JobMap } from '@/shared/queue/jobs';
 
@@ -98,6 +100,17 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
           matchUrl: str(data['matchUrl'], ''),
         }),
       };
+    case 'friend-invite': {
+      const inviterName = str(data['inviterName'], 'Un amigo');
+      return {
+        subject: friendInviteSubject(inviterName),
+        html: renderFriendInvite({
+          inviterName,
+          registerUrl: str(data['registerUrl'], ''),
+          code: str(data['code'], ''),
+        }),
+      };
+    }
     case 'ind-match-update': {
       const kind: 'cancelled' | 'left' = data['kind'] === 'left' ? 'left' : 'cancelled';
       const matchName = str(data['matchName'], 'Partido');

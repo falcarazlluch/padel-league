@@ -101,6 +101,27 @@ export const RegistrationCodeService = {
   },
 
   /**
+   * Self-service invite: any logged-in user can generate a single-use code
+   * to share with a friend. Expires in 14 days. No SUPER_ADMIN check.
+   */
+  async generateForInvite(inviterId: string): Promise<string> {
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = makeCode();
+      try {
+        await prisma.registrationCode.create({
+          data: { code, createdByUserId: inviterId, expiresAt },
+        });
+        return code;
+      } catch (err) {
+        const e = err as { code?: string };
+        if (e.code !== 'P2002') throw err;
+      }
+    }
+    throw new DomainError('GENERATION_FAILED', 'No se pudo generar un código único.');
+  },
+
+  /**
    * Returns the row if the code is valid and unused. Doesn't mark as used yet —
    * call `consume` inside the same transaction as the user creation.
    */

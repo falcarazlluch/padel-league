@@ -161,6 +161,27 @@ export function renderIndMatchChallenge({
   `.trim();
 }
 
+interface FriendInviteProps {
+  inviterName: string;
+  registerUrl: string;
+  code: string;
+}
+export const friendInviteSubject = (inviterName: string): string =>
+  `${inviterName} te invita a Padel League`;
+export function renderFriendInvite({ inviterName, registerUrl, code }: FriendInviteProps): string {
+  return `
+    <div style="${containerStyle}">
+      <h1>Te invitan a Padel League</h1>
+      <p><strong>${escapeHtml(inviterName)}</strong> te invita a unirte a Padel League, la app para gestionar tus ligas y partidos de pádel.</p>
+      <p>Crea tu cuenta con este enlace (válido 14 días):</p>
+      <a href="${attr(registerUrl)}" style="${primaryButton('#0D1E45')}">Crear cuenta</a>
+      <p style="${footerNote}">
+        Si el botón no funciona, ve a la app y usa este código de invitación: <strong>${escapeHtml(code)}</strong>
+      </p>
+    </div>
+  `.trim();
+}
+
 interface IndMatchUpdateProps {
   matchName: string;
   /** First-line headline shown big at the top, e.g. 'Partido cancelado'. */

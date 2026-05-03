@@ -82,6 +82,9 @@ export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
           <Link href={'/como-funciona' as Route} onClick={close} className={linkClass(pathname.startsWith('/como-funciona'))}>
             Ayuda
           </Link>
+          <Link href={'/invitar' as Route} onClick={close} className={linkClass(pathname.startsWith('/invitar'))}>
+            Invitar a un amigo
+          </Link>
           {isSuperAdmin && (
             <>
               <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
