@@ -26,11 +26,17 @@ jobs:
             exit 1
           fi
           echo "Secret length: ${#CRON_SECRET}"
+          # Hash 'Bearer <secret>' so we can compare with Vercel's logged
+          # expectedHash without leaking the value. Should match exactly.
+          bearer_hash=$(printf '%s' "Bearer ${CRON_SECRET}" | sha256sum | cut -c1-12)
+          echo "Local Bearer hash (first 12 hex): ${bearer_hash}"
+          # Write headers to a separate file so we can verify what curl sent.
           # -L follows redirects (Vercel issues a 307 from non-primary domain
            #  variants to the primary one, which would otherwise look like a
            #  failure to curl).
           status=$(curl --silent --show-error --location --max-time 90 \
-                       -H "Authorization: Bearer ${CRON_SECRET}" \
+                       --header "Authorization: Bearer ${CRON_SECRET}" \
+                       --header "User-Agent: gha-padel-cron/1.0" \
                        -w "%{http_code}" \
                        -o response.body \
                        "${APP_URL}/api/cron/heartbeat")
