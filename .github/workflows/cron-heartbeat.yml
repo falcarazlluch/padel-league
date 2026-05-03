@@ -20,10 +20,22 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://padel-league-mu.vercel.app' }}
         run: |
-          set -euo pipefail
-          curl --silent --show-error --fail --max-time 90 \
-               -H "Authorization: Bearer ${CRON_SECRET}" \
-               "${APP_URL}/api/cron/heartbeat" \
-               -o response.json
-          echo "--- response ---"
-          cat response.json
+          set -uo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET secret is empty or missing in repo settings"
+            exit 1
+          fi
+          echo "Secret length: ${#CRON_SECRET}"
+          status=$(curl --silent --show-error --max-time 90 \
+                       -H "Authorization: Bearer ${CRON_SECRET}" \
+                       -w "%{http_code}" \
+                       -o response.body \
+                       "${APP_URL}/api/cron/heartbeat")
+          echo "HTTP status: ${status}"
+          echo "--- body ---"
+          cat response.body || true
+          echo
+          if [ "${status}" != "200" ]; then
+            echo "::error::Heartbeat returned ${status}"
+            exit 1
+          fi
