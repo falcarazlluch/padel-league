@@ -7,6 +7,8 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { IndependentMatchService } from '@/modules/independent-matches';
 import { MatchCardMisPartidos } from './_components/match-card-mis-partidos';
+import { PartidosSubnav } from '../_components/partidos-subnav';
+import { PendingInvitationActions } from '../jugar/_components/pending-invitation-actions';
 
 export const metadata = { title: 'Mis partidos — Padel League' };
 
@@ -16,7 +18,7 @@ export default async function MisPartidosPage() {
   if (!token) redirect('/login' as Route);
   const user = await getValidatedSession(token).catch(() => redirect('/login' as Route));
 
-  const [matches, independentMatches] = await Promise.all([
+  const [matches, independentMatches, pendingInvitations] = await Promise.all([
     prisma.match.findMany({
       where: {
         status: { notIn: ['CANCELLED'] },
@@ -39,6 +41,7 @@ export default async function MisPartidosPage() {
       orderBy: { deadlineAt: 'asc' },
     }),
     IndependentMatchService.getForUser(user.id),
+    IndependentMatchService.getPendingInvitationsForUser(user.id),
   ]);
 
   const activeIndependent = independentMatches.filter((m) =>
@@ -86,20 +89,46 @@ export default async function MisPartidosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Calendario</p>
-          <h1 className="text-2xl font-extrabold text-brand-navy">Mis partidos</h1>
-        </div>
-        <Link
-          href={'/jugar/nuevo' as Route}
-          className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
-        >
-          + Crear partido
-        </Link>
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Partidos</p>
+        <h1 className="text-2xl font-extrabold text-brand-navy">Mis partidos</h1>
       </div>
 
-      {matches.length === 0 && activeIndependent.length === 0 && (
+      <PartidosSubnav active="mis" />
+
+      {pendingInvitations.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Invitaciones pendientes</h2>
+          <ul className="space-y-3">
+            {pendingInvitations.map((m) => {
+              const dateStr = m.scheduledAt
+                ? new Intl.DateTimeFormat('es-ES', {
+                    weekday: 'short', day: 'numeric', month: 'short',
+                    hour: '2-digit', minute: '2-digit',
+                    timeZone: 'Europe/Madrid',
+                  }).format(new Date(m.scheduledAt))
+                : null;
+              return (
+                <li key={m.id} className="block p-4 bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <Link href={`/jugar/${m.id}` as Route} className="min-w-0 flex-1">
+                      <p className="font-bold text-brand-navy truncate">{m.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {dateStr ?? 'Sin fecha'}
+                        {m.location ? ` · ${m.location}` : ''}
+                      </p>
+                      <p className="text-xs text-amber-700 uppercase tracking-wide mt-1">Invitación pendiente</p>
+                    </Link>
+                    <PendingInvitationActions matchId={m.id} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {matches.length === 0 && activeIndependent.length === 0 && pendingInvitations.length === 0 && (
         <p className="text-slate-400 text-sm">No tienes partidos asignados todavía.</p>
       )}
 

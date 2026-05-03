@@ -174,6 +174,45 @@ export async function inviteEntityToMatchAction(
   }
 }
 
+export async function acceptPendingInvitationAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const matchId = formData.get('matchId');
+  if (typeof matchId !== 'string') return { error: 'Datos inválidos.' };
+
+  try {
+    await IndependentMatchService.acceptPendingInvitationByMatchId(matchId, user.id);
+    revalidatePath('/jugar');
+    revalidatePath('/partidos');
+    revalidatePath(`/jugar/${matchId}`);
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
+export async function rejectPendingInvitationAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const matchId = formData.get('matchId');
+  if (typeof matchId !== 'string') return { error: 'Datos inválidos.' };
+
+  try {
+    await IndependentMatchService.rejectPendingInvitationByMatchId(matchId, user.id);
+    revalidatePath('/jugar');
+    revalidatePath('/partidos');
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
 export async function cancelMatchInvitation(
   _prev: ActionResult | null,
   formData: FormData,

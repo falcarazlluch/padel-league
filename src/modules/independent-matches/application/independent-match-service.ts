@@ -309,9 +309,24 @@ export const IndependentMatchService = {
 
   async acceptInvitation(token: string, userId: string): Promise<string> {
     const { subjectId } = await SignedTokenService.consume(token, SignedTokenPurpose.INDEPENDENT_MATCH_INVITE);
+    return acceptInvitationById(subjectId, userId);
+  },
 
+  async acceptPendingInvitationByMatchId(matchId: string, userId: string): Promise<string> {
+    const invitation = await findPendingInvitationForUser(matchId, userId);
+    if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'No tienes invitación pendiente para este partido.');
+    return acceptInvitationById(invitation.id, userId);
+  },
+
+  async rejectPendingInvitationByMatchId(matchId: string, userId: string): Promise<void> {
+    const invitation = await findPendingInvitationForUser(matchId, userId);
+    if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'No tienes invitación pendiente para este partido.');
+    await prisma.independentMatchInvitation.delete({ where: { id: invitation.id } });
+  },
+
+  async _acceptInvitationByIdLegacy(invitationId: string, userId: string): Promise<string> {
     const invitation = await prisma.independentMatchInvitation.findUnique({
-      where: { id: subjectId },
+      where: { id: invitationId },
       include: {
         match: { include: { participants: { where: { status: 'ACCEPTED' } } } },
         invitedTeam: { include: { members: { select: { userId: true } } } },
@@ -504,3 +519,36 @@ export const IndependentMatchService = {
     }
   },
 } as const;
+
+// Free helpers below — function declarations get hoisted so the service
+// methods above can reference them by name. They're not exported because
+// only the service's public surface is meant to be consumed.
+
+async function acceptInvitationById(invitationId: string, userId: string): Promise<string> {
+  return IndependentMatchService._acceptInvitationByIdLegacy(invitationId, userId);
+}
+
+async function findPendingInvitationForUser(
+  matchId: string,
+  userId: string,
+): Promise<{ id: string } | null> {
+  const memberRows = await prisma.teamMember.findMany({
+    where: { userId },
+    select: { teamId: true },
+  });
+  const userTeamIds = memberRows.map((m) => m.teamId);
+
+  return prisma.independentMatchInvitation.findFirst({
+    where: {
+      matchId,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+      OR: [
+        { invitedUserId: userId },
+        ...(userTeamIds.length > 0 ? [{ invitedTeamId: { in: userTeamIds } }] : []),
+      ],
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  });
+}
