@@ -96,11 +96,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           />
         </div>
       </nav>
-      <div className="flex-1 w-full mx-auto max-w-7xl px-6 py-8 flex gap-6">
-        <main className="flex-1 min-w-0">{children}</main>
-        <CronicasSidebar items={sidebarItems} />
+      <div
+        className="flex-1 flex flex-col"
+        style={{ paddingRight: 'var(--cronicas-sidebar-w, 0px)' }}
+      >
+        <main className="max-w-6xl w-full mx-auto px-6 py-8 flex-1">{children}</main>
+        <Footer />
       </div>
-      <Footer />
+      <CronicasSidebar items={sidebarItems} />
       <HelpChatWidget />
     </div>
   );

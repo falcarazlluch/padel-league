@@ -18,16 +18,45 @@ interface SidebarItem {
 }
 
 const STORAGE_KEY = 'cronicasSidebarOpen';
+const OPEN_WIDTH = '21rem'; // sidebar width + a small gap
+const CLOSED_WIDTH = '0px';
 
 export function CronicasSidebar({ items }: { items: SidebarItem[] }) {
   const [open, setOpen] = useState<boolean>(true);
   const [hydrated, setHydrated] = useState(false);
 
+  // Sync state ↔ localStorage and a CSS variable consumed by the layout to
+  // reserve right-side padding so the main content doesn't slide under us.
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === 'closed') setOpen(false);
+    const initial = stored !== 'closed';
+    setOpen(initial);
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const isXl = window.matchMedia('(min-width: 1280px)').matches;
+    document.documentElement.style.setProperty(
+      '--cronicas-sidebar-w',
+      isXl && open ? OPEN_WIDTH : CLOSED_WIDTH,
+    );
+  }, [hydrated, open]);
+
+  // Re-evaluate the CSS variable on viewport resize crossing the xl breakpoint
+  // so the padding disappears when the user shrinks the window below 1280px.
+  useEffect(() => {
+    if (!hydrated) return;
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const apply = () => {
+      document.documentElement.style.setProperty(
+        '--cronicas-sidebar-w',
+        mq.matches && open ? OPEN_WIDTH : CLOSED_WIDTH,
+      );
+    };
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [hydrated, open]);
 
   function toggle() {
     setOpen((prev) => {
@@ -41,7 +70,7 @@ export function CronicasSidebar({ items }: { items: SidebarItem[] }) {
     });
   }
 
-  // Avoid SSR/CSR mismatch flash: render nothing until hydrated, then animate.
+  // Render nothing until hydrated to avoid SSR/CSR mismatch flash.
   if (!hydrated) return null;
 
   if (!open) {
@@ -49,18 +78,20 @@ export function CronicasSidebar({ items }: { items: SidebarItem[] }) {
       <button
         type="button"
         onClick={toggle}
-        className="hidden lg:flex shrink-0 sticky top-24 self-start ml-2 items-center gap-1 px-2 py-3 text-xs font-bold uppercase tracking-widest bg-white border border-slate-200/80 text-slate-500 hover:text-brand-navy hover:bg-slate-50 rounded-l-xl shadow-sm transition-colors writing-mode-vertical"
+        className="hidden xl:flex fixed right-0 top-32 z-30 items-center gap-1 px-2 py-3 text-xs font-bold uppercase tracking-widest bg-white border border-r-0 border-slate-200/80 text-slate-500 hover:text-brand-navy hover:bg-slate-50 rounded-l-xl shadow-sm transition-colors"
         style={{ writingMode: 'vertical-rl' as const }}
         aria-label="Mostrar últimas crónicas"
         title="Mostrar últimas crónicas"
       >
-        Crónicas ‹
+        ‹ Crónicas
       </button>
     );
   }
 
   return (
-    <aside className="hidden lg:flex flex-col shrink-0 w-80 sticky top-24 self-start max-h-[calc(100vh-7rem)] bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+    <aside
+      className="hidden xl:flex fixed right-4 top-28 bottom-4 z-30 w-80 flex-col bg-white border border-slate-200/80 rounded-2xl shadow-lg overflow-hidden"
+    >
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200/80 bg-slate-50">
         <p className="text-xs font-bold uppercase tracking-widest text-brand-blue">
           Últimas crónicas
@@ -68,7 +99,7 @@ export function CronicasSidebar({ items }: { items: SidebarItem[] }) {
         <button
           type="button"
           onClick={toggle}
-          className="text-slate-400 hover:text-slate-700 transition-colors"
+          className="text-slate-400 hover:text-slate-700 transition-colors text-lg leading-none"
           aria-label="Ocultar últimas crónicas"
           title="Ocultar"
         >
