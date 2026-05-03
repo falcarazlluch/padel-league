@@ -18,7 +18,7 @@ jobs:
       - name: Hit /api/cron/heartbeat
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          APP_URL: ${{ vars.APP_URL || 'https://padel-league-mu.vercel.app' }}
+          APP_URL: ${{ vars.APP_URL || 'https://mypadelleague.es' }}
         run: |
           set -uo pipefail
           if [ -z "${CRON_SECRET}" ]; then
@@ -26,7 +26,10 @@ jobs:
             exit 1
           fi
           echo "Secret length: ${#CRON_SECRET}"
-          status=$(curl --silent --show-error --max-time 90 \
+          # -L follows redirects (Vercel issues a 307 from non-primary domain
+           #  variants to the primary one, which would otherwise look like a
+           #  failure to curl).
+          status=$(curl --silent --show-error --location --max-time 90 \
                        -H "Authorization: Bearer ${CRON_SECRET}" \
                        -w "%{http_code}" \
                        -o response.body \
