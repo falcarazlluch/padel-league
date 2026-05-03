@@ -1,6 +1,7 @@
 import { EmailService } from '@/shared/email/service';
 import { prisma } from '@/shared/db/client';
 import { logger } from '@/shared/logger';
+import { env } from '@/shared/config/env';
 import {
   renderInvitation,
   invitationSubject,
@@ -30,11 +31,13 @@ function str(value: unknown, fallback: string): string {
 }
 
 function renderTemplate(template: string, data: EmailData): { subject: string; html: string } {
+  const appUrl = env().APP_URL;
   switch (template) {
     case 'invitation':
       return {
         subject: invitationSubject,
         html: renderInvitation({
+          appUrl,
           name: str(data['name'], 'Jugador'),
           inviteUrl: str(data['inviteUrl'], ''),
         }),
@@ -43,6 +46,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: passwordResetSubject,
         html: renderPasswordReset({
+          appUrl,
           name: str(data['name'], 'Jugador'),
           resetUrl: str(data['resetUrl'], ''),
         }),
@@ -51,6 +55,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: resultSubmittedSubject,
         html: renderResultSubmitted({
+          appUrl,
           matchTeamA: str(data['matchTeamA'], '?'),
           matchTeamB: str(data['matchTeamB'], '?'),
           submitterTeam: str(data['submitterTeam'], '?'),
@@ -61,6 +66,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: resultConfirmedSubject,
         html: renderResultConfirmed({
+          appUrl,
           matchTeamA: str(data['matchTeamA'], '?'),
           matchTeamB: str(data['matchTeamB'], '?'),
           winnerTeamName: typeof data['winnerTeamName'] === 'string' ? data['winnerTeamName'] : null,
@@ -71,6 +77,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: indMatchInviteSubject,
         html: renderIndMatchInvite({
+          appUrl,
           organizerName: str(data['organizerName'], 'Organizador'),
           matchName: str(data['matchName'], 'Partido'),
           matchUrl: str(data['matchUrl'], ''),
@@ -83,6 +90,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: indMatchChallengeSubject,
         html: renderIndMatchChallenge({
+          appUrl,
           organizerTeamName: str(data['organizerTeamName'], 'Equipo'),
           matchName: str(data['matchName'], 'Reto'),
           matchUrl: str(data['matchUrl'], ''),
@@ -94,6 +102,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: indMatchChallengeResponseSubject(data['accepted'] === true),
         html: renderIndMatchChallengeResponse({
+          appUrl,
           challengedTeamName: str(data['challengedTeamName'], 'Equipo'),
           matchName: str(data['matchName'], 'Reto'),
           accepted: data['accepted'] === true,
@@ -105,6 +114,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: friendInviteSubject(inviterName),
         html: renderFriendInvite({
+          appUrl,
           inviterName,
           registerUrl: str(data['registerUrl'], ''),
           code: str(data['code'], ''),
@@ -117,6 +127,7 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
       return {
         subject: indMatchUpdateSubject(matchName, kind),
         html: renderIndMatchUpdate({
+          appUrl,
           matchName,
           headline: str(data['headline'], kind === 'cancelled' ? 'Partido cancelado' : 'Un jugador se ha bajado'),
           body: str(data['body'], ''),

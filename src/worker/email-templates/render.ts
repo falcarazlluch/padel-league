@@ -1,13 +1,28 @@
 // HTML email templates rendered as plain strings — no React, no
 // react-dom/server. Avoids the dual-package hazard caused by Next bundling a
 // different React instance than the one resolved at runtime.
+//
+// All templates share `wrapEmail()` for the navy header w/ logo, white card
+// body and brand footer. Email-safe HTML: tables for structure, inline CSS,
+// 600px max width, no flex/grid.
 
-const containerStyle = 'font-family: sans-serif; max-width: 600px; margin: 0 auto;';
-const primaryButton = (bg: string) =>
-  `display: inline-block; padding: 0.75rem 1.5rem; background: ${bg}; color: white; text-decoration: none; border-radius: 4px; margin-top: 1rem;`;
-const secondaryButton =
-  'display: inline-block; padding: 0.5rem 1rem; border: 1px solid #cbd5e1; color: #475569; text-decoration: none; border-radius: 4px; font-size: 0.875rem;';
-const footerNote = 'margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;';
+const COLORS = {
+  navy: '#0D1E45',
+  navyLight: '#1A3268',
+  yellow: '#F9C920',
+  yellowDark: '#E0B218',
+  blue: '#5BB8D4',
+  green: '#16A34A',
+  red: '#DC2626',
+  text: '#334155',
+  textBold: '#0D1E45',
+  muted: '#64748B',
+  mutedLight: '#94A3B8',
+  bg: '#F0F4FB',
+  border: '#E2E8F0',
+  cardBg: '#FFFFFF',
+  footerBg: '#F8FAFC',
+};
 
 export function escapeHtml(input: string): string {
   return input
@@ -22,82 +37,198 @@ function attr(value: string): string {
   return escapeHtml(value);
 }
 
-interface InvitationProps {
+interface WrapArgs {
+  content: string;
+  preheader?: string;
+  appUrl: string;
+}
+
+function wrapEmail({ content, preheader, appUrl }: WrapArgs): string {
+  const logoUrl = `${appUrl.replace(/\/+$/, '')}/logo.png`;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>Padel League</title>
+  <!--[if mso]><style>*{font-family:Arial,sans-serif !important;}</style><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:${COLORS.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  ${preheader ? `<div style="display:none;font-size:1px;color:${COLORS.bg};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(preheader)}</div>` : ''}
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:${COLORS.bg};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;width:100%;background-color:${COLORS.cardBg};border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(13,30,69,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,${COLORS.navy} 0%,${COLORS.navyLight} 100%);padding:28px 24px;text-align:center;">
+              <a href="${attr(appUrl)}" style="text-decoration:none;display:inline-block;">
+                <img src="${attr(logoUrl)}" alt="Padel League" width="160" style="display:inline-block;max-width:160px;height:auto;border:0;" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 24px;">
+              ${content}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px;background-color:${COLORS.footerBg};border-top:1px solid ${COLORS.border};text-align:center;">
+              <p style="margin:0;font-size:12px;color:${COLORS.mutedLight};line-height:1.5;">
+                <a href="${attr(appUrl)}" style="color:${COLORS.muted};text-decoration:none;font-weight:600;">Padel League</a>
+                · Tu plataforma de ligas y partidos de pádel
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ── Building blocks ─────────────────────────────────────────────────────────
+
+function heading(text: string): string {
+  return `<h1 style="margin:0 0 16px;font-size:24px;font-weight:800;color:${COLORS.textBold};line-height:1.3;">${escapeHtml(text)}</h1>`;
+}
+
+function paragraph(html: string): string {
+  return `<p style="margin:0 0 16px;font-size:15px;color:${COLORS.text};line-height:1.6;">${html}</p>`;
+}
+
+function cta(href: string, label: string, variant: 'navy' | 'yellow' | 'green' = 'navy'): string {
+  const bg = variant === 'yellow' ? COLORS.yellow : variant === 'green' ? COLORS.green : COLORS.navy;
+  const fg = variant === 'yellow' ? COLORS.navy : '#FFFFFF';
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0;">
+    <tr><td align="center" style="background-color:${bg};border-radius:12px;">
+      <a href="${attr(href)}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:${fg};text-decoration:none;border-radius:12px;">${escapeHtml(label)}</a>
+    </td></tr>
+  </table>`;
+}
+
+function secondaryLink(href: string, label: string): string {
+  return `<p style="margin:12px 0 0;"><a href="${attr(href)}" style="display:inline-block;padding:8px 16px;font-size:13px;font-weight:600;color:${COLORS.muted};border:1px solid ${COLORS.border};border-radius:8px;text-decoration:none;">${escapeHtml(label)}</a></p>`;
+}
+
+function infoBox(rows: Array<[string, string]>): string {
+  if (rows.length === 0) return '';
+  const cells = rows
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:6px 0;font-size:14px;color:${COLORS.muted};width:90px;vertical-align:top;">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;color:${COLORS.textBold};font-weight:600;">${escapeHtml(value)}</td></tr>`,
+    )
+    .join('');
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;background-color:${COLORS.bg};border-radius:12px;width:100%;">
+    <tr><td style="padding:16px 20px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">${cells}</table></td></tr>
+  </table>`;
+}
+
+function codeBlock(code: string): string {
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;">
+    <tr><td style="padding:14px 24px;background-color:${COLORS.bg};border:2px dashed ${COLORS.navy};border-radius:12px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:18px;font-weight:700;color:${COLORS.textBold};letter-spacing:2px;">${escapeHtml(code)}</td></tr>
+  </table>`;
+}
+
+function smallNote(html: string): string {
+  return `<p style="margin:24px 0 0;font-size:13px;color:${COLORS.mutedLight};line-height:1.5;">${html}</p>`;
+}
+
+// ── Templates ────────────────────────────────────────────────────────────────
+
+interface CommonProps {
+  appUrl: string;
+}
+
+interface InvitationProps extends CommonProps {
   name: string;
   inviteUrl: string;
 }
-export const invitationSubject = 'Invitación a PadelLeague';
-export function renderInvitation({ name, inviteUrl }: InvitationProps): string {
-  return `
-    <div style="${containerStyle}">
-      <h1>Bienvenido a PadelLeague, ${escapeHtml(name)}</h1>
-      <p>Has sido invitado/a a unirte a la plataforma de gestión de ligas de pádel.</p>
-      <p>Haz clic en el enlace para crear tu cuenta. El enlace es válido durante 7 días.</p>
-      <a href="${attr(inviteUrl)}" style="${primaryButton('#2563eb')}">Aceptar invitación</a>
-      <p style="${footerNote}">Si no esperabas esta invitación, puedes ignorar este email.</p>
-    </div>
-  `.trim();
+export const invitationSubject = 'Bienvenido a Padel League';
+export function renderInvitation({ name, inviteUrl, appUrl }: InvitationProps): string {
+  return wrapEmail({
+    appUrl,
+    preheader: `Has sido invitado a Padel League. El enlace es válido durante 7 días.`,
+    content: `
+      ${heading(`¡Bienvenido, ${name}!`)}
+      ${paragraph('Has sido invitado/a a unirte a la plataforma de gestión de ligas de pádel.')}
+      ${paragraph('Crea tu cuenta haciendo clic en el botón. El enlace es válido durante 7 días.')}
+      ${cta(inviteUrl, 'Aceptar invitación', 'yellow')}
+      ${smallNote('Si no esperabas esta invitación, puedes ignorar este email.')}
+    `,
+  });
 }
 
-interface PasswordResetProps {
+interface PasswordResetProps extends CommonProps {
   name: string;
   resetUrl: string;
 }
-export const passwordResetSubject = 'Restablecer contraseña — PadelLeague';
-export function renderPasswordReset({ name, resetUrl }: PasswordResetProps): string {
-  return `
-    <div style="${containerStyle}">
-      <h1>Restablecer contraseña</h1>
-      <p>Hola ${escapeHtml(name)},</p>
-      <p>Hemos recibido una solicitud para restablecer tu contraseña. Haz clic en el enlace (válido 1 hora):</p>
-      <a href="${attr(resetUrl)}" style="${primaryButton('#2563eb')}">Restablecer contraseña</a>
-      <p style="${footerNote}">Si no solicitaste este cambio, ignora este email. Tu contraseña no se modificará.</p>
-    </div>
-  `.trim();
+export const passwordResetSubject = 'Restablecer contraseña — Padel League';
+export function renderPasswordReset({ name, resetUrl, appUrl }: PasswordResetProps): string {
+  return wrapEmail({
+    appUrl,
+    preheader: 'Solicitud de restablecimiento de contraseña.',
+    content: `
+      ${heading('Restablecer contraseña')}
+      ${paragraph(`Hola <strong>${escapeHtml(name)}</strong>,`)}
+      ${paragraph('Hemos recibido una solicitud para restablecer tu contraseña. Pulsa el botón para crear una nueva (enlace válido 1 hora):')}
+      ${cta(resetUrl, 'Restablecer contraseña', 'navy')}
+      ${smallNote('Si no solicitaste este cambio, ignora este email. Tu contraseña no se modificará.')}
+    `,
+  });
 }
 
-interface ResultSubmittedProps {
+interface ResultSubmittedProps extends CommonProps {
   matchTeamA: string;
   matchTeamB: string;
   submitterTeam: string;
   matchUrl: string;
 }
-export const resultSubmittedSubject = 'Resultado de partido enviado — pendiente de confirmación';
-export function renderResultSubmitted({ matchTeamA, matchTeamB, submitterTeam, matchUrl }: ResultSubmittedProps): string {
-  return `
-    <div style="${containerStyle}">
-      <h1>Resultado enviado</h1>
-      <p>El equipo <strong>${escapeHtml(submitterTeam)}</strong> ha enviado el resultado del partido <strong>${escapeHtml(matchTeamA)} vs ${escapeHtml(matchTeamB)}</strong>.</p>
-      <p>Tienes <strong>7 días</strong> para confirmar o disputar el resultado. Si no actúas, se confirmará automáticamente.</p>
-      <a href="${attr(matchUrl)}" style="${primaryButton('#2563eb')}">Ver resultado</a>
-      <p style="${footerNote}">Si tienes dudas, usa el botón de arriba para acceder al partido y confirmar o disputar el resultado.</p>
-    </div>
-  `.trim();
+export const resultSubmittedSubject = 'Resultado pendiente de confirmación';
+export function renderResultSubmitted({
+  matchTeamA, matchTeamB, submitterTeam, matchUrl, appUrl,
+}: ResultSubmittedProps): string {
+  return wrapEmail({
+    appUrl,
+    preheader: `${submitterTeam} ha enviado el resultado del partido contra tu equipo. Tienes 7 días para confirmar.`,
+    content: `
+      ${heading('Resultado enviado')}
+      ${paragraph(`El equipo <strong>${escapeHtml(submitterTeam)}</strong> ha enviado el resultado del partido <strong>${escapeHtml(matchTeamA)} vs ${escapeHtml(matchTeamB)}</strong>.`)}
+      ${paragraph('Tienes <strong>7 días</strong> para confirmar o disputar el resultado. Si no actúas, se confirmará automáticamente.')}
+      ${cta(matchUrl, 'Revisar resultado', 'navy')}
+      ${smallNote('Si tienes dudas, accede al partido desde el botón para confirmar o disputar el resultado.')}
+    `,
+  });
 }
 
-interface ResultConfirmedProps {
+interface ResultConfirmedProps extends CommonProps {
   matchTeamA: string;
   matchTeamB: string;
   winnerTeamName: string | null;
   matchUrl: string;
 }
-export const resultConfirmedSubject = 'Resultado de partido confirmado';
-export function renderResultConfirmed({ matchTeamA, matchTeamB, winnerTeamName, matchUrl }: ResultConfirmedProps): string {
+export const resultConfirmedSubject = 'Resultado confirmado';
+export function renderResultConfirmed({
+  matchTeamA, matchTeamB, winnerTeamName, matchUrl, appUrl,
+}: ResultConfirmedProps): string {
   const outcome = winnerTeamName
-    ? `<p>Ganador: <strong>${escapeHtml(winnerTeamName)}</strong></p>`
-    : `<p>El partido terminó en <strong>empate</strong>.</p>`;
-  return `
-    <div style="${containerStyle}">
-      <h1>Resultado confirmado</h1>
-      <p>El resultado del partido <strong>${escapeHtml(matchTeamA)} vs ${escapeHtml(matchTeamB)}</strong> ha sido confirmado.</p>
+    ? paragraph(`Ganador: <strong>${escapeHtml(winnerTeamName)}</strong>.`)
+    : paragraph('El partido terminó en <strong>empate</strong>.');
+  return wrapEmail({
+    appUrl,
+    preheader: `Resultado confirmado del partido ${matchTeamA} vs ${matchTeamB}.`,
+    content: `
+      ${heading('Resultado confirmado')}
+      ${paragraph(`El resultado del partido <strong>${escapeHtml(matchTeamA)} vs ${escapeHtml(matchTeamB)}</strong> ha sido confirmado.`)}
       ${outcome}
-      <a href="${attr(matchUrl)}" style="${primaryButton('#16a34a')}">Ver partido</a>
-      <p style="${footerNote}">Los puntos han sido actualizados en la tabla de clasificación.</p>
-    </div>
-  `.trim();
+      ${cta(matchUrl, 'Ver partido', 'green')}
+      ${smallNote('Los puntos ya están reflejados en la clasificación.')}
+    `,
+  });
 }
 
-interface IndMatchInviteProps {
+interface IndMatchInviteProps extends CommonProps {
   organizerName: string;
   matchName: string;
   matchUrl: string;
@@ -107,32 +238,26 @@ interface IndMatchInviteProps {
 }
 export const indMatchInviteSubject = 'Te invitan a un partido de pádel';
 export function renderIndMatchInvite({
-  organizerName,
-  matchName,
-  matchUrl,
-  scheduledAt,
-  location,
-  addToCalendarUrl,
+  organizerName, matchName, matchUrl, scheduledAt, location, addToCalendarUrl, appUrl,
 }: IndMatchInviteProps): string {
-  const when = scheduledAt ? `<p>Fecha: ${escapeHtml(scheduledAt)}</p>` : '';
-  const where = location ? `<p>Lugar: ${escapeHtml(location)}</p>` : '';
-  const calendar = addToCalendarUrl
-    ? `<p style="margin-top: 0.75rem;"><a href="${attr(addToCalendarUrl)}" style="${secondaryButton}">📅 Añadir al calendario</a></p>`
-    : '';
-  return `
-    <div style="${containerStyle}">
-      <h1>Te invitan a un partido de pádel</h1>
-      <p><strong>${escapeHtml(organizerName)}</strong> te invita a unirte al partido <strong>&ldquo;${escapeHtml(matchName)}&rdquo;</strong>.</p>
-      ${when}
-      ${where}
-      <a href="${attr(matchUrl)}" style="${primaryButton('#0D1E45')}">Ver partido y unirme</a>
-      ${calendar}
-      <p style="${footerNote}">El enlace es válido durante 7 días. Si no esperabas esta invitación, puedes ignorar este email.</p>
-    </div>
-  `.trim();
+  const info: Array<[string, string]> = [];
+  if (scheduledAt) info.push(['Cuándo', scheduledAt]);
+  if (location) info.push(['Dónde', location]);
+  return wrapEmail({
+    appUrl,
+    preheader: `${organizerName} te invita al partido "${matchName}".`,
+    content: `
+      ${heading(`Te invitan a "${matchName}"`)}
+      ${paragraph(`<strong>${escapeHtml(organizerName)}</strong> te invita a unirte al partido.`)}
+      ${infoBox(info)}
+      ${cta(matchUrl, 'Ver partido y unirme', 'yellow')}
+      ${addToCalendarUrl ? secondaryLink(addToCalendarUrl, '📅 Añadir al calendario') : ''}
+      ${smallNote('El enlace es válido durante 7 días. Si no esperabas esta invitación, puedes ignorar este email.')}
+    `,
+  });
 }
 
-interface IndMatchChallengeProps {
+interface IndMatchChallengeProps extends CommonProps {
   organizerTeamName: string;
   matchName: string;
   matchUrl: string;
@@ -141,48 +266,49 @@ interface IndMatchChallengeProps {
 }
 export const indMatchChallengeSubject = 'Reto de pádel recibido';
 export function renderIndMatchChallenge({
-  organizerTeamName,
-  matchName,
-  matchUrl,
-  scheduledAt,
-  location,
+  organizerTeamName, matchName, matchUrl, scheduledAt, location, appUrl,
 }: IndMatchChallengeProps): string {
-  const when = scheduledAt ? `<p>Fecha propuesta: ${escapeHtml(scheduledAt)}</p>` : '';
-  const where = location ? `<p>Lugar: ${escapeHtml(location)}</p>` : '';
-  return `
-    <div style="${containerStyle}">
-      <h1>Reto de pádel recibido</h1>
-      <p>El equipo <strong>${escapeHtml(organizerTeamName)}</strong> os reta a un partido amistoso: <strong>&ldquo;${escapeHtml(matchName)}&rdquo;</strong>.</p>
-      ${when}
-      ${where}
-      <p>Cualquier miembro de tu equipo puede aceptar o rechazar el reto.</p>
-      <a href="${attr(matchUrl)}" style="${primaryButton('#0D1E45')}">Ver reto</a>
-    </div>
-  `.trim();
+  const info: Array<[string, string]> = [];
+  if (scheduledAt) info.push(['Cuándo', scheduledAt]);
+  if (location) info.push(['Dónde', location]);
+  return wrapEmail({
+    appUrl,
+    preheader: `${organizerTeamName} os reta a un partido amistoso.`,
+    content: `
+      ${heading('Reto recibido')}
+      ${paragraph(`El equipo <strong>${escapeHtml(organizerTeamName)}</strong> os reta a un partido amistoso: <strong>${escapeHtml(matchName)}</strong>.`)}
+      ${infoBox(info)}
+      ${paragraph('Cualquier miembro de tu equipo puede aceptar o rechazar el reto.')}
+      ${cta(matchUrl, 'Ver reto', 'navy')}
+    `,
+  });
 }
 
-interface FriendInviteProps {
+interface FriendInviteProps extends CommonProps {
   inviterName: string;
   registerUrl: string;
   code: string;
 }
 export const friendInviteSubject = (inviterName: string): string =>
   `${inviterName} te invita a Padel League`;
-export function renderFriendInvite({ inviterName, registerUrl, code }: FriendInviteProps): string {
-  return `
-    <div style="${containerStyle}">
-      <h1>Te invitan a Padel League</h1>
-      <p><strong>${escapeHtml(inviterName)}</strong> te invita a unirte a Padel League, la app para gestionar tus ligas y partidos de pádel.</p>
-      <p>Crea tu cuenta con este enlace (válido 14 días):</p>
-      <a href="${attr(registerUrl)}" style="${primaryButton('#0D1E45')}">Crear cuenta</a>
-      <p style="${footerNote}">
-        Si el botón no funciona, ve a la app y usa este código de invitación: <strong>${escapeHtml(code)}</strong>
-      </p>
-    </div>
-  `.trim();
+export function renderFriendInvite({
+  inviterName, registerUrl, code, appUrl,
+}: FriendInviteProps): string {
+  return wrapEmail({
+    appUrl,
+    preheader: `${inviterName} te invita a unirte a Padel League. El enlace es válido 14 días.`,
+    content: `
+      ${heading('Te invitan a Padel League')}
+      ${paragraph(`<strong>${escapeHtml(inviterName)}</strong> te invita a Padel League, la app para gestionar ligas y partidos de pádel.`)}
+      ${cta(registerUrl, 'Crear cuenta', 'yellow')}
+      ${paragraph('Si el botón no funciona, ve a la app y usa este código de invitación:')}
+      ${codeBlock(code)}
+      ${smallNote('La invitación es válida durante 14 días.')}
+    `,
+  });
 }
 
-interface IndMatchUpdateProps {
+interface IndMatchUpdateProps extends CommonProps {
   matchName: string;
   /** First-line headline shown big at the top, e.g. 'Partido cancelado'. */
   headline: string;
@@ -193,21 +319,22 @@ interface IndMatchUpdateProps {
 }
 export const indMatchUpdateSubject = (matchName: string, kind: 'cancelled' | 'left'): string =>
   kind === 'cancelled' ? `Partido cancelado: ${matchName}` : `Cambio en tu partido: ${matchName}`;
-export function renderIndMatchUpdate({ matchName, headline, body, matchUrl }: IndMatchUpdateProps): string {
-  const cta = matchUrl
-    ? `<a href="${attr(matchUrl)}" style="${primaryButton('#0D1E45')}">Ver partido</a>`
-    : '';
-  return `
-    <div style="${containerStyle}">
-      <h1>${escapeHtml(headline)}</h1>
-      <p>${escapeHtml(body)}</p>
-      <p style="${footerNote}">Partido afectado: <strong>${escapeHtml(matchName)}</strong></p>
-      ${cta}
-    </div>
-  `.trim();
+export function renderIndMatchUpdate({
+  matchName, headline, body, matchUrl, appUrl,
+}: IndMatchUpdateProps): string {
+  return wrapEmail({
+    appUrl,
+    preheader: body,
+    content: `
+      ${heading(headline)}
+      ${paragraph(escapeHtml(body))}
+      ${infoBox([['Partido', matchName]])}
+      ${matchUrl ? cta(matchUrl, 'Ver partido', 'navy') : ''}
+    `,
+  });
 }
 
-interface IndMatchChallengeResponseProps {
+interface IndMatchChallengeResponseProps extends CommonProps {
   challengedTeamName: string;
   matchName: string;
   accepted: boolean;
@@ -216,20 +343,16 @@ interface IndMatchChallengeResponseProps {
 export const indMatchChallengeResponseSubject = (accepted: boolean): string =>
   accepted ? 'Tu reto fue aceptado' : 'Tu reto fue rechazado';
 export function renderIndMatchChallengeResponse({
-  challengedTeamName,
-  matchName,
-  accepted,
-  matchUrl,
+  challengedTeamName, matchName, accepted, matchUrl, appUrl,
 }: IndMatchChallengeResponseProps): string {
-  const cta = accepted
-    ? `<a href="${attr(matchUrl)}" style="${primaryButton('#0D1E45')}">Ver partido</a>`
-    : '';
   const verb = accepted ? 'aceptado' : 'rechazado';
-  return `
-    <div style="${containerStyle}">
-      <h1>${accepted ? 'Reto aceptado' : 'Reto rechazado'}</h1>
-      <p>El equipo <strong>${escapeHtml(challengedTeamName)}</strong> ha ${verb} tu reto <strong>&ldquo;${escapeHtml(matchName)}&rdquo;</strong>.</p>
-      ${cta}
-    </div>
-  `.trim();
+  return wrapEmail({
+    appUrl,
+    preheader: `${challengedTeamName} ha ${verb} tu reto.`,
+    content: `
+      ${heading(accepted ? '¡Reto aceptado!' : 'Reto rechazado')}
+      ${paragraph(`El equipo <strong>${escapeHtml(challengedTeamName)}</strong> ha ${verb} tu reto <strong>${escapeHtml(matchName)}</strong>.`)}
+      ${accepted ? cta(matchUrl, 'Ver partido', 'green') : ''}
+    `,
+  });
 }
