@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService } from '@/modules/independent-matches';
 import { isUserFacingError } from '@/shared/errors';
+import { logger } from '@/shared/logger';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -72,6 +73,12 @@ export async function createOpenMatch(
     return { success: true, matchId: match.id };
   } catch (err) {
     if (isUserFacingError(err)) return { error: (err as Error).message };
-    throw err;
+    logger().error(
+      { err, userId: user.id, hostKind, hostTeamId, ...rest },
+      'createOpenMatch.unexpected',
+    );
+    return {
+      error: `Error inesperado al crear el partido: ${(err as Error)?.message ?? 'desconocido'}`,
+    };
   }
 }

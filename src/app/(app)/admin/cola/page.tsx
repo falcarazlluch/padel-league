@@ -8,6 +8,7 @@ import { prisma } from '@/shared/db/client';
 import { ALL_JOB_NAMES } from '@/shared/queue/jobs';
 import { DrainNowButton, ClearDeadLettersButton, ClearEmailLogButton } from './drain-now-button';
 import { GenerateCommentaryForm } from './generate-commentary-form';
+import { logger } from '@/shared/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,17 +21,22 @@ interface QueueRow {
 }
 
 async function loadQueueStats(): Promise<QueueRow[]> {
-  const q = queue();
-  await q.start();
-  const boss = q.raw();
-  const queues = await boss.getQueues([...ALL_JOB_NAMES, 'dead-letter']);
-  return queues.map((qr) => ({
-    name: qr.name,
-    queued: qr.queuedCount,
-    active: qr.activeCount,
-    deferred: qr.deferredCount,
-    total: qr.totalCount,
-  }));
+  try {
+    const q = queue();
+    await q.start();
+    const boss = q.raw();
+    const queues = await boss.getQueues([...ALL_JOB_NAMES, 'dead-letter']);
+    return queues.map((qr) => ({
+      name: qr.name,
+      queued: qr.queuedCount,
+      active: qr.activeCount,
+      deferred: qr.deferredCount,
+      total: qr.totalCount,
+    }));
+  } catch (err) {
+    logger().error({ err }, 'admin.cola.loadQueueStats.fail');
+    return [];
+  }
 }
 
 function formatDate(date: Date): string {
@@ -51,33 +57,53 @@ export default async function ColaPage() {
   const user = await getValidatedSession(token);
   if (user.role !== 'SUPER_ADMIN') redirect('/dashboard' as Route);
 
-  const [stats, deadLetters, emailCounts, commentaryCount, recentFailedEmails, recentSentEmails] = await Promise.all([
+  const result = await Promise.all([
     loadQueueStats(),
-    prisma.jobDeadLetter.findMany({ orderBy: { failedAt: 'desc' }, take: 50 }),
-    prisma.emailLog.groupBy({ by: ['status'], _count: { _all: true } }),
-    prisma.matchCommentary.count(),
-    prisma.emailLog.findMany({
-      where: { status: 'FAILED' },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { id: true, toEmail: true, template: true, errorMessage: true, createdAt: true },
+    prisma.jobDeadLetter.findMany({ orderBy: { failedAt: 'desc' }, take: 50 }).catch((err) => {
+      logger().error({ err }, 'admin.cola.deadLetters.fail');
+      return [] as Awaited<ReturnType<typeof prisma.jobDeadLetter.findMany>>;
     }),
-    prisma.emailLog.findMany({
-      where: { status: { in: ['SENT', 'DELIVERED'] } },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        toEmail: true,
-        template: true,
-        subject: true,
-        providerMessageId: true,
-        sentAt: true,
-        status: true,
-        createdAt: true,
-      },
+    prisma.emailLog.groupBy({ by: ['status'], _count: { _all: true } }).catch((err) => {
+      logger().error({ err }, 'admin.cola.emailCounts.fail');
+      return [] as Array<{ status: string; _count: { _all: number } }>;
     }),
+    prisma.matchCommentary.count().catch((err) => {
+      logger().error({ err }, 'admin.cola.commentaryCount.fail');
+      return 0;
+    }),
+    prisma.emailLog
+      .findMany({
+        where: { status: 'FAILED' },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, toEmail: true, template: true, errorMessage: true, createdAt: true },
+      })
+      .catch((err) => {
+        logger().error({ err }, 'admin.cola.recentFailed.fail');
+        return [] as Awaited<ReturnType<typeof prisma.emailLog.findMany>>;
+      }),
+    prisma.emailLog
+      .findMany({
+        where: { status: { in: ['SENT', 'DELIVERED'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          toEmail: true,
+          template: true,
+          subject: true,
+          providerMessageId: true,
+          sentAt: true,
+          status: true,
+          createdAt: true,
+        },
+      })
+      .catch((err) => {
+        logger().error({ err }, 'admin.cola.recentSent.fail');
+        return [] as Awaited<ReturnType<typeof prisma.emailLog.findMany>>;
+      }),
   ]);
+  const [stats, deadLetters, emailCounts, commentaryCount, recentFailedEmails, recentSentEmails] = result;
 
   const emailByStatus = Object.fromEntries(emailCounts.map((e) => [e.status, e._count._all]));
 
