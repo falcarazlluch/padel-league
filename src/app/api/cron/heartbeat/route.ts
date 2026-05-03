@@ -15,13 +15,22 @@ function unauthorized() {
 }
 
 async function runHeartbeat(req: Request): Promise<Response> {
-  const auth = req.headers.get('authorization') ?? '';
-  const expected = `Bearer ${env().CRON_SECRET}`;
+  // Trim both sides defensively: paste-into-Vercel-UI tends to add trailing
+  // newlines, and GitHub secrets sometimes pick up whitespace too.
+  const auth = (req.headers.get('authorization') ?? '').trim();
+  const expected = `Bearer ${env().CRON_SECRET.trim()}`;
   const authBuf = Buffer.from(auth, 'utf8');
   const expectedBuf = Buffer.from(expected, 'utf8');
   const valid =
     authBuf.length === expectedBuf.length && timingSafeEqual(authBuf, expectedBuf);
   if (!valid) {
+    // Log lengths only — never the values — so we can tell whether the
+    // header was missing (auth length 0), oversized (extra chars), or just
+    // structurally different from what env expects.
+    logger().warn(
+      { authLen: authBuf.length, expectedLen: expectedBuf.length, hasHeader: auth.length > 0 },
+      'cron.heartbeat.unauthorized',
+    );
     return unauthorized();
   }
 
