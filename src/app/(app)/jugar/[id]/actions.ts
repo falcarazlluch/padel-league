@@ -360,6 +360,47 @@ export async function postChatMessageAction(
   }
 }
 
+const updateScheduledAtSchema = z
+  .object({
+    matchId: z.string().cuid(),
+    dateMode: z.enum(['fixed', 'open']),
+    scheduledAt: z.string().optional().or(z.literal('').transform(() => undefined)),
+  })
+  .refine((v) => v.dateMode === 'open' || (v.dateMode === 'fixed' && !!v.scheduledAt), {
+    message: 'Indica una fecha y hora.',
+    path: ['scheduledAt'],
+  });
+
+export async function updateScheduledAtAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await getSession();
+  const parsed = updateScheduledAtSchema.safeParse({
+    matchId: formData.get('matchId'),
+    dateMode: formData.get('dateMode'),
+    scheduledAt: formData.get('scheduledAt') ?? undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  const { matchId, dateMode, scheduledAt } = parsed.data;
+  const next = dateMode === 'fixed' && scheduledAt ? new Date(scheduledAt) : null;
+  if (next && Number.isNaN(next.getTime())) {
+    return { error: 'Fecha no válida.' };
+  }
+
+  try {
+    await IndependentMatchService.updateScheduledAt(matchId, user.id, next);
+    revalidatePath(`/jugar/${matchId}`);
+    revalidatePath('/jugar');
+    revalidatePath('/partidos');
+    return { success: true };
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+}
+
 export async function leaveMatchAction(
   _prev: ActionResult | null,
   formData: FormData,

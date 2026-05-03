@@ -12,6 +12,7 @@ import { CancelMatchButton } from './_components/cancel-match-button';
 import { CancelInvitationButton } from './_components/cancel-invitation-button';
 import { LeaveMatchButton } from './_components/leave-match-button';
 import { MatchChat } from './_components/match-chat';
+import { EditDateButton } from './_components/edit-date-button';
 import { PendingInvitationActions } from '../_components/pending-invitation-actions';
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 
@@ -116,12 +117,20 @@ export default async function JugarDetailPage({
         <p className="text-sm text-slate-400 mt-1">
           Organiza <strong className="text-brand-navy">{match.organizer.name}</strong>
         </p>
-        {match.scheduledAt && (
-          <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
-            <p className="text-sm text-gray-600">{formatScheduledAt(match.scheduledAt)}</p>
+        <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
+          <p className="text-sm text-gray-600">
+            {match.scheduledAt ? formatScheduledAt(match.scheduledAt) : 'Fecha por definir'}
+          </p>
+          {match.scheduledAt && (
             <AddToCalendarButton href={`/api/calendar/independent-match/${id}/event.ics`} />
-          </div>
-        )}
+          )}
+          {isOrganizer && !matchPast && match.status !== 'CANCELLED' && (
+            <EditDateButton
+              matchId={id}
+              initialScheduledAt={match.scheduledAt ? match.scheduledAt.toISOString() : null}
+            />
+          )}
+        </div>
         {match.location && <p className="text-sm text-gray-600">{match.location}</p>}
         {match.description && <p className="text-sm text-gray-500 mt-2">{match.description}</p>}
       </div>

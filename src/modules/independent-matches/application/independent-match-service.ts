@@ -637,6 +637,79 @@ export const IndependentMatchService = {
     ).catch(() => undefined);
   },
 
+  async updateScheduledAt(
+    matchId: string,
+    organizerId: string,
+    scheduledAt: Date | null,
+  ): Promise<void> {
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, email: true, name: true } } },
+        },
+        organizer: { select: { name: true } },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.organizerId !== organizerId) {
+      throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede editar la fecha.');
+    }
+    if (match.status === 'CANCELLED') {
+      throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+    }
+    if (scheduledAt && scheduledAt.getTime() < Date.now()) {
+      throw new DomainError('DATE_IN_PAST', 'La nueva fecha no puede estar en el pasado.');
+    }
+
+    // Skip if value is unchanged.
+    const previous = match.scheduledAt?.getTime() ?? null;
+    const next = scheduledAt?.getTime() ?? null;
+    if (previous === next) return;
+
+    await prisma.independentMatch.update({
+      where: { id: matchId },
+      data: { scheduledAt },
+    });
+
+    const others = match.participants
+      .map((p) => p.user)
+      .filter((u) => u.id !== organizerId);
+    if (others.length === 0) return;
+
+    const formatted = scheduledAt
+      ? new Intl.DateTimeFormat('es-ES', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+          timeZone: 'Europe/Madrid',
+        }).format(scheduledAt)
+      : null;
+    const headline = scheduledAt ? 'Nueva fecha del partido' : 'Fecha del partido por definir';
+    const body = scheduledAt
+      ? `${match.organizer.name} ha programado "${match.name}" para ${formatted}.`
+      : `${match.organizer.name} ha dejado "${match.name}" abierto a fechas.`;
+
+    NotificationService.createMany(
+      others.map((u) => ({
+        userId: u.id,
+        type: 'INDEPENDENT_MATCH_CONFIRMED' as const,
+        title: headline,
+        body,
+        metadata: { matchId },
+      })),
+    ).catch(() => undefined);
+
+    void notifyParticipantsByEmail(others, {
+      kind: 'left',
+      matchId,
+      matchName: match.name,
+      headline,
+      body,
+      dedupKeyBase: `ind-date-${matchId}-${next ?? 'open'}`,
+    });
+  },
+
   async leaveMatch(matchId: string, userId: string): Promise<void> {
     const match = await prisma.independentMatch.findUnique({
       where: { id: matchId },
