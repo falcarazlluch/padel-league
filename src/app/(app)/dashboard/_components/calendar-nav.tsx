@@ -92,7 +92,7 @@ export function CalendarNav({ year, month, view }: Props) {
           onClick={() => persistView('grid')}
           className={`px-3 py-1.5 ${view === 'grid' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
         >
-          Grid
+          Calendario
         </Link>
         <Link
           href={buildHref(pathname, year, month, 'list')}
