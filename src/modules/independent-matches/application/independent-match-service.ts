@@ -35,6 +35,17 @@ export function calculateAvailableSlots(maxPlayers: number, confirmedCount: numb
   return Math.max(0, maxPlayers - confirmedCount);
 }
 
+/** True if the match has a scheduledAt in the past (i.e. already happened). */
+export function isMatchPast(match: { scheduledAt: Date | null }): boolean {
+  return match.scheduledAt !== null && match.scheduledAt.getTime() < Date.now();
+}
+
+function assertMatchNotPast(match: { scheduledAt: Date | null; name: string }): void {
+  if (isMatchPast(match)) {
+    throw new DomainError('MATCH_PAST', `"${match.name}" ya ha pasado y no admite cambios.`);
+  }
+}
+
 export const IndependentMatchService = {
   async createOpen(input: CreateOpenMatchInput): Promise<IndependentMatchRow> {
     // Host-team validation up-front, outside the TX, to give a fast error path.
@@ -86,8 +97,15 @@ export const IndependentMatchService = {
   },
 
   async listOpen(): Promise<(IndependentMatchRow & { confirmedCount: number })[]> {
+    const now = new Date();
     const matches = await prisma.independentMatch.findMany({
-      where: { status: 'OPEN', visibility: 'PUBLIC' },
+      where: {
+        status: 'OPEN',
+        visibility: 'PUBLIC',
+        // Hide matches whose scheduled time has passed. Matches without a date
+        // stay visible until cancelled.
+        OR: [{ scheduledAt: null }, { scheduledAt: { gt: now } }],
+      },
       include: { _count: { select: { participants: { where: { status: 'ACCEPTED' } } } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -165,6 +183,7 @@ export const IndependentMatchService = {
       throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
     if (match.status !== 'OPEN')
       throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
+    assertMatchNotPast(match);
     if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
       throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
 
@@ -204,6 +223,7 @@ export const IndependentMatchService = {
       throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
     if (match.status !== 'OPEN')
       throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
+    assertMatchNotPast(match);
     if (calculateAvailableSlots(match.maxPlayers, match.participants.length) === 0)
       throw new DomainError('MATCH_FULL', 'El partido ya está completo.');
     if (invitedUserId === organizerId)
@@ -337,6 +357,7 @@ export const IndependentMatchService = {
 
     const { match } = invitation;
     if (match.status === 'CANCELLED') throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+    assertMatchNotPast(match);
 
     // Branch on invitation kind.
     if (invitation.invitedTeamId !== null) {
@@ -455,6 +476,7 @@ export const IndependentMatchService = {
       throw new DomainError('NOT_PUBLIC', 'Este partido no es público.');
     if (match.status === 'CANCELLED')
       throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+    assertMatchNotPast(match);
 
     if (match.participants.some((p) => p.userId === userId)) return; // idempotent
 

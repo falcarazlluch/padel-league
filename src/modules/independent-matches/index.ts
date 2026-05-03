@@ -1,4 +1,4 @@
-export { IndependentMatchService, calculateAvailableSlots } from './application/independent-match-service';
+export { IndependentMatchService, calculateAvailableSlots, isMatchPast } from './application/independent-match-service';
 export type {
   IndependentMatchRow,
   IndependentMatchDetail,

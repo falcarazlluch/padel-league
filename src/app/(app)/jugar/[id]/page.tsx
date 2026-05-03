@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
-import { IndependentMatchService, calculateAvailableSlots } from '@/modules/independent-matches';
+import { IndependentMatchService, calculateAvailableSlots, isMatchPast } from '@/modules/independent-matches';
 import { InvalidTokenError } from '@/shared/errors';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { JoinPublicMatchButton } from './_components/join-public-match-button';
@@ -56,6 +56,7 @@ export default async function JugarDetailPage({
   const isOrganizer = match.organizerId === user.id;
   const isParticipant = match.participants.some((p) => p.userId === user.id);
   const availableSlots = calculateAvailableSlots(match.maxPlayers, match.participants.length);
+  const matchPast = isMatchPast(match);
   // Server-component: Date.now() is read once per request render, which is
   // safe here. react-hooks/purity flags it conservatively for client components.
   // eslint-disable-next-line react-hooks/purity
@@ -113,13 +114,19 @@ export default async function JugarDetailPage({
         )}
       </section>
 
-      {match.status === 'OPEN' && match.visibility === 'PUBLIC' && !isOrganizer && !isParticipant && availableSlots > 0 && (
+      {matchPast && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-600">
+          Este partido ya ha tenido lugar. No se admiten más invitaciones ni nuevas inscripciones.
+        </div>
+      )}
+
+      {!matchPast && match.status === 'OPEN' && match.visibility === 'PUBLIC' && !isOrganizer && !isParticipant && availableSlots > 0 && (
         <JoinPublicMatchButton matchId={id} />
       )}
 
       {isOrganizer && (
         <section className="space-y-4">
-          {match.status === 'OPEN' && availableSlots > 0 && (
+          {!matchPast && match.status === 'OPEN' && availableSlots > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Invitar</h3>
               <InviteForm matchId={id} availableSlots={availableSlots} />
