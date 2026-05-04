@@ -39,15 +39,11 @@ export default async function EquipoDetailPage({
   }
 
   // Only members see invitations/management; we fetch them lazily so non-members
-  // never receive PII via this page.
-  let invitationsForMember: { id: string; invitedUserName: string }[] = [];
-  if (team.viewerIsMember) {
-    const detail = await TeamService.getDetail(id, user.id);
-    invitationsForMember = detail.invitations.map((i) => ({
-      id: i.id,
-      invitedUserName: i.invitedUser.name,
-    }));
-  }
+  // never receive PII via this page. Uses the dedicated listPendingInvitations
+  // helper to avoid a full second `team.findUnique` round-trip.
+  const invitationsForMember = team.viewerIsMember
+    ? await TeamService.listPendingInvitations(id, user.id)
+    : [];
 
   const slotsLeft = MAX_TEAM_SIZE - team.members.length;
   const hasPendingInvitation = invitationsForMember.length > 0;

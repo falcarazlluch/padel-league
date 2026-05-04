@@ -140,6 +140,24 @@ export const TeamService = {
   },
 
   /**
+   * Lightweight invitation listing for member-only management UI. Avoids the
+   * full `getDetail` round-trip when the team profile page only needs the
+   * list of pending invitations (the rest is already in `getPublicProfile`).
+   */
+  async listPendingInvitations(
+    teamId: string,
+    viewerUserId: string,
+  ): Promise<Array<{ id: string; invitedUserName: string }>> {
+    await ensureMember(teamId, viewerUserId);
+    const invitations = await prisma.teamInvitation.findMany({
+      where: { teamId, status: 'PENDING' },
+      include: { invitedUser: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return invitations.map((i) => ({ id: i.id, invitedUserName: i.invitedUser.name }));
+  },
+
+  /**
    * Public-ish team profile: viewable by any authenticated user. Strips PII
    * (member emails, pending invitations) for non-members; only members see
    * the management surface from the page.
@@ -402,21 +420,26 @@ export const TeamService = {
   async leaveTeam(teamId: string, userId: string): Promise<void> {
     await ensureMember(teamId, userId);
 
-    const team = await prisma.team.findUnique({
+    // Pre-fetch only what we need OUTSIDE the transaction: team name + leaver
+    // identity for the notification payload. Membership snapshot itself is
+    // re-read inside the TX to close the TOCTOU window where a concurrent
+    // join/leave could change the count between our read and the delete.
+    const teamPreview = await prisma.team.findUnique({
       where: { id: teamId },
-      include: {
-        members: { include: { user: { select: { id: true, name: true } } } },
+      select: {
+        name: true,
+        members: {
+          where: { userId },
+          select: { user: { select: { name: true } } },
+        },
       },
     });
-    if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
+    if (!teamPreview) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
+    const leaverName = teamPreview.members[0]?.user.name ?? 'Tu compañero';
+    const teamName = teamPreview.name;
 
-    const remainingMembers = team.members.filter((m) => m.userId !== userId);
-    const leaver = team.members.find((m) => m.userId === userId);
-
-    // Re-read registrations INSIDE the transaction so a concurrent admin
-    // enrolment between the read and the member-delete cannot leave the team
-    // half-attached to a league.
-    await prisma.$transaction(async (tx) => {
+    type RemainingMember = { userId: string };
+    const remainingMembers = await prisma.$transaction<RemainingMember[]>(async (tx) => {
       const activeRegistrations = await tx.leagueRegistration.findMany({
         where: { teamId, withdrawnAt: null },
         select: { league: { select: { name: true } } },
@@ -430,7 +453,16 @@ export const TeamService = {
       }
 
       await tx.teamMember.deleteMany({ where: { teamId, userId } });
-      if (remainingMembers.length === 0) {
+
+      // Re-read inside the TX so we observe the post-delete state — closes
+      // the race where a concurrent join could lead us to incorrectly delete
+      // the team thinking it was empty.
+      const remaining = await tx.teamMember.findMany({
+        where: { teamId },
+        select: { userId: true },
+      });
+
+      if (remaining.length === 0) {
         // Match.teamA/teamB use onDelete: Restrict so historical results stay
         // readable. If the team has ANY match attached (scheduled, played or
         // expired) we can't physically delete it; leave it as a 0-member
@@ -444,15 +476,17 @@ export const TeamService = {
           await tx.team.delete({ where: { id: teamId } });
         }
       }
+
+      return remaining;
     });
 
-    if (remainingMembers.length > 0 && leaver) {
+    if (remainingMembers.length > 0) {
       await prisma.notification.createMany({
         data: remainingMembers.map((m) => ({
           userId: m.userId,
           type: 'TEAM_MEMBER_LEFT' as const,
           title: 'Tu compañero ha salido del equipo',
-          body: `${leaver.user.name} ha salido del equipo "${team.name}".`,
+          body: `${leaverName} ha salido del equipo "${teamName}".`,
           metadata: { teamId },
         })),
       });

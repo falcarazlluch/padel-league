@@ -4,7 +4,8 @@ import { TeamService } from '@/modules/teams';
 vi.mock('@/shared/db/client', () => ({
   prisma: {
     team: { findUnique: vi.fn(), delete: vi.fn() },
-    teamMember: { findFirst: vi.fn(), deleteMany: vi.fn() },
+    teamMember: { findFirst: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    teamInvitation: { findMany: vi.fn() },
     user: { findUnique: vi.fn() },
     leagueRegistration: { findMany: vi.fn() },
     notification: { createMany: vi.fn() },
@@ -18,7 +19,12 @@ async function getPrisma() {
   const { prisma } = await import('@/shared/db/client');
   return prisma as unknown as {
     team: { findUnique: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
-    teamMember: { findFirst: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
+    teamMember: {
+      findFirst: ReturnType<typeof vi.fn>;
+      deleteMany: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+    };
+    teamInvitation: { findMany: ReturnType<typeof vi.fn> };
     user: { findUnique: ReturnType<typeof vi.fn> };
     leagueRegistration: { findMany: ReturnType<typeof vi.fn> };
     notification: { createMany: ReturnType<typeof vi.fn> };
@@ -122,25 +128,20 @@ describe('TeamService.leaveTeam', () => {
     const prisma = await getPrisma();
     prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
     prisma.team.findUnique.mockResolvedValue({
-      id: 't1',
       name: 'Mi equipo',
-      members: [
-        { userId: 'u1', user: { id: 'u1', name: 'A' } },
-        { userId: 'u2', user: { id: 'u2', name: 'B' } },
-      ],
+      members: [{ user: { name: 'A' } }],
     });
-    // The transaction callback runs the registrations check first; simulate it
-    // returning an active registration so the throw fires before any delete.
     prisma.$transaction.mockImplementation(async (cb: unknown) => {
-      const fn = cb as (tx: typeof prisma) => Promise<void>;
+      const fn = cb as (tx: typeof prisma) => Promise<unknown>;
       const tx = {
         leagueRegistration: {
           findMany: vi.fn().mockResolvedValue([{ league: { name: 'Liga Otoño' } }]),
         },
-        teamMember: { deleteMany: vi.fn() },
+        teamMember: { deleteMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
         team: { delete: vi.fn() },
+        match: { count: vi.fn().mockResolvedValue(0) },
       } as unknown as typeof prisma;
-      await fn(tx);
+      return fn(tx);
     });
 
     await expect(TeamService.leaveTeam('t1', 'u1')).rejects.toThrow(/Liga Otoño/);
@@ -150,22 +151,25 @@ describe('TeamService.leaveTeam', () => {
     const prisma = await getPrisma();
     prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
     prisma.team.findUnique.mockResolvedValue({
-      id: 't1',
       name: 'Solo team',
-      members: [{ userId: 'u1', user: { id: 'u1', name: 'A' } }],
+      members: [{ user: { name: 'A' } }],
     });
 
     const txTeamDelete = vi.fn();
     const txMemberDeleteMany = vi.fn();
     prisma.$transaction.mockImplementation(async (cb: unknown) => {
-      const fn = cb as (tx: typeof prisma) => Promise<void>;
+      const fn = cb as (tx: typeof prisma) => Promise<unknown>;
       const tx = {
         leagueRegistration: { findMany: vi.fn().mockResolvedValue([]) },
-        teamMember: { deleteMany: txMemberDeleteMany },
+        teamMember: {
+          deleteMany: txMemberDeleteMany,
+          // Re-read inside the TX returns 0 members → solo leaver case.
+          findMany: vi.fn().mockResolvedValue([]),
+        },
         team: { delete: txTeamDelete },
         match: { count: vi.fn().mockResolvedValue(0) },
       } as unknown as typeof prisma;
-      await fn(tx);
+      return fn(tx);
     });
 
     await TeamService.leaveTeam('t1', 'u1');
@@ -180,22 +184,24 @@ describe('TeamService.leaveTeam', () => {
     const prisma = await getPrisma();
     prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
     prisma.team.findUnique.mockResolvedValue({
-      id: 't1',
       name: 'Veterano',
-      members: [{ userId: 'u1', user: { id: 'u1', name: 'A' } }],
+      members: [{ user: { name: 'A' } }],
     });
 
     const txTeamDelete = vi.fn();
     const txMemberDeleteMany = vi.fn();
     prisma.$transaction.mockImplementation(async (cb: unknown) => {
-      const fn = cb as (tx: typeof prisma) => Promise<void>;
+      const fn = cb as (tx: typeof prisma) => Promise<unknown>;
       const tx = {
         leagueRegistration: { findMany: vi.fn().mockResolvedValue([]) },
-        teamMember: { deleteMany: txMemberDeleteMany },
+        teamMember: {
+          deleteMany: txMemberDeleteMany,
+          findMany: vi.fn().mockResolvedValue([]),
+        },
         team: { delete: txTeamDelete },
         match: { count: vi.fn().mockResolvedValue(3) },
       } as unknown as typeof prisma;
-      await fn(tx);
+      return fn(tx);
     });
 
     await TeamService.leaveTeam('t1', 'u1');
@@ -209,23 +215,24 @@ describe('TeamService.leaveTeam', () => {
     const prisma = await getPrisma();
     prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
     prisma.team.findUnique.mockResolvedValue({
-      id: 't1',
       name: 'Pareja',
-      members: [
-        { userId: 'u1', user: { id: 'u1', name: 'Quien sale' } },
-        { userId: 'u2', user: { id: 'u2', name: 'Quien queda' } },
-      ],
+      members: [{ user: { name: 'Quien sale' } }],
     });
 
     const txTeamDelete = vi.fn();
     prisma.$transaction.mockImplementation(async (cb: unknown) => {
-      const fn = cb as (tx: typeof prisma) => Promise<void>;
+      const fn = cb as (tx: typeof prisma) => Promise<unknown>;
       const tx = {
         leagueRegistration: { findMany: vi.fn().mockResolvedValue([]) },
-        teamMember: { deleteMany: vi.fn() },
+        teamMember: {
+          deleteMany: vi.fn(),
+          // Re-read inside the TX shows 'u2' still on the roster.
+          findMany: vi.fn().mockResolvedValue([{ userId: 'u2' }]),
+        },
         team: { delete: txTeamDelete },
+        match: { count: vi.fn().mockResolvedValue(0) },
       } as unknown as typeof prisma;
-      await fn(tx);
+      return fn(tx);
     });
 
     await TeamService.leaveTeam('t1', 'u1');
@@ -239,6 +246,73 @@ describe('TeamService.leaveTeam', () => {
           metadata: { teamId: 't1' },
         }),
       ],
+    });
+  });
+
+  it('TOCTOU: deletes team only when post-delete read confirms 0 members', async () => {
+    // Snapshot taken pre-TX shows we're the last member. But a concurrent join
+    // happens between the pre-fetch and the delete, so the post-delete read
+    // inside the TX returns 1 remaining member. The team must NOT be deleted.
+    const prisma = await getPrisma();
+    prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
+    prisma.team.findUnique.mockResolvedValue({
+      name: 'Race',
+      members: [{ user: { name: 'A' } }],
+    });
+
+    const txTeamDelete = vi.fn();
+    prisma.$transaction.mockImplementation(async (cb: unknown) => {
+      const fn = cb as (tx: typeof prisma) => Promise<unknown>;
+      const tx = {
+        leagueRegistration: { findMany: vi.fn().mockResolvedValue([]) },
+        teamMember: {
+          deleteMany: vi.fn(),
+          // Concurrent join landed before our delete: post-delete read shows
+          // a different user is still on the roster.
+          findMany: vi.fn().mockResolvedValue([{ userId: 'u-late-joiner' }]),
+        },
+        team: { delete: txTeamDelete },
+        match: { count: vi.fn().mockResolvedValue(0) },
+      } as unknown as typeof prisma;
+      return fn(tx);
+    });
+
+    await TeamService.leaveTeam('t1', 'u1');
+
+    expect(txTeamDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe('TeamService.listPendingInvitations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects when caller is not a member of the team', async () => {
+    const prisma = await getPrisma();
+    prisma.teamMember.findFirst.mockResolvedValue(null);
+
+    await expect(TeamService.listPendingInvitations('t1', 'u1')).rejects.toThrow(/No eres miembro/i);
+  });
+
+  it('returns the pending invitations with the invited user name', async () => {
+    const prisma = await getPrisma();
+    prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
+    prisma.teamInvitation.findMany.mockResolvedValue([
+      { id: 'i1', invitedUser: { name: 'Alice' } },
+      { id: 'i2', invitedUser: { name: 'Bob' } },
+    ]);
+
+    const result = await TeamService.listPendingInvitations('t1', 'u1');
+
+    expect(result).toEqual([
+      { id: 'i1', invitedUserName: 'Alice' },
+      { id: 'i2', invitedUserName: 'Bob' },
+    ]);
+    expect(prisma.teamInvitation.findMany).toHaveBeenCalledWith({
+      where: { teamId: 't1', status: 'PENDING' },
+      include: { invitedUser: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
     });
   });
 });
