@@ -25,9 +25,13 @@ function computeRegistrationWindow(
   status: LeagueStatus,
   registrationStart: Date,
   registrationEnd: Date,
+  startDate: Date,
 ): 'open' | 'future' | 'past' | 'closed' {
   if (status !== 'DRAFT') return 'closed';
   const now = Date.now();
+  // The league has effectively started — registration must be closed even
+  // if an admin forgot to flip status from DRAFT to ACTIVE.
+  if (now >= startDate.getTime()) return 'closed';
   if (now < registrationStart.getTime()) return 'future';
   if (now > registrationEnd.getTime()) return 'past';
   return 'open';
@@ -152,12 +156,15 @@ export default async function LigaDetailPage({
     league.status,
     league.registrationStart,
     league.registrationEnd,
+    league.startDate,
   );
   const displayStatus = deriveLeagueStatus(
     league.status,
     league.registrationStart,
     league.registrationEnd,
     readNow(),
+    league.startDate,
+    league.endDate,
   );
 
   return (

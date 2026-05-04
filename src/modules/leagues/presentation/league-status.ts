@@ -1,23 +1,41 @@
 import type { LeagueStatus } from '@prisma/client';
 
 export type DisplayLeagueStatus =
-  | 'REGISTRATION_FUTURE'   // DRAFT, registration window not started
-  | 'REGISTRATION_OPEN'     // DRAFT, in window
-  | 'REGISTRATION_CLOSED'   // DRAFT, window passed but league hasn't started yet
-  | 'ACTIVE'
-  | 'FINISHED'
+  | 'REGISTRATION_FUTURE'   // registration window not started yet
+  | 'REGISTRATION_OPEN'     // currently in registration window
+  | 'REGISTRATION_CLOSED'   // window passed but league hasn't started yet
+  | 'ACTIVE'                // league has started and not yet ended
+  | 'FINISHED'              // endDate passed (or status FINISHED)
   | 'ARCHIVED';
 
+/**
+ * Derive a *display* status from the persisted enum + the league's date
+ * milestones. This decouples the badge shown to users from the manual admin
+ * lifecycle: a DRAFT league whose startDate has passed displays as ACTIVE,
+ * an ACTIVE league past its endDate displays as FINISHED, etc.
+ *
+ * `startDate` and `endDate` are optional for back-compat; when omitted the
+ * function falls back to the original registration-window-only logic.
+ */
 export function deriveLeagueStatus(
   status: LeagueStatus,
   registrationStart: Date,
   registrationEnd: Date,
   now: number,
+  startDate?: Date,
+  endDate?: Date,
 ): DisplayLeagueStatus {
-  if (status === 'ACTIVE') return 'ACTIVE';
-  if (status === 'FINISHED') return 'FINISHED';
   if (status === 'ARCHIVED') return 'ARCHIVED';
-  // DRAFT
+
+  // Time-based overrides ensure the badge always matches the calendar even
+  // if an admin forgot to activate / finalize.
+  if (endDate && now > endDate.getTime()) return 'FINISHED';
+  if (status === 'FINISHED') return 'FINISHED';
+
+  if (startDate && now >= startDate.getTime()) return 'ACTIVE';
+  if (status === 'ACTIVE') return 'ACTIVE';
+
+  // DRAFT (or ACTIVE before its startDate, an unusual but tolerated state)
   if (now < registrationStart.getTime()) return 'REGISTRATION_FUTURE';
   if (now > registrationEnd.getTime()) return 'REGISTRATION_CLOSED';
   return 'REGISTRATION_OPEN';

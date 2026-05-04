@@ -88,7 +88,7 @@ export default async function LigasPage({
   const now = readNow();
   const leaguesWithDisplay = leagues.map((l) => ({
     ...l,
-    displayStatus: deriveLeagueStatus(l.status, l.registrationStart, l.registrationEnd, now),
+    displayStatus: deriveLeagueStatus(l.status, l.registrationStart, l.registrationEnd, now, l.startDate, l.endDate),
   }));
 
   const hasActiveFilters = q.length > 0 || status !== 'all' || category !== 'all' || from !== null || to !== null;

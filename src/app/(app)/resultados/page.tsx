@@ -8,10 +8,16 @@ import { prisma } from '@/shared/db/client';
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { MatchResultRow } from '../_components/match-result-row';
 import { PlayerStack } from '../_components/player-stack';
+import { getSubmitterSide } from '@/modules/leagues/application/match-result-logic';
 
 export const metadata = { title: 'Resultados — Padel League' };
 
 const FINAL_STATUSES = ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] as const;
+
+function setsLine(sets: Array<{ setNumber: number; gamesA: number; gamesB: number }>): string {
+  if (sets.length === 0) return '—';
+  return sets.map((s) => `${s.gamesA}-${s.gamesB}`).join(' / ');
+}
 
 function formatIndependentDate(date: Date | null): string {
   if (!date) return 'Fecha por definir';
@@ -30,7 +36,7 @@ export default async function ResultadosPage() {
 
   const now = new Date();
 
-  const [leagueMatches, independentMatches] = await Promise.all([
+  const [leagueMatches, pendingValidationMatches, independentMatches] = await Promise.all([
     prisma.match.findMany({
       where: {
         status: { in: [...FINAL_STATUSES] },
@@ -61,6 +67,30 @@ export default async function ResultadosPage() {
       },
       orderBy: [{ scheduledAt: 'desc' }, { updatedAt: 'desc' }],
       take: 100,
+    }),
+    // Matches with a result submitted by one team that is awaiting validation
+    // by the other team. We show them at the top of /resultados so the
+    // validating team can act without needing to open the notification.
+    prisma.match.findMany({
+      where: {
+        status: 'PENDING_VALIDATION',
+        OR: [
+          { teamA: { members: { some: { userId: user.id } } } },
+          { teamB: { members: { some: { userId: user.id } } } },
+        ],
+      },
+      include: {
+        league: { select: { slug: true, name: true } },
+        teamA: { select: { id: true, name: true, logoUrl: true, members: { select: { userId: true } } } },
+        teamB: { select: { id: true, name: true, logoUrl: true, members: { select: { userId: true } } } },
+        results: {
+          where: { status: 'PENDING' },
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          include: { sets: { orderBy: { setNumber: 'asc' } } },
+        },
+      },
+      orderBy: [{ scheduledAt: 'desc' }, { updatedAt: 'desc' }],
     }),
     prisma.independentMatch.findMany({
       where: {
@@ -94,7 +124,72 @@ export default async function ResultadosPage() {
 
       <PartidosSubnav active="resultados" />
 
-      {leagueMatches.length === 0 && independentMatches.length === 0 && (
+      {pendingValidationMatches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Pendientes de validar</h2>
+          <ul className="space-y-3">
+            {pendingValidationMatches.map((m) => {
+              const result = m.results[0];
+              if (!result) return null;
+              const teamAUserIds = m.teamA.members.map((mb) => mb.userId);
+              const teamBUserIds = m.teamB.members.map((mb) => mb.userId);
+              // Reuse the canonical helper from match-result-logic so we don't
+              // diverge from the match-detail page's `confirmRejectPanel`
+              // gating. If the submitter has since left their team (or was an
+              // admin who is on neither team) we fall back to "rival of the
+              // viewer", so the validation button still appears for whoever
+              // actually has to act.
+              const viewerSide = getSubmitterSide(user.id, teamAUserIds, teamBUserIds);
+              const submitterSide = getSubmitterSide(
+                result.submittedByUserId,
+                teamAUserIds,
+                teamBUserIds,
+              );
+              const canValidate =
+                viewerSide !== null && submitterSide !== null && viewerSide !== submitterSide;
+              const submitterMissing = viewerSide !== null && submitterSide === null;
+              const cardClass = canValidate
+                ? 'bg-amber-50 border-amber-300'
+                : 'bg-white border-slate-200/80';
+              return (
+                <li
+                  key={m.id}
+                  className={`block rounded-2xl border shadow-sm p-4 ${cardClass}`}
+                >
+                  <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+                    <p className="font-bold text-brand-navy truncate">
+                      {m.teamA.name} vs {m.teamB.name}
+                    </p>
+                    <span className="text-xs text-slate-400">{m.league.name}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Resultado propuesto: <strong>{setsLine(result.sets)}</strong>
+                  </p>
+                  {canValidate ? (
+                    <Link
+                      href={`/ligas/${m.league.slug}/partidos/${m.id}` as Route}
+                      className="inline-block px-3 py-1 bg-gradient-to-br from-emerald-500 to-green-600 text-white text-xs font-bold rounded-full hover:opacity-90 transition-opacity"
+                    >
+                      Revisar y validar
+                    </Link>
+                  ) : submitterMissing ? (
+                    <Link
+                      href={`/ligas/${m.league.slug}/partidos/${m.id}` as Route}
+                      className="inline-block px-3 py-1 bg-amber-100 border border-amber-200 text-amber-800 text-xs font-semibold rounded-full hover:opacity-90 transition-opacity"
+                    >
+                      Resolver pendiente · ver partido
+                    </Link>
+                  ) : (
+                    <p className="text-xs text-slate-500">Esperando validación del equipo rival.</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {leagueMatches.length === 0 && independentMatches.length === 0 && pendingValidationMatches.length === 0 && (
         <p className="text-slate-400 text-sm">Aún no tienes resultados que mostrar.</p>
       )}
 

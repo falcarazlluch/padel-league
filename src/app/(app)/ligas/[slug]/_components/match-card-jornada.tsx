@@ -114,7 +114,7 @@ export function MatchCardJornada({
         </div>
         <div className="mt-2">
           <Link
-            href={`/partidos/${matchId}` as Route}
+            href={`/ligas/${slug}/partidos/${matchId}` as Route}
             className="inline-block text-xs px-3 py-1 bg-brand-navy text-white rounded-md hover:bg-brand-navy/90 transition-colors font-medium"
           >
             Proponer fecha

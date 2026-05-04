@@ -222,8 +222,11 @@ export default async function MatchDetailPage({
         </div>
         <p className="text-sm text-slate-400 mt-2">
           Límite: {match.deadlineAt.toLocaleDateString('es-ES')}
-          {match.scheduledAt && (
-            <> · Jugado: {match.scheduledAt.toLocaleDateString('es-ES')}</>
+          {match.scheduledAt && match.status !== 'EXPIRED_UNPLAYED' && (
+            <>
+              {' · '}
+              {match.confirmedResult ? 'Jugado' : 'Fecha partido'}: {match.scheduledAt.toLocaleDateString('es-ES')}
+            </>
           )}
         </p>
         {match.scheduledAt && match.status !== 'CANCELLED' && !isPast && (
