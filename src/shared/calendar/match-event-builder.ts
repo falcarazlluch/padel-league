@@ -88,7 +88,7 @@ export async function buildIndependentMatchEvent(matchId: string, callerUserId: 
   return { kind: 'ok', event, filename: makeFilename(match.name) };
 }
 
-export async function buildLeagueMatchEvent(matchId: string, _callerUserId: string): Promise<BuildResult> {
+export async function buildLeagueMatchEvent(matchId: string, callerUserId: string): Promise<BuildResult> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
@@ -104,7 +104,37 @@ export async function buildLeagueMatchEvent(matchId: string, _callerUserId: stri
   if (!match) return { kind: 'not-found' };
   if (!match.scheduledAt) return { kind: 'no-date' };
 
-  // League matches are visible to any logged-in user — no per-match auth check.
+  // ACL: a league match's ICS exposes the full roster of both teams. Restrict
+  // to people who actually belong to the league (any team registered in it),
+  // plus SUPER_ADMINs, plus the league admin. Everybody else gets `forbidden`.
+  const isParticipantOnEither =
+    match.teamA.members.some((m) => m.userId === callerUserId) ||
+    match.teamB.members.some((m) => m.userId === callerUserId);
+  if (!isParticipantOnEither) {
+    const caller = await prisma.user.findUnique({
+      where: { id: callerUserId },
+      select: { role: true },
+    });
+    const isSuperAdmin = caller?.role === 'SUPER_ADMIN';
+    if (!isSuperAdmin) {
+      const leagueRow = await prisma.league.findUnique({
+        where: { id: match.league.id },
+        select: { createdByUserId: true },
+      });
+      const isLeagueAdmin = leagueRow?.createdByUserId === callerUserId;
+      if (!isLeagueAdmin) {
+        const registeredInLeague = await prisma.leagueRegistration.findFirst({
+          where: {
+            leagueId: match.league.id,
+            withdrawnAt: null,
+            team: { members: { some: { userId: callerUserId } } },
+          },
+          select: { id: true },
+        });
+        if (!registeredInLeague) return { kind: 'forbidden' };
+      }
+    }
+  }
 
   const teamARoster = match.teamA.members.map((m) => m.user.name).join(', ');
   const teamBRoster = match.teamB.members.map((m) => m.user.name).join(', ');

@@ -9,6 +9,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { RegistrationCodeService } from '@/modules/users';
 import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
+import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
 import { isUserFacingError } from '@/shared/errors';
 
 type ActionResult = { error: string } | { success: true; email: string };
@@ -32,6 +33,11 @@ export async function generateShareLinkAction(): Promise<ShareLinkResult> {
   const user = await getValidatedSession(token);
 
   try {
+    // Cap to 5 invites per user / 15-minute window. Stops a logged-in
+    // attacker from issuing infinite invitations and burning the dedicated
+    // domain reputation on Resend.
+    await checkRateLimit(buildRateLimitKey('friend-invite', 'user', user.id), { limit: 5 });
+
     const code = await RegistrationCodeService.generateForInvite(user.id);
     const registerUrl = `${env().APP_URL}/registro?code=${encodeURIComponent(code)}`;
     return {
@@ -59,6 +65,8 @@ export async function inviteFriendAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   try {
+    await checkRateLimit(buildRateLimitKey('friend-invite', 'user', user.id), { limit: 5 });
+
     const code = await RegistrationCodeService.generateForInvite(user.id);
     const registerUrl = `${env().APP_URL}/registro?code=${encodeURIComponent(code)}`;
 

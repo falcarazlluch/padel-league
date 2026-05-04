@@ -30,6 +30,13 @@ export async function loginAction(formData: FormData): Promise<{ error?: string 
     if (!user || !user.emailVerifiedAt) {
       throw new AuthenticationError('CREDENTIALS_INVALID', 'Email o contraseña incorrectos.');
     }
+    if (user.blockedAt) {
+      // Don't leak the exact reason here — keep the message identical to a
+      // wrong-password failure so attackers can't enumerate blocked accounts.
+      // Log the discriminator instead.
+      logger().warn({ userId: user.id }, 'auth.login.blocked-account');
+      throw new AuthenticationError('CREDENTIALS_INVALID', 'Email o contraseña incorrectos.');
+    }
 
     const valid = await PasswordService.verify(user.passwordHash, password);
     if (!valid) {

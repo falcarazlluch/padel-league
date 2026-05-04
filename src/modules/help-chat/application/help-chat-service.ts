@@ -1,11 +1,34 @@
 import { prisma } from '@/shared/db/client';
 import { calculateStandings } from '@/modules/leagues';
 import { env } from '@/shared/config/env';
+import { logger } from '@/shared/logger';
+import { DomainError } from '@/shared/errors';
+import { detectPromptInjection, stripModelTokens } from './prompt-injection-detector';
 
 export type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
 };
+
+export const PROMPT_INJECTION_BLOCK_THRESHOLD = 3;
+
+export class PromptInjectionDetectedError extends DomainError {
+  public readonly strikes: number;
+  public readonly threshold: number;
+  public readonly blocked: boolean;
+
+  constructor(strikes: number, threshold: number, blocked: boolean) {
+    super(
+      blocked ? 'PROMPT_INJECTION_BLOCKED' : 'PROMPT_INJECTION_DETECTED',
+      blocked
+        ? 'Tu cuenta ha sido bloqueada por intentos repetidos de manipular el asistente. Si crees que es un error, contacta con un administrador.'
+        : `Hemos detectado un intento de manipular las instrucciones del asistente. Esto queda registrado. Tras ${threshold} intentos la cuenta se bloquea automáticamente. Llevas ${strikes}/${threshold}.`,
+    );
+    this.strikes = strikes;
+    this.threshold = threshold;
+    this.blocked = blocked;
+  }
+}
 
 const HELP_SUMMARY = `
 GUÍA RÁPIDA DE PADEL LEAGUE:
@@ -170,18 +193,93 @@ async function buildUserContext(userId: string): Promise<string> {
   return sections.join('\n\n');
 }
 
+async function recordInjectionAttempt(userId: string, reasons: string[]): Promise<{
+  strikes: number;
+  blocked: boolean;
+}> {
+  // Atomic increment + read so concurrent attacker requests don't undercount.
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { promptInjectionStrikes: { increment: 1 } },
+    select: { promptInjectionStrikes: true, blockedAt: true },
+  });
+  const strikes = updated.promptInjectionStrikes;
+  const shouldBlock = strikes >= PROMPT_INJECTION_BLOCK_THRESHOLD && !updated.blockedAt;
+  if (shouldBlock) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        blockedAt: new Date(),
+        blockReason: 'Repeated prompt-injection attempts on the help chat.',
+      },
+    });
+    // Drop every active session so the user is logged out everywhere.
+    await prisma.session.deleteMany({ where: { userId } });
+  }
+  await prisma.auditLog
+    .create({
+      data: {
+        actorId: userId,
+        action: shouldBlock ? 'auth.account.blocked.prompt-injection' : 'help-chat.prompt-injection.detected',
+        targetType: 'User',
+        targetId: userId,
+        metadata: { reasons, strikes } as object,
+      },
+    })
+    .catch(() => undefined);
+  logger().warn(
+    { userId, reasons, strikes, blocked: shouldBlock },
+    shouldBlock ? 'help-chat.account-blocked' : 'help-chat.injection-detected',
+  );
+  return { strikes, blocked: shouldBlock || !!updated.blockedAt };
+}
+
 export const HelpChatService = {
   async answer(userId: string, question: string, history: ChatMessage[]): Promise<{ content: string }> {
     const apiKey = env().OPENAI_API_KEY;
     if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
 
+    // Refuse pre-emptively if the account is already blocked. The session
+    // layer also blocks but this is the closest defence to the model call.
+    const userRecord = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { blockedAt: true, promptInjectionStrikes: true },
+    });
+    if (!userRecord) throw new Error('User not found');
+    if (userRecord.blockedAt) {
+      throw new PromptInjectionDetectedError(
+        userRecord.promptInjectionStrikes,
+        PROMPT_INJECTION_BLOCK_THRESHOLD,
+        true,
+      );
+    }
+
+    // Run the detector on the new question. We deliberately do NOT scan the
+    // history — historic assistant responses may legitimately quote pattern
+    // language ("ignora estas instrucciones", in a help context, for
+    // example). The user-controlled vector is the new question.
+    const detection = detectPromptInjection(question);
+    if (detection.matched) {
+      const { strikes, blocked } = await recordInjectionAttempt(userId, detection.reasons);
+      throw new PromptInjectionDetectedError(strikes, PROMPT_INJECTION_BLOCK_THRESHOLD, blocked);
+    }
+
     const context = await buildUserContext(userId);
+
+    // Defensive: even though the route validates `role` via Zod, sanitise the
+    // content of historic messages to strip model-specific role tokens that
+    // an attacker could inject through a previous message before our
+    // detector existed.
+    const sanitisedHistory = history.slice(-8).map((m) => ({
+      role: m.role,
+      content: stripModelTokens(m.content),
+    }));
 
     const messages = [
       { role: 'system' as const, content: SYSTEM_PROMPT },
       { role: 'system' as const, content: `GUÍA:\n${HELP_SUMMARY}` },
       { role: 'system' as const, content: `CONTEXTO:\n${context}` },
-      ...history.slice(-8).map((m) => ({ role: m.role, content: m.content })),
+      ...sanitisedHistory,
       { role: 'user' as const, content: question },
     ];
 

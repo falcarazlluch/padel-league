@@ -6,6 +6,9 @@ vi.mock('@/shared/db/client', () => ({
     independentMatch: { findUnique: vi.fn() },
     match: { findUnique: vi.fn() },
     teamMember: { findFirst: vi.fn() },
+    user: { findUnique: vi.fn() },
+    league: { findUnique: vi.fn() },
+    leagueRegistration: { findFirst: vi.fn() },
   },
 }));
 
@@ -19,6 +22,9 @@ async function getPrisma() {
     independentMatch: { findUnique: ReturnType<typeof vi.fn> };
     match: { findUnique: ReturnType<typeof vi.fn> };
     teamMember: { findFirst: ReturnType<typeof vi.fn> };
+    user: { findUnique: ReturnType<typeof vi.fn> };
+    league: { findUnique: ReturnType<typeof vi.fn> };
+    leagueRegistration: { findFirst: ReturnType<typeof vi.fn> };
   };
 }
 
@@ -163,7 +169,7 @@ describe('buildLeagueMatchEvent', () => {
     expect(result.kind).toBe('not-found');
   });
 
-  it('builds summary as "<TeamA> vs <TeamB>" and url to ligas slug', async () => {
+  it('builds summary as "<TeamA> vs <TeamB>" and url to ligas slug for a participant', async () => {
     const prisma = await getPrisma();
     prisma.match.findUnique.mockResolvedValue({
       id: 'lm1',
@@ -172,22 +178,63 @@ describe('buildLeagueMatchEvent', () => {
       teamA: {
         id: 'tA',
         name: 'Halcones',
-        members: [{ user: { id: 'u1', name: 'Cap' } }, { user: { id: 'u2', name: 'Par' } }],
+        members: [
+          { userId: 'u1', user: { id: 'u1', name: 'Cap' } },
+          { userId: 'u2', user: { id: 'u2', name: 'Par' } },
+        ],
       },
       teamB: {
         id: 'tB',
         name: 'Tigres',
-        members: [{ user: { id: 'u3', name: 'C' } }, { user: { id: 'u4', name: 'D' } }],
+        members: [
+          { userId: 'u3', user: { id: 'u3', name: 'C' } },
+          { userId: 'u4', user: { id: 'u4', name: 'D' } },
+        ],
       },
       league: { id: 'l1', name: 'Liga Otoño', slug: 'liga-otono' },
     });
 
-    const result = await buildLeagueMatchEvent('lm1', 'u-any');
+    // Caller is teamA member -> short-circuits the ACL.
+    const result = await buildLeagueMatchEvent('lm1', 'u1');
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;
     expect(result.event.summary).toBe('Halcones vs Tigres');
     expect(result.event.url).toBe('https://example.com/ligas/liga-otono/partidos/lm1');
     expect(result.event.uid).toBe('match-lm1@padelleague.app');
+  });
+
+  it('returns forbidden for non-participant who is not super-admin / league-admin / league-registrant', async () => {
+    const prisma = await getPrisma();
+    prisma.match.findUnique.mockResolvedValue({
+      id: 'lm1',
+      scheduledAt: new Date('2026-05-03T17:00:00Z'),
+      updatedAt: new Date('2026-04-30T18:00:00Z'),
+      teamA: { id: 'tA', name: 'A', members: [{ userId: 'u1', user: { id: 'u1', name: 'A' } }] },
+      teamB: { id: 'tB', name: 'B', members: [{ userId: 'u2', user: { id: 'u2', name: 'B' } }] },
+      league: { id: 'l1', name: 'L', slug: 's' },
+    });
+    prisma.user.findUnique.mockResolvedValue({ role: 'PLAYER' });
+    prisma.league.findUnique.mockResolvedValue({ createdByUserId: 'someone-else' });
+    prisma.leagueRegistration.findFirst.mockResolvedValue(null);
+
+    const result = await buildLeagueMatchEvent('lm1', 'u-stranger');
+    expect(result.kind).toBe('forbidden');
+  });
+
+  it('returns ok for SUPER_ADMIN even when not a participant', async () => {
+    const prisma = await getPrisma();
+    prisma.match.findUnique.mockResolvedValue({
+      id: 'lm1',
+      scheduledAt: new Date('2026-05-03T17:00:00Z'),
+      updatedAt: new Date('2026-04-30T18:00:00Z'),
+      teamA: { id: 'tA', name: 'A', members: [{ userId: 'u1', user: { id: 'u1', name: 'A' } }] },
+      teamB: { id: 'tB', name: 'B', members: [{ userId: 'u2', user: { id: 'u2', name: 'B' } }] },
+      league: { id: 'l1', name: 'L', slug: 's' },
+    });
+    prisma.user.findUnique.mockResolvedValue({ role: 'SUPER_ADMIN' });
+
+    const result = await buildLeagueMatchEvent('lm1', 'u-admin');
+    expect(result.kind).toBe('ok');
   });
 
   it('returns no-date when scheduledAt is null', async () => {

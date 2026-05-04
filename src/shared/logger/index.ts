@@ -13,6 +13,11 @@ const REDACT_PATHS = [
   'session_token',
   'authorization',
   'cookie',
+  // PII (GDPR): never log full email addresses at top-level. Use `toDomain`
+  // (e.g. "…@gmail.com") for monitoring instead.
+  'email',
+  'to',
+  'toEmail',
 
   // one-level nested — pino wildcards do NOT recurse, so add known shapes explicitly
   '*.password',
@@ -21,11 +26,15 @@ const REDACT_PATHS = [
   '*.sessionToken',
   '*.session_token',
   '*.twoFactorSecret',
+  '*.email',
+  '*.to',
+  '*.toEmail',
 
   // two-level nested for common shapes we emit
   '*.*.password',
   '*.*.passwordHash',
   '*.*.sessionToken',
+  '*.*.email',
 ];
 
 export type CreateLoggerOptions = {

@@ -193,7 +193,11 @@ export async function sendEmailHandler(data: JobMap['send-email']): Promise<void
       data: { status: 'SENT', providerMessageId: providerId, sentAt: new Date() },
     });
 
-    logger().info({ to, template, providerId }, 'send-email.sent');
+    // Don't log the recipient address (PII / GDPR). The EmailLog row carries
+    // the full address for audit; logs only need the providerId + template
+    // and a domain hint for high-level monitoring.
+    const toDomain = to.includes('@') ? `…@${to.split('@').pop() ?? '?'}` : '…';
+    logger().info({ toDomain, template, providerId }, 'send-email.sent');
   } catch (err) {
     await prisma.emailLog.update({
       where: { id: log.id },

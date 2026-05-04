@@ -32,11 +32,25 @@ export const SessionService = {
   async validate(sessionToken: string): Promise<SessionUser> {
     const session = await prisma.session.findUnique({
       where: { sessionToken },
-      include: { user: { select: { id: true, email: true, name: true, role: true, deletedAt: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            deletedAt: true,
+            blockedAt: true,
+          },
+        },
+      },
     });
 
     if (!session || session.expires < new Date() || session.user.deletedAt) {
       throw new AuthenticationError('SESSION_INVALID', 'Sesión inválida o expirada.');
+    }
+    if (session.user.blockedAt) {
+      throw new AuthenticationError('ACCOUNT_BLOCKED', 'Cuenta bloqueada.');
     }
 
     return {

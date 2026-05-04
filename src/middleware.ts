@@ -4,8 +4,21 @@ import { NextResponse, type NextRequest } from 'next/server';
 // next/headers and prisma, which are not Edge-compatible.
 const SESSION_COOKIE = 'padel_session';
 
-// Routes that require authentication
-const PROTECTED_PREFIXES = ['/dashboard', '/perfil', '/admin'];
+// Routes that require authentication. The page-level layout in (app)/ also
+// validates the session (defence in depth) but middleware is the cheap gate
+// that avoids hitting the DB for unauthenticated visitors.
+const PROTECTED_PREFIXES = [
+  '/dashboard',
+  '/perfil',
+  '/admin',
+  '/jugar',
+  '/equipos',
+  '/ligas',
+  '/partidos',
+  '/resultados',
+  '/invitar',
+  '/notificaciones',
+];
 // Routes that redirect to dashboard if already authenticated
 const AUTH_ROUTES = ['/login', '/recuperar-password'];
 

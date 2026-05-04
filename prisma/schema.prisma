@@ -184,14 +184,14 @@ enum CommentaryType {
 // ─── IDENTIDAD Y AUTH ──────────────────────────────────────────────────────
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique @db.Citext
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  passwordHash    String    @map("password_hash")
+  id              String       @id @default(cuid())
+  email           String       @unique @db.Citext
+  emailVerifiedAt DateTime?    @map("email_verified_at")
+  passwordHash    String       @map("password_hash")
   name            String
-  avatarUrl       String?   @map("avatar_url")
+  avatarUrl       String?      @map("avatar_url")
   phone           String?
-  role            UserRole  @default(PLAYER)
+  role            UserRole     @default(PLAYER)
   category        TeamCategory @default(INTERMEDIATE) @map("category")
 
   // 2FA — schema listo, feature OFF hasta Spec 7+
@@ -202,6 +202,12 @@ model User {
   // GDPR
   anonymizedAt DateTime? @map("anonymized_at")
   deletedAt    DateTime? @map("deleted_at")
+
+  // Account blocking (e.g. repeated prompt-injection attempts on the
+  // chatbot). Strikes counter feeds the auto-block at threshold.
+  blockedAt              DateTime? @map("blocked_at")
+  blockReason            String?   @map("block_reason")
+  promptInjectionStrikes Int       @default(0) @map("prompt_injection_strikes")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -325,10 +331,10 @@ model League {
   pointsLoss          Int         @default(0) @map("points_loss")
   tiebreakerConfig    Json        @default("{}") @map("tiebreaker_config")
 
-  createdByUserId String    @map("created_by_user_id")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  finalizedAt     DateTime? @map("finalized_at")
+  createdByUserId            String    @map("created_by_user_id")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+  finalizedAt                DateTime? @map("finalized_at")
   registrationOpenNotifiedAt DateTime? @map("registration_open_notified_at")
 
   registrations      LeagueRegistration[]
@@ -349,13 +355,13 @@ model Team {
   createdByUserId String       @map("created_by_user_id")
   createdAt       DateTime     @default(now()) @map("created_at")
 
-  createdBy                    User                         @relation("TeamCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  members                      TeamMember[]
-  invitations                  TeamInvitation[]
-  registrations                LeagueRegistration[]
-  homeMatches                  Match[]                      @relation("TeamA")
-  awayMatches                  Match[]                      @relation("TeamB")
-  wonMatches                   MatchResult[]                @relation("MatchWinner")
+  createdBy            User                         @relation("TeamCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  members              TeamMember[]
+  invitations          TeamInvitation[]
+  registrations        LeagueRegistration[]
+  homeMatches          Match[]                      @relation("TeamA")
+  awayMatches          Match[]                      @relation("TeamB")
+  wonMatches           MatchResult[]                @relation("MatchWinner")
   hostedMatches        IndependentMatch[]           @relation("MatchHostTeam")
   matchTeamInvitations IndependentMatchInvitation[] @relation("MatchTeamInvitations")
   categoryProposals    TeamCategoryChangeProposal[]

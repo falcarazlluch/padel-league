@@ -3,7 +3,9 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
-import { HelpChatService } from '@/modules/help-chat';
+import { HelpChatService, PromptInjectionDetectedError } from '@/modules/help-chat';
+import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
+import { RateLimitError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 
 const bodySchema = z.object({
@@ -41,12 +43,30 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    // 20 messages / 15-minute window per user. Generous for genuine help-chat
+    // use, restrictive enough to cap any abuse of the OpenAI bill.
+    await checkRateLimit(buildRateLimitKey('ai-chat', 'user', user.id), { limit: 20 });
+
     const result = await HelpChatService.answer(user.id, parsed.data.question, parsed.data.history);
     return NextResponse.json({ content: result.content });
   } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 429 });
+    }
+    if (err instanceof PromptInjectionDetectedError) {
+      // 403 because the request was understood but refused on policy grounds.
+      // The body distinguishes warned vs blocked so the UI can adapt copy.
+      return NextResponse.json(
+        {
+          error: (err as Error).message,
+          blocked: err.blocked,
+          strikes: err.strikes,
+          threshold: err.threshold,
+        },
+        { status: 403 },
+      );
+    }
     logger().error({ err, userId: user.id }, 'help-chat.failed');
-    // Surface a short, sanitized hint so the user can self-diagnose without
-    // having to dig into Vercel function logs. The full error is in logs.
     const reason = (err as Error)?.message ?? '';
     let hint = 'No se pudo generar la respuesta.';
     if (reason.includes('OPENAI_API_KEY')) hint = 'Falta configurar OPENAI_API_KEY.';
