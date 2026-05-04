@@ -9,24 +9,47 @@ import {
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 
 interface Props {
-  photo: PhotoSummary;
+  /** All photos in the same match — used to compute prev/next navigation. */
+  photos: PhotoSummary[];
+  currentPhotoId: string;
   currentUserId: string;
   onClose: () => void;
-  onLikeToggle: () => void;
-  onDelete: (() => void) | null;
+  onNavigate: (photoId: string) => void;
+  onLikeToggle: (photoId: string) => void;
+  onDelete: ((photoId: string) => void) | null;
   onCommentChange: () => void;
 }
 
 const MAX_BODY = 500;
 
-export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDelete, onCommentChange }: Props) {
+export function PhotoModal({
+  photos,
+  currentPhotoId,
+  currentUserId,
+  onClose,
+  onNavigate,
+  onLikeToggle,
+  onDelete,
+  onCommentChange,
+}: Props) {
+  const index = photos.findIndex((p) => p.id === currentPhotoId);
+  const photo = index >= 0 ? photos[index] : null;
+  const prev = index > 0 ? photos[index - 1] : null;
+  const next = index >= 0 && index < photos.length - 1 ? photos[index + 1] : null;
+
   const [comments, setComments] = useState<PhotoCommentEntry[] | null>(null);
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
 
+  // Re-fetch comments whenever the focused photo changes (also covers the
+  // initial open). Keep the previous comment list visible while loading to
+  // avoid a flash of "Cargando…" on a fast carousel swipe.
   useEffect(() => {
+    if (!photo) return;
     let cancelled = false;
+    setError(null);
+    setBody('');
     void fetch(`/api/match-photos/${photo.id}/detail`)
       .then(async (r) => {
         if (!r.ok) throw new Error('No se pudieron cargar los comentarios.');
@@ -39,16 +62,30 @@ export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDele
     return () => {
       cancelled = true;
     };
-  }, [photo.id]);
+  }, [photo?.id]);
 
-  // Close on Escape — keeps the lightbox keyboard-friendly.
+  // Keyboard nav: Esc closes, ← and → step through the carousel.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key === 'ArrowLeft' && prev) {
+        e.preventDefault();
+        onNavigate(prev.id);
+        return;
+      }
+      if (e.key === 'ArrowRight' && next) {
+        e.preventDefault();
+        onNavigate(next.id);
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, onNavigate, prev, next]);
+
+  if (!photo) return null;
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,10 +103,6 @@ export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDele
         return;
       }
       setBody('');
-      // Re-fetch comments inline so the modal reflects the new entry. Guard
-      // against the endpoint returning a non-2xx (e.g. session expired
-      // mid-flow): in that case the optimistic refresh upstream will pick
-      // it up — we just don't blow away the existing list.
       try {
         const r = await fetch(`/api/match-photos/${photo.id}/detail`);
         if (r.ok) {
@@ -77,7 +110,7 @@ export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDele
           if (Array.isArray(reload.comments)) setComments(reload.comments);
         }
       } catch {
-        // Swallow — comment was saved server-side; the modal can stay stale.
+        // Comment was saved server-side; the modal can stay stale.
       }
       onCommentChange();
     });
@@ -95,22 +128,51 @@ export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDele
     });
   };
 
+  const total = photos.length;
+  const positionLabel = total > 1 ? `${index + 1} / ${total}` : null;
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row"
+        className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row relative"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex-1 bg-slate-900 flex items-center justify-center min-h-[280px]">
+        <div className="flex-1 bg-slate-900 flex items-center justify-center min-h-[280px] relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={photo.blobUrl}
             alt={`Foto subida por ${photo.uploaderName}`}
             className="max-h-[90vh] w-full object-contain"
           />
+
+          {prev && (
+            <button
+              type="button"
+              onClick={() => onNavigate(prev.id)}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white text-xl transition-colors"
+              aria-label="Foto anterior"
+            >
+              ‹
+            </button>
+          )}
+          {next && (
+            <button
+              type="button"
+              onClick={() => onNavigate(next.id)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white text-xl transition-colors"
+              aria-label="Foto siguiente"
+            >
+              ›
+            </button>
+          )}
+          {positionLabel && (
+            <span className="absolute top-2 left-1/2 -translate-x-1/2 text-xs text-white bg-black/50 rounded-full px-2 py-0.5">
+              {positionLabel}
+            </span>
+          )}
         </div>
 
         <aside className="md:w-80 flex flex-col border-t md:border-t-0 md:border-l border-slate-200 max-h-[90vh]">
@@ -132,7 +194,7 @@ export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDele
           <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-100 text-sm">
             <button
               type="button"
-              onClick={onLikeToggle}
+              onClick={() => onLikeToggle(photo.id)}
               className={`flex items-center gap-1 font-semibold ${photo.viewerLiked ? 'text-rose-600' : 'text-slate-500 hover:text-rose-500'} transition-colors`}
             >
               {photo.viewerLiked ? '♥' : '♡'} {photo.likeCount}
@@ -141,7 +203,7 @@ export function PhotoModal({ photo, currentUserId, onClose, onLikeToggle, onDele
             {onDelete && (
               <button
                 type="button"
-                onClick={onDelete}
+                onClick={() => onDelete(photo.id)}
                 className="ml-auto text-xs text-rose-500 hover:text-rose-700"
               >
                 Borrar foto

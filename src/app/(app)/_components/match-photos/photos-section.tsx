@@ -127,7 +127,7 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
     router.refresh();
   };
 
-  const openPhoto = openPhotoId ? photos.find((p) => p.id === openPhotoId) ?? null : null;
+  const openPhotoExists = openPhotoId !== null && photos.some((p) => p.id === openPhotoId);
 
   return (
     <section className="space-y-3">
@@ -230,13 +230,19 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
         </ul>
       )}
 
-      {openPhoto && (
+      {openPhotoExists && openPhotoId && (
         <PhotoModal
-          photo={openPhoto}
+          photos={photos}
+          currentPhotoId={openPhotoId}
           currentUserId={currentUserId}
           onClose={() => setOpenPhotoId(null)}
-          onLikeToggle={() => onLike(openPhoto.id)}
-          onDelete={openPhoto.canDelete ? () => onDelete(openPhoto.id) : null}
+          onNavigate={(id) => setOpenPhotoId(id)}
+          onLikeToggle={(id) => void onLike(id)}
+          // Permission is per-photo; the modal asks before each call.
+          onDelete={(id) => {
+            const target = photos.find((p) => p.id === id);
+            if (target && target.canDelete) void onDelete(id);
+          }}
           onCommentChange={() => router.refresh()}
         />
       )}

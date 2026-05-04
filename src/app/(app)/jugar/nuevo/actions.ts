@@ -10,6 +10,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService } from '@/modules/independent-matches';
 import { isUserFacingError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
+import { parseMadridLocal } from '@/shared/datetime/madrid-local';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -29,7 +30,7 @@ const createOpenSchema = z
     scheduledAt: z
       .string()
       .optional()
-      .transform((v) => (v ? new Date(v) : undefined))
+      .transform((v) => (v ? parseMadridLocal(v) : undefined))
       .refine((d) => d === undefined || !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
     location: z.string().max(200).optional(),
     description: z.string().max(500).optional(),

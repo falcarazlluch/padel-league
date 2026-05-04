@@ -5,6 +5,7 @@ import { prisma } from '@/shared/db/client';
 import { AvatarUploader } from './avatar-uploader';
 import { updateProfileAction, revokeAllSessionsAction } from './actions';
 import { ChangePasswordForm } from './change-password-form';
+import { DangerZone } from './danger-zone';
 import { CATEGORY_VALUES, CATEGORY_LABEL } from '@/modules/leagues/presentation/category';
 
 export default async function PerfilPage() {
@@ -93,6 +94,8 @@ export default async function PerfilPage() {
           &ldquo;Cerrar sesión&rdquo; sale de este dispositivo. &ldquo;Cerrar todas&rdquo; cierra también las del resto de dispositivos donde hayas iniciado sesión.
         </p>
       </section>
+
+      <DangerZone />
     </div>
   );
 }

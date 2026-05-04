@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { SchedulingService } from '@/modules/leagues';
 import { isUserFacingError } from '@/shared/errors';
+import { parseMadridLocal } from '@/shared/datetime/madrid-local';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -23,7 +24,7 @@ const proposeDateSchema = z.object({
   proposedAt: z
     .string()
     .min(1, 'Selecciona una fecha y hora.')
-    .transform((v) => new Date(v))
+    .transform((v) => parseMadridLocal(v))
     .refine((d) => !isNaN(d.getTime()), { message: 'Fecha no válida.' }),
 });
 

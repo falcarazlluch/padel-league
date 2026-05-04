@@ -10,6 +10,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService } from '@/modules/independent-matches';
 import { SignedTokenService, SignedTokenPurpose } from '@/shared/auth/signed-tokens';
 import { isUserFacingError } from '@/shared/errors';
+import { parseMadridLocal } from '@/shared/datetime/madrid-local';
 import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
@@ -385,7 +386,8 @@ export async function updateScheduledAtAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
 
   const { matchId, dateMode, scheduledAt } = parsed.data;
-  const next = dateMode === 'fixed' && scheduledAt ? new Date(scheduledAt) : null;
+  // Wall-clock from <input type="datetime-local"> → Madrid-local → UTC.
+  const next = dateMode === 'fixed' && scheduledAt ? parseMadridLocal(scheduledAt) : null;
   if (next && Number.isNaN(next.getTime())) {
     return { error: 'Fecha no válida.' };
   }
