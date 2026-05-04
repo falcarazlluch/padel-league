@@ -8,6 +8,8 @@ vi.mock('@/shared/db/client', () => ({
     user: { findUnique: vi.fn() },
     leagueRegistration: { findMany: vi.fn() },
     notification: { createMany: vi.fn() },
+    match: { findMany: vi.fn(), count: vi.fn() },
+    matchResult: { count: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -20,6 +22,8 @@ async function getPrisma() {
     user: { findUnique: ReturnType<typeof vi.fn> };
     leagueRegistration: { findMany: ReturnType<typeof vi.fn> };
     notification: { createMany: ReturnType<typeof vi.fn> };
+    match: { findMany: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
+    matchResult: { count: ReturnType<typeof vi.fn> };
     $transaction: ReturnType<typeof vi.fn>;
   };
 }
@@ -159,6 +163,7 @@ describe('TeamService.leaveTeam', () => {
         leagueRegistration: { findMany: vi.fn().mockResolvedValue([]) },
         teamMember: { deleteMany: txMemberDeleteMany },
         team: { delete: txTeamDelete },
+        match: { count: vi.fn().mockResolvedValue(0) },
       } as unknown as typeof prisma;
       await fn(tx);
     });
@@ -169,6 +174,35 @@ describe('TeamService.leaveTeam', () => {
     expect(txTeamDelete).toHaveBeenCalledWith({ where: { id: 't1' } });
     // Solo member: nobody to notify.
     expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  it('leaves the team as a 0-member orphan when the solo leaver has historical matches', async () => {
+    const prisma = await getPrisma();
+    prisma.teamMember.findFirst.mockResolvedValue({ id: 'm1' });
+    prisma.team.findUnique.mockResolvedValue({
+      id: 't1',
+      name: 'Veterano',
+      members: [{ userId: 'u1', user: { id: 'u1', name: 'A' } }],
+    });
+
+    const txTeamDelete = vi.fn();
+    const txMemberDeleteMany = vi.fn();
+    prisma.$transaction.mockImplementation(async (cb: unknown) => {
+      const fn = cb as (tx: typeof prisma) => Promise<void>;
+      const tx = {
+        leagueRegistration: { findMany: vi.fn().mockResolvedValue([]) },
+        teamMember: { deleteMany: txMemberDeleteMany },
+        team: { delete: txTeamDelete },
+        match: { count: vi.fn().mockResolvedValue(3) },
+      } as unknown as typeof prisma;
+      await fn(tx);
+    });
+
+    await TeamService.leaveTeam('t1', 'u1');
+
+    expect(txMemberDeleteMany).toHaveBeenCalled();
+    // Team is preserved because deleting it would violate the FK to historical Match rows.
+    expect(txTeamDelete).not.toHaveBeenCalled();
   });
 
   it('keeps the team alive and notifies the remaining member', async () => {
@@ -206,5 +240,104 @@ describe('TeamService.leaveTeam', () => {
         }),
       ],
     });
+  });
+});
+
+describe('TeamService.getPublicProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the team with stats + history; does NOT require membership', async () => {
+    const prisma = await getPrisma();
+    prisma.team.findUnique.mockResolvedValue({
+      id: 't1',
+      name: 'Halcones',
+      category: 'INTERMEDIATE',
+      logoUrl: null,
+      createdAt: new Date('2025-09-01T10:00:00Z'),
+      members: [
+        { userId: 'u-member', user: { id: 'u-member', name: 'Capi', avatarUrl: null } },
+      ],
+      registrations: [],
+    });
+    prisma.match.findMany.mockResolvedValue([
+      {
+        id: 'm-won',
+        scheduledAt: new Date('2026-04-01T18:00:00Z'),
+        teamAId: 't1',
+        teamBId: 't2',
+        winnerTeamId: 't1',
+        league: { id: 'l1', name: 'L', slug: 'l' },
+        teamA: { id: 't1', name: 'Halcones', logoUrl: null },
+        teamB: { id: 't2', name: 'Tigres', logoUrl: null },
+        confirmedResult: { sets: [{ setNumber: 1, gamesA: 6, gamesB: 4 }, { setNumber: 2, gamesA: 6, gamesB: 3 }] },
+      },
+      {
+        id: 'm-lost',
+        scheduledAt: new Date('2026-03-01T18:00:00Z'),
+        teamAId: 't3',
+        teamBId: 't1',
+        winnerTeamId: 't3',
+        league: { id: 'l1', name: 'L', slug: 'l' },
+        teamA: { id: 't3', name: 'Lobos', logoUrl: null },
+        teamB: { id: 't1', name: 'Halcones', logoUrl: null },
+        confirmedResult: { sets: [{ setNumber: 1, gamesA: 6, gamesB: 2 }] },
+      },
+      {
+        id: 'm-drawn',
+        scheduledAt: new Date('2026-02-01T18:00:00Z'),
+        teamAId: 't1',
+        teamBId: 't4',
+        winnerTeamId: null,
+        league: { id: 'l1', name: 'L', slug: 'l' },
+        teamA: { id: 't1', name: 'Halcones', logoUrl: null },
+        teamB: { id: 't4', name: 'Osos', logoUrl: null },
+        confirmedResult: { sets: [{ setNumber: 1, gamesA: 6, gamesB: 4 }, { setNumber: 2, gamesA: 4, gamesB: 6 }] },
+      },
+    ]);
+
+    // Caller is a stranger — not member of team t1.
+    const profile = await TeamService.getPublicProfile('t1', 'u-stranger');
+
+    expect(profile.viewerIsMember).toBe(false);
+    expect(profile.stats).toEqual({ played: 3, won: 1, drawn: 1, lost: 1 });
+    expect(profile.history).toHaveLength(3);
+    // Score normalised to "this team perspective": when our team is teamB we
+    // flip the games per set so the first number is always our games.
+    expect(profile.history[1]).toMatchObject({
+      matchId: 'm-lost',
+      outcome: 'lost',
+      rivalTeamId: 't3',
+      setsDisplay: '2-6',
+    });
+    expect(profile.history[0]).toMatchObject({ matchId: 'm-won', outcome: 'won', setsDisplay: '6-4 / 6-3' });
+    // No emails leak in member projection (only id/name/avatarUrl).
+    expect(profile.members[0]).toEqual({ userId: 'u-member', name: 'Capi', avatarUrl: null });
+  });
+
+  it('flags viewerIsMember=true when the caller is on the roster', async () => {
+    const prisma = await getPrisma();
+    prisma.team.findUnique.mockResolvedValue({
+      id: 't1',
+      name: 'Mi equipo',
+      category: 'INTERMEDIATE',
+      logoUrl: null,
+      createdAt: new Date(),
+      members: [{ userId: 'u-member', user: { id: 'u-member', name: 'Yo', avatarUrl: null } }],
+      registrations: [],
+    });
+    prisma.match.findMany.mockResolvedValue([]);
+
+    const profile = await TeamService.getPublicProfile('t1', 'u-member');
+    expect(profile.viewerIsMember).toBe(true);
+    expect(profile.stats).toEqual({ played: 0, won: 0, drawn: 0, lost: 0 });
+  });
+
+  it('throws TEAM_NOT_FOUND when the team does not exist', async () => {
+    const prisma = await getPrisma();
+    prisma.team.findUnique.mockResolvedValue(null);
+
+    await expect(TeamService.getPublicProfile('t-missing', 'u1')).rejects.toThrow(/no encontrado/i);
   });
 });

@@ -79,12 +79,6 @@ export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
           <Link href={'/reglamento' as Route} onClick={close} className={linkClass(pathname.startsWith('/reglamento'))}>
             Reglamento
           </Link>
-          <Link href={'/como-funciona' as Route} onClick={close} className={linkClass(pathname.startsWith('/como-funciona'))}>
-            Ayuda
-          </Link>
-          <Link href={'/invitar' as Route} onClick={close} className={linkClass(pathname.startsWith('/invitar'))}>
-            Invitar a un amigo
-          </Link>
           {isSuperAdmin && (
             <>
               <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
@@ -104,6 +98,12 @@ export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
           <div className="border-t border-gray-100" />
           <Link href={'/perfil' as Route} onClick={close} className={linkClass(pathname.startsWith('/perfil'))}>
             Mi perfil
+          </Link>
+          <Link href={'/como-funciona' as Route} onClick={close} className={linkClass(pathname.startsWith('/como-funciona'))}>
+            Ayuda
+          </Link>
+          <Link href={'/invitar' as Route} onClick={close} className={linkClass(pathname.startsWith('/invitar'))}>
+            Invitar a un amigo
           </Link>
         </div>
       )}

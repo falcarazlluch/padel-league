@@ -37,6 +37,55 @@ export type IncomingInvitation = {
   createdAt: Date;
 };
 
+export type TeamMatchHistoryEntry = {
+  matchId: string;
+  leagueSlug: string;
+  leagueName: string;
+  scheduledAt: Date | null;
+  rivalTeamId: string;
+  rivalTeamName: string;
+  rivalLogoUrl: string | null;
+  outcome: 'won' | 'lost' | 'drawn';
+  setsDisplay: string;
+};
+
+export type TeamStats = {
+  played: number;
+  won: number;
+  lost: number;
+  drawn: number;
+};
+
+export type TeamPublicProfile = {
+  id: string;
+  name: string;
+  category: TeamCategory;
+  logoUrl: string | null;
+  createdAt: Date;
+  /** Only non-PII fields exposed publicly (no email). */
+  members: { userId: string; name: string; avatarUrl: string | null }[];
+  /**
+   * League registrations visible publicly. We intentionally hide:
+   *   - DRAFT leagues (not yet announced),
+   *   - exact `withdrawnAt` timestamp / `withdrawnByUserId` (internal),
+   * surfacing only `isWithdrawn` so the page can render a "retired" hint
+   * without leaking lifecycle metadata.
+   */
+  registrations: Array<{
+    id: string;
+    leagueId: string;
+    leagueName: string;
+    leagueSlug: string;
+    leagueStatus: string;
+    registeredAt: Date;
+    isWithdrawn: boolean;
+  }>;
+  history: TeamMatchHistoryEntry[];
+  stats: TeamStats;
+  /** True iff the viewer is a member of this team — gates management UI. */
+  viewerIsMember: boolean;
+};
+
 export type CreateTeamInput = {
   name: string;
   category: TeamCategory;

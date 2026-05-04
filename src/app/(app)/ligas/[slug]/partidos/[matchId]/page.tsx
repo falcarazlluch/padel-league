@@ -78,11 +78,16 @@ export default async function MatchDetailPage({
   const currentUserSide = teamAIds.includes(currentUser.id) ? 'A' : teamBIds.includes(currentUser.id) ? 'B' : null;
   const isTeamMember = currentUserSide !== null;
 
+  // eslint-disable-next-line react-hooks/purity -- Server Component; one-shot read.
+  const isPast = match.scheduledAt !== null && match.scheduledAt.getTime() < Date.now();
+
   const SUBMITTABLE = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'];
   const canSubmit = isTeamMember && SUBMITTABLE.includes(match.status);
 
+  // Once the agreed date is in the past, scheduling/proposal UI no longer
+  // makes sense — the players need to report the result instead.
   const SCHEDULABLE_STATUSES = ['SCHEDULED', 'DATE_PROPOSED', 'DATE_CONFIRMED'];
-  const isSchedulable = SCHEDULABLE_STATUSES.includes(match.status);
+  const isSchedulable = SCHEDULABLE_STATUSES.includes(match.status) && !isPast;
 
   let proposalState: 'none' | 'mine' | 'rival' = 'none';
   if (match.activeProposal) {
@@ -128,7 +133,11 @@ export default async function MatchDetailPage({
       {/* Header */}
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Partido</p>
-        <h1 className="text-2xl font-extrabold text-brand-navy">{match.teamA.name} vs {match.teamB.name}</h1>
+        <h1 className="text-2xl font-extrabold text-brand-navy">
+          <Link href={`/equipos/${match.teamA.id}` as Route} className="hover:underline">{match.teamA.name}</Link>
+          {' vs '}
+          <Link href={`/equipos/${match.teamB.id}` as Route} className="hover:underline">{match.teamB.name}</Link>
+        </h1>
       </div>
 
       {/* AI Commentaries */}
@@ -201,9 +210,9 @@ export default async function MatchDetailPage({
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 font-bold text-brand-navy text-lg">
-            <span>{match.teamA.name}</span>
+            <Link href={`/equipos/${match.teamA.id}` as Route} className="hover:underline">{match.teamA.name}</Link>
             <span className="text-slate-400 font-normal text-sm">vs</span>
-            <span>{match.teamB.name}</span>
+            <Link href={`/equipos/${match.teamB.id}` as Route} className="hover:underline">{match.teamB.name}</Link>
           </div>
           <span
             className={`text-xs px-2.5 py-1 rounded-full font-bold ${STATUS_CLASS[match.status] ?? 'bg-gray-100 text-gray-500'}`}
@@ -217,11 +226,20 @@ export default async function MatchDetailPage({
             <> · Jugado: {match.scheduledAt.toLocaleDateString('es-ES')}</>
           )}
         </p>
-        {match.scheduledAt && match.status !== 'CANCELLED' && (
+        {match.scheduledAt && match.status !== 'CANCELLED' && !isPast && (
           <div className="mt-3">
             <AddToCalendarButton href={`/api/calendar/league-match/${match.id}/event.ics`} />
           </div>
         )}
+        {isPast &&
+          !match.confirmedResult &&
+          match.status !== 'CANCELLED' &&
+          match.status !== 'PENDING_VALIDATION' &&
+          match.status !== 'EXPIRED_UNPLAYED' && (
+            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
+              La fecha del partido ya ha pasado. {canSubmit ? 'Informa del resultado más abajo.' : 'A la espera del resultado.'}
+            </div>
+          )}
       </div>
 
       {/* Confirmed result */}

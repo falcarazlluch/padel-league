@@ -27,17 +27,32 @@ export default async function EquipoDetailPage({
   if (!token) redirect('/login' as Route);
   const user = await getValidatedSession(token);
 
+  // Public profile: any authenticated user can view a team's basic page.
+  // Management UI (logo, invitations, leave) is rendered only when the
+  // viewer is a member.
   let team;
   try {
-    team = await TeamService.getDetail(id, user.id);
+    team = await TeamService.getPublicProfile(id, user.id);
   } catch (err) {
     if (isUserFacingError(err)) notFound();
     throw err;
   }
 
+  // Only members see invitations/management; we fetch them lazily so non-members
+  // never receive PII via this page.
+  let invitationsForMember: { id: string; invitedUserName: string }[] = [];
+  if (team.viewerIsMember) {
+    const detail = await TeamService.getDetail(id, user.id);
+    invitationsForMember = detail.invitations.map((i) => ({
+      id: i.id,
+      invitedUserName: i.invitedUser.name,
+    }));
+  }
+
   const slotsLeft = MAX_TEAM_SIZE - team.members.length;
-  const hasPendingInvitation = team.invitations.length > 0;
-  const canInvite = slotsLeft > 0 && !hasPendingInvitation;
+  const hasPendingInvitation = invitationsForMember.length > 0;
+  const canInvite = team.viewerIsMember && slotsLeft > 0 && !hasPendingInvitation;
+  const isLastMember = team.members.length === 1 && team.viewerIsMember;
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -52,19 +67,26 @@ export default async function EquipoDetailPage({
                 {CATEGORY_LABEL[team.category]}
               </span>
             </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Equipo desde {team.createdAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
           </div>
         </div>
-        <Link
-          href={'/equipos' as Route}
-          className="text-sm px-3 py-1.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
-        >
-          ← Mis equipos
-        </Link>
+        {team.viewerIsMember && (
+          <Link
+            href={'/equipos' as Route}
+            className="text-sm px-3 py-1.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            ← Mis equipos
+          </Link>
+        )}
       </div>
 
-      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
-        <LogoUploader teamId={team.id} teamName={team.name} currentLogoUrl={team.logoUrl} />
-      </section>
+      {team.viewerIsMember && (
+        <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+          <LogoUploader teamId={team.id} teamName={team.name} currentLogoUrl={team.logoUrl} />
+        </section>
+      )}
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-3">
         <div className="flex items-center justify-between">
@@ -79,12 +101,12 @@ export default async function EquipoDetailPage({
           ))}
         </ul>
 
-        {hasPendingInvitation && (
+        {team.viewerIsMember && hasPendingInvitation && (
           <div className="border-t border-slate-100 pt-3 space-y-2">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Invitaciones pendientes</p>
-            {team.invitations.map((inv) => (
+            {invitationsForMember.map((inv) => (
               <div key={inv.id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-3 py-2">
-                <span className="font-medium text-slate-700 text-sm">{inv.invitedUser.name}</span>
+                <span className="font-medium text-slate-700 text-sm">{inv.invitedUserName}</span>
                 <CancelInvitationButton invitationId={inv.id} teamId={team.id} />
               </div>
             ))}
@@ -96,6 +118,53 @@ export default async function EquipoDetailPage({
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Invitar jugador</p>
             <InviteForm teamId={team.id} />
           </div>
+        )}
+      </section>
+
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+        <h2 className="text-base font-semibold text-brand-navy mb-3">Estadísticas</h2>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <Stat label="Jugados" value={team.stats.played} />
+          <Stat label="Ganados" value={team.stats.won} tone="emerald" />
+          <Stat label="Empates" value={team.stats.drawn} tone="amber" />
+          <Stat label="Perdidos" value={team.stats.lost} tone="rose" />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-base font-semibold text-brand-navy mb-3">Histórico de partidos</h2>
+        {team.history.length === 0 ? (
+          <p className="text-sm text-slate-400">Este equipo todavía no ha jugado partidos confirmados.</p>
+        ) : (
+          <ul className="space-y-2">
+            {team.history.map((m) => (
+              <li
+                key={m.matchId}
+                className={`bg-white rounded-xl border border-slate-200/80 p-3 flex items-center justify-between gap-3 ${historyBg(m.outcome)}`}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className={`text-xs font-bold uppercase tracking-wide ${outcomeText(m.outcome)}`}>
+                    {outcomeLabel(m.outcome)}
+                  </span>
+                  <span className="text-slate-400 text-xs">vs</span>
+                  <TeamLogo url={m.rivalLogoUrl} name={m.rivalTeamName} size="sm" />
+                  <Link
+                    href={`/equipos/${m.rivalTeamId}` as Route}
+                    className="text-sm font-medium text-slate-700 hover:underline truncate"
+                  >
+                    {m.rivalTeamName}
+                  </Link>
+                  <Link
+                    href={`/ligas/${m.leagueSlug}/partidos/${m.matchId}` as Route}
+                    className="text-xs text-slate-400 truncate hover:underline"
+                  >
+                    · {m.leagueName}
+                  </Link>
+                </div>
+                <span className="text-xs text-slate-500 shrink-0">{m.setsDisplay || '—'}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
@@ -112,8 +181,8 @@ export default async function EquipoDetailPage({
                     {r.leagueName}
                   </Link>
                   <span className="ml-2 text-xs text-slate-400">
-                    {r.withdrawnAt
-                      ? `Baja el ${r.withdrawnAt.toLocaleDateString('es-ES')}`
+                    {r.isWithdrawn
+                      ? 'Retirado'
                       : `Apuntado el ${r.registeredAt.toLocaleDateString('es-ES')}`}
                   </span>
                 </div>
@@ -126,9 +195,46 @@ export default async function EquipoDetailPage({
         )}
       </section>
 
-      <section>
-        <LeaveTeamButton teamId={id} />
-      </section>
+      {team.viewerIsMember && (
+        <section>
+          <LeaveTeamButton teamId={id} isLastMember={isLastMember} />
+        </section>
+      )}
     </div>
   );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: 'emerald' | 'amber' | 'rose' }) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'text-emerald-700'
+      : tone === 'amber'
+        ? 'text-amber-600'
+        : tone === 'rose'
+          ? 'text-rose-600'
+          : 'text-brand-navy';
+  return (
+    <div className="bg-slate-50 rounded-xl py-2">
+      <p className={`text-2xl font-extrabold ${toneClass}`}>{value}</p>
+      <p className="text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function historyBg(outcome: 'won' | 'lost' | 'drawn'): string {
+  if (outcome === 'won') return 'border-l-4 border-l-emerald-300';
+  if (outcome === 'lost') return 'border-l-4 border-l-rose-300';
+  return 'border-l-4 border-l-amber-300';
+}
+
+function outcomeText(outcome: 'won' | 'lost' | 'drawn'): string {
+  if (outcome === 'won') return 'text-emerald-700';
+  if (outcome === 'lost') return 'text-rose-600';
+  return 'text-amber-600';
+}
+
+function outcomeLabel(outcome: 'won' | 'lost' | 'drawn'): string {
+  if (outcome === 'won') return 'Ganado';
+  if (outcome === 'lost') return 'Perdido';
+  return 'Empate';
 }

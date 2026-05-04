@@ -214,7 +214,11 @@ export default async function LigaDetailPage({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {teams.map((team) => (
-              <div key={team.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4">
+              <Link
+                key={team.id}
+                href={`/equipos/${team.id}` as Route}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 hover:shadow-md transition-shadow"
+              >
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <TeamLogo url={team.logoUrl} name={team.name} size="md" />
@@ -234,7 +238,7 @@ export default async function LigaDetailPage({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -360,10 +364,10 @@ export default async function LigaDetailPage({
                     <tr key={entry.teamId} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-400 font-medium">{idx + 1}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">
-                        <span className="flex items-center gap-2">
+                        <Link href={`/equipos/${entry.teamId}` as Route} className="flex items-center gap-2 hover:underline">
                           <TeamLogo url={teamLogoMap[entry.teamId] ?? null} name={entry.teamName} size="sm" />
                           <span className="truncate">{entry.teamName}</span>
-                        </span>
+                        </Link>
                       </td>
                       <td className="px-3 py-3 text-center text-gray-600">{entry.played}</td>
                       <td className="px-3 py-3 text-center text-green-600">{entry.won}</td>

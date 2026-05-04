@@ -346,6 +346,16 @@ export const IndependentMatchService = {
   },
 
   async rejectPendingInvitationByMatchId(matchId: string, userId: string): Promise<void> {
+    // Pull the match first so we can refuse rejections on past matches —
+    // consistent with cancelMatch / leaveMatch / accept which all assert
+    // !matchPast for defense-in-depth.
+    const match = await prisma.independentMatch.findUnique({
+      where: { id: matchId },
+      select: { scheduledAt: true, name: true },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertMatchNotPast(match);
+
     const invitation = await findPendingInvitationForUser(matchId, userId);
     if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'No tienes invitación pendiente para este partido.');
     await prisma.independentMatchInvitation.delete({ where: { id: invitation.id } });
@@ -533,6 +543,7 @@ export const IndependentMatchService = {
       throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede cancelar el partido.');
     if (match.status === 'CANCELLED')
       throw new DomainError('ALREADY_CANCELLED', 'El partido ya está cancelado.');
+    assertMatchNotPast(match);
 
     await prisma.independentMatch.update({
       where: { id: matchId },
@@ -730,6 +741,7 @@ export const IndependentMatchService = {
       throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
     if (match.organizerId === userId)
       throw new DomainError('ORGANIZER_CANNOT_LEAVE', 'Como organizador, debes cancelar el partido en lugar de bajarte.');
+    assertMatchNotPast(match);
 
     const leaver = match.participants.find((p) => p.userId === userId);
     if (!leaver)

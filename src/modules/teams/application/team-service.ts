@@ -10,6 +10,9 @@ import type {
   IncomingInvitation,
   InviteInput,
   TeamDetail,
+  TeamMatchHistoryEntry,
+  TeamPublicProfile,
+  TeamStats,
   TeamSummary,
 } from '../domain/types';
 
@@ -133,6 +136,119 @@ export const TeamService = {
         registeredAt: r.registeredAt,
         withdrawnAt: r.withdrawnAt,
       })),
+    };
+  },
+
+  /**
+   * Public-ish team profile: viewable by any authenticated user. Strips PII
+   * (member emails, pending invitations) for non-members; only members see
+   * the management surface from the page.
+   */
+  async getPublicProfile(teamId: string, viewerUserId: string): Promise<TeamPublicProfile> {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: {
+        members: {
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, avatarUrl: true } },
+          },
+        },
+        registrations: {
+          where: {
+            // DRAFT leagues are not yet publicly announced; hide them from
+            // strangers who can find a team by guessing its id.
+            league: { status: { not: 'DRAFT' } },
+          },
+          include: {
+            league: { select: { id: true, name: true, slug: true, status: true } },
+          },
+          orderBy: { registeredAt: 'desc' },
+        },
+      },
+    });
+    if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
+
+    const viewerIsMember = team.members.some((m) => m.userId === viewerUserId);
+
+    // Played league matches — used for both stats and the recent history list.
+    // EXPIRED_UNPLAYED is excluded; only matches with a final outcome count.
+    // `take` is a safety ceiling: a normal season is < 50 matches per team, so
+    // 200 covers many seasons while preventing unbounded scans if the predicate
+    // ever drifts.
+    const playedMatches = await prisma.match.findMany({
+      where: {
+        OR: [{ teamAId: teamId }, { teamBId: teamId }],
+        status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] },
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        teamAId: true,
+        teamBId: true,
+        winnerTeamId: true,
+        league: { select: { id: true, name: true, slug: true } },
+        teamA: { select: { id: true, name: true, logoUrl: true } },
+        teamB: { select: { id: true, name: true, logoUrl: true } },
+        confirmedResult: { select: { sets: { orderBy: { setNumber: 'asc' } } } },
+      },
+      orderBy: [{ scheduledAt: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
+      take: 200,
+    });
+
+    const stats: TeamStats = {
+      played: playedMatches.length,
+      won: playedMatches.filter((m) => m.winnerTeamId === teamId).length,
+      drawn: playedMatches.filter((m) => m.winnerTeamId === null).length,
+      lost: 0,
+    };
+    stats.lost = stats.played - stats.won - stats.drawn;
+
+    const history: TeamMatchHistoryEntry[] = playedMatches.slice(0, 10).map((m) => {
+      const isTeamA = m.teamAId === teamId;
+      const rival = isTeamA ? m.teamB : m.teamA;
+      const sets = m.confirmedResult?.sets ?? [];
+      const setsDisplay = sets
+        .map((s) => (isTeamA ? `${s.gamesA}-${s.gamesB}` : `${s.gamesB}-${s.gamesA}`))
+        .join(' / ');
+      const outcome: TeamMatchHistoryEntry['outcome'] =
+        m.winnerTeamId === null ? 'drawn' : m.winnerTeamId === teamId ? 'won' : 'lost';
+      return {
+        matchId: m.id,
+        leagueSlug: m.league.slug,
+        leagueName: m.league.name,
+        scheduledAt: m.scheduledAt,
+        rivalTeamId: rival.id,
+        rivalTeamName: rival.name,
+        rivalLogoUrl: rival.logoUrl,
+        outcome,
+        setsDisplay,
+      };
+    });
+
+    return {
+      id: team.id,
+      name: team.name,
+      category: team.category,
+      logoUrl: team.logoUrl,
+      createdAt: team.createdAt,
+      members: team.members.map((m) => ({
+        userId: m.userId,
+        name: m.user.name,
+        avatarUrl: m.user.avatarUrl,
+      })),
+      registrations: team.registrations.map((r) => ({
+        id: r.id,
+        leagueId: r.leagueId,
+        leagueName: r.league.name,
+        leagueSlug: r.league.slug,
+        leagueStatus: r.league.status,
+        registeredAt: r.registeredAt,
+        isWithdrawn: r.withdrawnAt !== null,
+      })),
+      history,
+      stats,
+      viewerIsMember,
     };
   },
 
@@ -315,7 +431,18 @@ export const TeamService = {
 
       await tx.teamMember.deleteMany({ where: { teamId, userId } });
       if (remainingMembers.length === 0) {
-        await tx.team.delete({ where: { id: teamId } });
+        // Match.teamA/teamB use onDelete: Restrict so historical results stay
+        // readable. If the team has ANY match attached (scheduled, played or
+        // expired) we can't physically delete it; leave it as a 0-member
+        // archived team instead. Note: MatchResult.winnerTeamId is also
+        // Restrict, but every MatchResult cascades from a Match, so the
+        // match-count check covers it.
+        const matchCount = await tx.match.count({
+          where: { OR: [{ teamAId: teamId }, { teamBId: teamId }] },
+        });
+        if (matchCount === 0) {
+          await tx.team.delete({ where: { id: teamId } });
+        }
       }
     });
 

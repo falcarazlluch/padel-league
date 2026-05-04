@@ -6,6 +6,9 @@ export type {
   IncomingInvitation,
   CreateTeamInput,
   InviteInput,
+  TeamPublicProfile,
+  TeamMatchHistoryEntry,
+  TeamStats,
 } from './domain/types';
 export { TeamSearchService } from './application/team-search-service';
 export type { TeamCandidate, SearchInvitableForMatchInput } from './application/team-search-service';

@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
+import Link from 'next/link';
 import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
@@ -121,7 +122,7 @@ export default async function JugarDetailPage({
           <p className="text-sm text-gray-600">
             {match.scheduledAt ? formatScheduledAt(match.scheduledAt) : 'Fecha por definir'}
           </p>
-          {match.scheduledAt && match.status !== 'CANCELLED' && (
+          {match.scheduledAt && match.status !== 'CANCELLED' && !matchPast && (
             <AddToCalendarButton href={`/api/calendar/independent-match/${id}/event.ics`} />
           )}
           {isOrganizer && !matchPast && match.status !== 'CANCELLED' && (
@@ -182,9 +183,16 @@ export default async function JugarDetailPage({
                       const label = inv.email ?? inv.invitedUser?.name ?? inv.invitedTeam?.name ?? '—';
                       const icon = inv.invitedTeam ? '🏆 ' : inv.invitedUser ? '👤 ' : '✉️ ';
                       const expired = !inv.acceptedAt && inv.expiresAt.getTime() < nowMs;
+                      const teamId = inv.invitedTeam?.id;
                       return (
                         <li key={inv.id} className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
-                          <span>{icon}{label}</span>
+                          {teamId ? (
+                            <Link href={`/equipos/${teamId}` as Route} className="hover:underline">
+                              {icon}{label}
+                            </Link>
+                          ) : (
+                            <span>{icon}{label}</span>
+                          )}
                           {inv.acceptedAt ? (
                             <span className="text-green-600">✓ Aceptada</span>
                           ) : expired ? (
@@ -206,7 +214,7 @@ export default async function JugarDetailPage({
               )}
             </div>
           )}
-          {match.status !== 'CANCELLED' && match.status !== 'REJECTED' && (
+          {match.status !== 'CANCELLED' && match.status !== 'REJECTED' && !matchPast && (
             <CancelMatchButton matchId={id} />
           )}
         </section>

@@ -47,7 +47,10 @@ export default async function MisPartidosPage() {
           take: 1,
         },
       },
-      orderBy: { deadlineAt: 'asc' },
+      // Earliest scheduled date first, then earliest deadline; matches without
+      // a date sort to the bottom (NULLS LAST). The page groups by status
+      // afterwards, but each group stays in chronological order.
+      orderBy: [{ scheduledAt: { sort: 'asc', nulls: 'last' } }, { deadlineAt: 'asc' }],
     }),
     prisma.independentMatch.findMany({
       where: {
@@ -63,7 +66,7 @@ export default async function MisPartidosPage() {
           include: { user: { select: { id: true, name: true, avatarUrl: true } } },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ scheduledAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
     }),
     IndependentMatchService.getPendingInvitationsForUser(user.id),
   ]);
@@ -74,9 +77,19 @@ export default async function MisPartidosPage() {
 
   const confirmedMatches = matches
     .filter((m) => ['DATE_CONFIRMED', 'CONFIRMED', 'ADMIN_RESOLVED'].includes(m.status))
-    .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
-  const proposedMatches = matches.filter((m) => m.status === 'DATE_PROPOSED');
-  const scheduledMatches = matches.filter((m) => m.status === 'SCHEDULED');
+    .sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity));
+  // For proposed-but-not-confirmed matches sort by the active proposal date,
+  // which carries the meaningful "next event" timestamp (scheduledAt is null).
+  const proposedMatches = matches
+    .filter((m) => m.status === 'DATE_PROPOSED')
+    .sort((a, b) => {
+      const aTs = a.schedulingProposals[0]?.proposedDate.getTime() ?? Infinity;
+      const bTs = b.schedulingProposals[0]?.proposedDate.getTime() ?? Infinity;
+      return aTs - bTs;
+    });
+  const scheduledMatches = matches
+    .filter((m) => m.status === 'SCHEDULED')
+    .sort((a, b) => a.deadlineAt.getTime() - b.deadlineAt.getTime());
   const expiredMatches = matches.filter((m) => m.status === 'EXPIRED_UNPLAYED');
 
   // eslint-disable-next-line react-hooks/purity -- Server Component, Date.now() is safe here
