@@ -8,7 +8,7 @@ import { prisma } from '@/shared/db/client';
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { MatchResultRow } from '../_components/match-result-row';
 import { PlayerStack } from '../_components/player-stack';
-import { getSubmitterSide } from '@/modules/leagues/application/match-result-logic';
+import { getSubmitterSide, resolveSubmitterSide } from '@/modules/leagues/application/match-result-logic';
 
 export const metadata = { title: 'Resultados — Padel League' };
 
@@ -133,15 +133,13 @@ export default async function ResultadosPage() {
               if (!result) return null;
               const teamAUserIds = m.teamA.members.map((mb) => mb.userId);
               const teamBUserIds = m.teamB.members.map((mb) => mb.userId);
-              // Reuse the canonical helper from match-result-logic so we don't
-              // diverge from the match-detail page's `confirmRejectPanel`
-              // gating. If the submitter has since left their team (or was an
-              // admin who is on neither team) we fall back to "rival of the
-              // viewer", so the validation button still appears for whoever
-              // actually has to act.
+              // Prefer the snapshot stored on the result (immune to roster
+              // changes after submission). Falls back to live-roster lookup
+              // for legacy rows that pre-date the column.
               const viewerSide = getSubmitterSide(user.id, teamAUserIds, teamBUserIds);
-              const submitterSide = getSubmitterSide(
-                result.submittedByUserId,
+              const submitterSide = resolveSubmitterSide(
+                result,
+                { teamAId: m.teamA.id, teamBId: m.teamB.id },
                 teamAUserIds,
                 teamBUserIds,
               );

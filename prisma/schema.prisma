@@ -362,6 +362,7 @@ model Team {
   homeMatches          Match[]                      @relation("TeamA")
   awayMatches          Match[]                      @relation("TeamB")
   wonMatches           MatchResult[]                @relation("MatchWinner")
+  submittedResults     MatchResult[]                @relation("MatchResultSubmitterTeam")
   hostedMatches        IndependentMatch[]           @relation("MatchHostTeam")
   matchTeamInvitations IndependentMatchInvitation[] @relation("MatchTeamInvitations")
   categoryProposals    TeamCategoryChangeProposal[]
@@ -484,6 +485,12 @@ model MatchResult {
   id                String            @id @default(cuid())
   matchId           String            @map("match_id")
   submittedByUserId String            @map("submitted_by_user_id")
+  // Snapshot of the submitter's team at submit time. Decouples the
+  // canValidate / confirm / dispute logic from the live team roster, so a
+  // submitter who later leaves their team cannot deadlock validation.
+  // Nullable only because legacy rows pre-dating this column may resolve
+  // by falling back to the live-roster derivation in `getSubmitterSide`.
+  submitterTeamId   String?           @map("submitter_team_id")
   submittedAt       DateTime          @default(now()) @map("submitted_at")
   status            MatchResultStatus @default(PENDING)
   winnerTeamId      String?           @map("winner_team_id") // null = empate; calculado al submit
@@ -497,6 +504,7 @@ model MatchResult {
   submitter        User   @relation("ResultSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
   validator        User?  @relation("ResultValidator", fields: [validatedByUserId], references: [id], onDelete: Restrict)
   winnerTeam       Team?  @relation("MatchWinner", fields: [winnerTeamId], references: [id], onDelete: Restrict)
+  submitterTeam    Team?  @relation("MatchResultSubmitterTeam", fields: [submitterTeamId], references: [id], onDelete: SetNull)
   sets             Set[]
   matchAsConfirmed Match? @relation("ConfirmedResult")
 

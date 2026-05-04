@@ -106,12 +106,21 @@ export default async function MatchDetailPage({
     else extensionState = 'rival';
   }
 
+  // canValidate: viewer is on a team and either (a) on the OPPOSITE side of
+  // the submitter, or (b) the submitter side is unknown (legacy row whose
+  // submitter has left both rosters) — in which case either team is allowed
+  // to act so the match doesn't deadlock until the auto-approve job fires.
   const canValidate =
     match.status === 'PENDING_VALIDATION' &&
     match.pendingResult !== null &&
     currentUserSide !== null &&
-    match.pendingResult.submitterSide !== null &&
-    currentUserSide !== match.pendingResult.submitterSide;
+    (match.pendingResult.submitterSide === null ||
+      currentUserSide !== match.pendingResult.submitterSide);
+
+  const submitterUnknown =
+    match.status === 'PENDING_VALIDATION' &&
+    match.pendingResult !== null &&
+    match.pendingResult.submitterSide === null;
 
   const isAwaitingOwnConfirmation =
     match.status === 'PENDING_VALIDATION' &&
@@ -214,11 +223,24 @@ export default async function MatchDetailPage({
             <span className="text-slate-400 font-normal text-sm">vs</span>
             <Link href={`/equipos/${match.teamB.id}` as Route} className="hover:underline">{match.teamB.name}</Link>
           </div>
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full font-bold ${STATUS_CLASS[match.status] ?? 'bg-gray-100 text-gray-500'}`}
-          >
-            {STATUS_LABEL[match.status] ?? match.status}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={`text-xs px-2.5 py-1 rounded-full font-bold ${STATUS_CLASS[match.status] ?? 'bg-gray-100 text-gray-500'}`}
+            >
+              {STATUS_LABEL[match.status] ?? match.status}
+            </span>
+            {isPast &&
+              match.status !== 'CONFIRMED' &&
+              match.status !== 'ADMIN_RESOLVED' &&
+              match.status !== 'CANCELLED' &&
+              match.status !== 'EXPIRED_UNPLAYED' &&
+              match.status !== 'PENDING_VALIDATION' &&
+              match.status !== 'DISPUTED' && (
+                <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                  Fecha pasada
+                </span>
+              )}
+          </div>
         </div>
         <p className="text-sm text-slate-400 mt-2">
           Límite: {match.deadlineAt.toLocaleDateString('es-ES')}
@@ -305,6 +327,12 @@ export default async function MatchDetailPage({
               </div>
             ))}
           </div>
+
+          {submitterUnknown && canValidate && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              El jugador que envió el resultado ya no figura en ningún equipo del partido. Cualquier miembro de los dos equipos puede validarlo o rechazarlo aquí abajo.
+            </p>
+          )}
 
           {canValidate && <ConfirmRejectPanel matchId={match.id} />}
 

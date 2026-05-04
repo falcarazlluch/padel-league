@@ -51,8 +51,18 @@ export default async function DashboardPage({
   }
   const calView: 'grid' | 'list' = sp.view === 'grid' ? 'grid' : 'list';
 
+  // Count leagues whose calendar puts them in the "active" window — matches
+  // what `deriveLeagueStatus` shows as 'ACTIVE' on the league listing, even
+  // when an admin forgot to flip the persisted status.
+  const nowDate = new Date();
   const [leagueCount, matchCount, userLeagues, recentCommentaries, pendingCategoryProposals] = await Promise.all([
-    prisma.league.count({ where: { status: 'ACTIVE' } }),
+    prisma.league.count({
+      where: {
+        status: { in: ['DRAFT', 'ACTIVE'] },
+        startDate: { lte: nowDate },
+        endDate: { gt: nowDate },
+      },
+    }),
     prisma.match.count({
       where: {
         status: 'PENDING_VALIDATION',

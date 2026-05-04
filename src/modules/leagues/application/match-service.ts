@@ -2,7 +2,7 @@ import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
-import { determineWinner, getSubmitterSide } from './match-result-logic';
+import { determineWinner, getSubmitterSide, resolveSubmitterSide } from './match-result-logic';
 import type { SubmitResultInput, MatchDetailRow } from '../domain/types';
 import type { DisputeResolution } from '@prisma/client';
 
@@ -34,8 +34,9 @@ export const MatchService = {
 
     const pendingResult = match.results[0] ?? null;
     const submitterSide = pendingResult
-      ? getSubmitterSide(
-          pendingResult.submittedByUserId,
+      ? resolveSubmitterSide(
+          pendingResult,
+          match,
           match.teamA.members.map((m) => m.userId),
           match.teamB.members.map((m) => m.userId),
         )
@@ -133,6 +134,8 @@ export const MatchService = {
 
     const winnerTeamId = determineWinner(match.teamAId, match.teamBId, input.sets);
 
+    const submitterTeamId = side === 'A' ? match.teamAId : match.teamBId;
+
     const newResult = await prisma.$transaction(async (tx) => {
       await tx.matchResult.updateMany({
         where: { matchId, status: 'PENDING' },
@@ -143,6 +146,7 @@ export const MatchService = {
         data: {
           matchId,
           submittedByUserId: submittingUserId,
+          submitterTeamId,
           winnerTeamId,
           sets: {
             create: input.sets.map((s, i) => ({
@@ -195,7 +199,7 @@ export const MatchService = {
 
     const teamAIds = match.teamA.members.map((m) => m.userId);
     const teamBIds = match.teamB.members.map((m) => m.userId);
-    const submitterSide = getSubmitterSide(pendingResult.submittedByUserId, teamAIds, teamBIds);
+    const submitterSide = resolveSubmitterSide(pendingResult, match, teamAIds, teamBIds);
     const confirmerSide = getSubmitterSide(confirmingUserId, teamAIds, teamBIds);
 
     if (!confirmerSide)
@@ -203,7 +207,12 @@ export const MatchService = {
         'NOT_TEAM_MEMBER',
         'Solo los jugadores de este partido pueden confirmar resultados.',
       );
-    if (confirmerSide === submitterSide)
+    // submitterSide can only be null on legacy rows (pre-snapshot column)
+    // whose submitter has since left both rosters. In that degenerate case
+    // we accept confirmation from either team — without this fallback the
+    // match would deadlock until the T+7d auto-approve job fires. The UI
+    // surfaces an explicit warning before letting either side act.
+    if (submitterSide !== null && confirmerSide === submitterSide)
       throw new DomainError(
         'SAME_TEAM_CONFIRM',
         'No puedes confirmar el resultado enviado por tu propio equipo.',
@@ -272,7 +281,7 @@ export const MatchService = {
 
     const teamAIds = match.teamA.members.map((m) => m.userId);
     const teamBIds = match.teamB.members.map((m) => m.userId);
-    const submitterSide = getSubmitterSide(pendingResult.submittedByUserId, teamAIds, teamBIds);
+    const submitterSide = resolveSubmitterSide(pendingResult, match, teamAIds, teamBIds);
     const disputerSide = getSubmitterSide(disputingUserId, teamAIds, teamBIds);
 
     if (!disputerSide)
@@ -280,7 +289,9 @@ export const MatchService = {
         'NOT_TEAM_MEMBER',
         'Solo los jugadores de este partido pueden disputar resultados.',
       );
-    if (disputerSide === submitterSide)
+    // See note in confirmResult: when submitterSide is null we accept either
+    // team to dispute, mirroring the same anti-deadlock fallback.
+    if (submitterSide !== null && disputerSide === submitterSide)
       throw new DomainError(
         'SAME_TEAM_DISPUTE',
         'No puedes disputar el resultado enviado por tu propio equipo.',
