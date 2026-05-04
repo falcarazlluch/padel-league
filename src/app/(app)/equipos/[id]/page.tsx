@@ -12,6 +12,7 @@ import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { InviteForm } from './invite-form';
 import { CancelInvitationButton } from './cancel-invitation-button';
 import { LogoUploader } from './logo-uploader';
+import { LeaveTeamButton } from './leave-team-button';
 
 const MAX_TEAM_SIZE = 2;
 
@@ -123,6 +124,10 @@ export default async function EquipoDetailPage({
             ))}
           </ul>
         )}
+      </section>
+
+      <section>
+        <LeaveTeamButton teamId={id} />
       </section>
     </div>
   );

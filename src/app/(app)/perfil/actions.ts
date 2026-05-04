@@ -109,6 +109,17 @@ export async function setAvatarAction(blobUrl: string): Promise<{ error?: string
   return {};
 }
 
+export async function removeAvatarAction(): Promise<{ error?: string }> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) return { error: 'No autenticado.' };
+  const user = await getValidatedSession(token).catch(() => null);
+  if (!user) return { error: 'No autenticado.' };
+  await prisma.user.update({ where: { id: user.id }, data: { avatarUrl: null } });
+  revalidatePath('/perfil');
+  return {};
+}
+
 export async function revokeAllSessionsAction(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;

@@ -70,8 +70,14 @@ function resolveHref(
     const slug = leagueSlug ?? (leagueId ? leagueIdToSlug.get(leagueId) : undefined);
     return slug ? `/ligas/${slug}` : null;
   }
-  if (type === 'TEAM_INVITATION' || type === 'TEAM_INVITATION_ACCEPTED' || type === 'TEAM_INVITATION_REJECTED') {
-    return teamId ? `/equipos/${teamId}` : null;
+  if (type === 'TEAM_INVITATION') {
+    // The invitee isn't a member of the team yet, so /equipos/[id] would 404
+    // (ensureMember rejects non-members). The pending invitation is listed on
+    // /equipos itself, where they can accept or reject it.
+    return '/equipos';
+  }
+  if (type === 'TEAM_INVITATION_ACCEPTED' || type === 'TEAM_INVITATION_REJECTED') {
+    return teamId ? `/equipos/${teamId}` : '/equipos';
   }
   if (type === 'DISPUTE_OPENED' || type === 'DISPUTE_RESOLVED') {
     return '/admin/disputas';

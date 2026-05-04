@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
-import { setAvatarAction } from './actions';
+import { setAvatarAction, removeAvatarAction } from './actions';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -58,6 +58,19 @@ export function AvatarUploader({ userId, userName, currentAvatarUrl }: Props) {
     void handleUpload(file);
   };
 
+  const handleRemove = async () => {
+    if (!confirm('¿Quitar la foto de perfil?')) return;
+    setError(null);
+    setPending(true);
+    try {
+      const res = await removeAvatarAction();
+      if (res.error) setError(res.error);
+      else router.refresh();
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <div className="flex items-center gap-4">
       <UserAvatar url={currentAvatarUrl} name={userName} size="lg" />
@@ -72,7 +85,17 @@ export function AvatarUploader({ userId, userName, currentAvatarUrl }: Props) {
           className="text-xs text-slate-600 file:mr-3 file:px-3 file:py-1.5 file:bg-white file:border file:border-slate-200 file:text-slate-700 file:font-semibold file:rounded-lg file:hover:bg-slate-50 file:cursor-pointer file:transition-colors"
         />
         <p className="text-[11px] text-slate-400">PNG, JPG o WebP · máx 2&nbsp;MB</p>
-        {pending && <p className="text-xs text-slate-500">Subiendo…</p>}
+        {currentAvatarUrl && (
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={pending}
+            className="self-start text-xs font-semibold text-rose-600 hover:text-rose-800 disabled:opacity-50 transition-colors"
+          >
+            Quitar foto
+          </button>
+        )}
+        {pending && <p className="text-xs text-slate-500">Procesando…</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
     </div>

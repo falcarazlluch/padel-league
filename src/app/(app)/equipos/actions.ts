@@ -115,6 +115,20 @@ export async function rejectInvitationAction(invitationId: string): Promise<{ er
   return {};
 }
 
+export async function leaveTeamAction(teamId: string): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  try {
+    await TeamService.leaveTeam(teamId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/equipos');
+  revalidatePath(`/equipos/${teamId}`);
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
 const setLogoSchema = z.object({
   teamId: z.string().cuid(),
   // Vercel Blob public URLs follow this host pattern.

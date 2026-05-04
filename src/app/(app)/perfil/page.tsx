@@ -3,7 +3,8 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { AvatarUploader } from './avatar-uploader';
-import { updateProfileAction, changePasswordAction, revokeAllSessionsAction } from './actions';
+import { updateProfileAction, revokeAllSessionsAction } from './actions';
+import { ChangePasswordForm } from './change-password-form';
 import { CATEGORY_VALUES, CATEGORY_LABEL } from '@/modules/leagues/presentation/category';
 
 export default async function PerfilPage() {
@@ -69,19 +70,7 @@ export default async function PerfilPage() {
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cambiar contraseña</h2>
-        <form
-          action={changePasswordAction as unknown as (formData: FormData) => Promise<void>}
-          className="space-y-4"
-        >
-          <input name="currentPassword" type="password" required placeholder="Contraseña actual"
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
-          <input name="newPassword" type="password" required placeholder="Nueva contraseña (mín. 10 chars)"
-            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
-          <button type="submit"
-            className="px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity">
-            Cambiar contraseña
-          </button>
-        </form>
+        <ChangePasswordForm />
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">

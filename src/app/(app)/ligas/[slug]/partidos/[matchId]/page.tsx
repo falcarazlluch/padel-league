@@ -217,7 +217,7 @@ export default async function MatchDetailPage({
             <> · Jugado: {match.scheduledAt.toLocaleDateString('es-ES')}</>
           )}
         </p>
-        {match.scheduledAt && (
+        {match.scheduledAt && match.status !== 'CANCELLED' && (
           <div className="mt-3">
             <AddToCalendarButton href={`/api/calendar/league-match/${match.id}/event.ics`} />
           </div>

@@ -25,10 +25,11 @@ export function Footer() {
           <ul className="space-y-1.5 text-sm text-slate-600">
             <li><Link href={'/ligas' as Route} className="hover:text-brand-navy transition-colors">Ligas</Link></li>
             <li><Link href={'/equipos' as Route} className="hover:text-brand-navy transition-colors">Mis equipos</Link></li>
-            <li><Link href={'/partidos' as Route} className="hover:text-brand-navy transition-colors">Mis partidos</Link></li>
-            <li><Link href={'/jugar' as Route} className="hover:text-brand-navy transition-colors">Jugar</Link></li>
+            <li><Link href={'/partidos' as Route} className="hover:text-brand-navy transition-colors">Partidos</Link></li>
+            <li><Link href={'/resultados' as Route} className="hover:text-brand-navy transition-colors">Resultados</Link></li>
             <li><Link href={'/reglamento' as Route} className="hover:text-brand-navy transition-colors">Reglamento</Link></li>
-            <li><Link href={'/como-funciona' as Route} className="hover:text-brand-navy transition-colors">Cómo funciona</Link></li>
+            <li><Link href={'/como-funciona' as Route} className="hover:text-brand-navy transition-colors">Ayuda</Link></li>
+            <li><Link href={'/invitar' as Route} className="hover:text-brand-navy transition-colors">Invitar a un amigo</Link></li>
           </ul>
         </div>
 

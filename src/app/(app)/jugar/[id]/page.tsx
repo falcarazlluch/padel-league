@@ -121,7 +121,7 @@ export default async function JugarDetailPage({
           <p className="text-sm text-gray-600">
             {match.scheduledAt ? formatScheduledAt(match.scheduledAt) : 'Fecha por definir'}
           </p>
-          {match.scheduledAt && (
+          {match.scheduledAt && match.status !== 'CANCELLED' && (
             <AddToCalendarButton href={`/api/calendar/independent-match/${id}/event.ics`} />
           )}
           {isOrganizer && !matchPast && match.status !== 'CANCELLED' && (
