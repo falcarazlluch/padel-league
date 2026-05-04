@@ -6,4 +6,10 @@ export {
   MAX_COMMENT_BODY,
 } from './application/match-photo-service';
 export { extractMentionCandidates, resolveMentionsToUserIds } from './application/mentions';
-export type { MatchKind, PhotoSummary, PhotoDetail, PhotoCommentEntry } from './domain/types';
+export type {
+  MatchKind,
+  PhotoSummary,
+  PhotoDetail,
+  PhotoCommentEntry,
+  PhotoCommentPreview,
+} from './domain/types';

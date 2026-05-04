@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
 import type { MatchKind, PhotoSummary } from '@/modules/match-photos';
@@ -9,6 +9,7 @@ import {
   deleteMatchPhotoAction,
   toggleMatchPhotoLikeAction,
 } from '@/app/(app)/_actions/match-photos';
+import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { PhotoModal } from './photo-modal';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -31,9 +32,26 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
   const [openPhotoId, setOpenPhotoId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Re-sync local state when the parent re-renders with fresh data (e.g.
+  // after `router.refresh()` post-upload). Without this the photos prop
+  // updates but the state stays at the original snapshot, so the new photo
+  // never appears until a hard navigation.
+  useEffect(() => {
+    setPhotos(initial);
+  }, [initial]);
+
+  // Auto-dismiss the success banner so it doesn't stick around.
+  useEffect(() => {
+    if (!success) return;
+    const t = setTimeout(() => setSuccess(null), 3000);
+    return () => clearTimeout(t);
+  }, [success]);
 
   const onUpload = async (file: File) => {
     setError(null);
+    setSuccess(null);
     if (file.size > MAX_BYTES) {
       setError(`Imagen demasiado grande (máx ${Math.round(MAX_BYTES / (1024 * 1024))} MB).`);
       return;
@@ -60,6 +78,10 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
         setError(persist.error);
         return;
       }
+      setSuccess('Foto subida con éxito.');
+      // Trigger a server re-render so the new row is fetched with full
+      // metadata (uploader, counts, latestComment). The useEffect above
+      // syncs `photos` from the refreshed `initial` prop.
       router.refresh();
     } catch (err) {
       setError((err as Error).message ?? 'No se pudo subir la foto.');
@@ -71,7 +93,6 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
   const onLike = async (photoId: string) => {
     const previous = photos.find((p) => p.id === photoId);
     if (!previous) return;
-    // Optimistic update; server action returns the authoritative count.
     setPhotos((curr) =>
       curr.map((p) =>
         p.id === photoId
@@ -102,6 +123,7 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
       return;
     }
     setPhotos((curr) => curr.filter((p) => p.id !== photoId));
+    setOpenPhotoId(null);
     router.refresh();
   };
 
@@ -129,6 +151,11 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
         )}
       </div>
 
+      {success && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl px-3 py-2">
+          {success}
+        </div>
+      )}
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       {photos.length === 0 ? (
@@ -136,22 +163,68 @@ export function PhotosSection({ matchId, kind, leagueSlug, photos: initial, canU
           Aún no hay fotos del partido. {canUpload && 'Sube la primera para empezar a comentar.'}
         </p>
       ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {photos.map((p) => (
             <li
               key={p.id}
-              className="relative group bg-slate-100 rounded-2xl overflow-hidden cursor-pointer"
-              onClick={() => setOpenPhotoId(p.id)}
+              className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- blob.vercel-storage.com is allowlisted in next.config */}
-              <img src={p.blobUrl} alt={`Foto subida por ${p.uploaderName}`} className="w-full aspect-square object-cover" loading="lazy" />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent text-white p-2 text-xs flex items-center justify-between">
-                <span className="truncate">{p.uploaderName}</span>
-                <span className="flex items-center gap-2 text-[11px]">
-                  <span className={p.viewerLiked ? 'text-brand-yellow font-bold' : ''}>♥ {p.likeCount}</span>
-                  <span>💬 {p.commentCount}</span>
+              <button
+                type="button"
+                onClick={() => setOpenPhotoId(p.id)}
+                className="block w-full text-left"
+                aria-label="Abrir foto"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.blobUrl}
+                  alt={`Foto subida por ${p.uploaderName}`}
+                  className="w-full aspect-square object-cover hover:opacity-95 transition-opacity"
+                  loading="lazy"
+                />
+              </button>
+
+              <div className="px-3 pt-2 pb-1 flex items-center gap-2 text-xs text-slate-500">
+                <UserAvatar url={p.uploaderAvatarUrl} name={p.uploaderName} size="sm" />
+                <span className="font-semibold text-brand-navy truncate">{p.uploaderName}</span>
+                <span className="ml-auto text-[11px] text-slate-400">
+                  {p.createdAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                 </span>
               </div>
+
+              <div className="px-3 py-2 flex items-center gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => void onLike(p.id)}
+                  aria-pressed={p.viewerLiked}
+                  className={`flex items-center gap-1 text-sm font-semibold transition-colors ${p.viewerLiked ? 'text-rose-600' : 'text-slate-500 hover:text-rose-500'}`}
+                >
+                  {p.viewerLiked ? '♥' : '♡'} {p.likeCount}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenPhotoId(p.id)}
+                  className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  💬 {p.commentCount}
+                </button>
+              </div>
+
+              {p.latestComment && (
+                <button
+                  type="button"
+                  onClick={() => setOpenPhotoId(p.id)}
+                  className="text-left px-3 pb-2 -mt-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="font-semibold text-brand-navy">{p.latestComment.authorName}: </span>
+                  <span className="line-clamp-2">{p.latestComment.body}</span>
+                  {p.commentCount > 1 && (
+                    <span className="block mt-0.5 text-[11px] text-slate-400">
+                      Ver los {p.commentCount} comentarios
+                    </span>
+                  )}
+                </button>
+              )}
             </li>
           ))}
         </ul>

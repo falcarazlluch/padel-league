@@ -1,5 +1,11 @@
 export type MatchKind = 'league' | 'independent';
 
+export type PhotoCommentPreview = {
+  id: string;
+  body: string;
+  authorName: string;
+};
+
 export type PhotoSummary = {
   id: string;
   blobUrl: string;
@@ -15,6 +21,8 @@ export type PhotoSummary = {
   viewerLiked: boolean;
   /** True if the viewer can delete (uploader or SUPER_ADMIN). */
   canDelete: boolean;
+  /** Most recent comment, used for an inline preview in the grid. */
+  latestComment: PhotoCommentPreview | null;
 };
 
 export type PhotoCommentEntry = {

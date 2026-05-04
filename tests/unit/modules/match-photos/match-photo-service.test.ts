@@ -65,6 +65,65 @@ const leagueMatchWithU1 = {
   teamB: { members: [{ userId: 'u2' }] },
 };
 
+describe('MatchPhotoService.list', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('includes the latest comment per photo for the inline grid preview', async () => {
+    const prisma = await getPrisma();
+    prisma.match.findUnique.mockResolvedValue(leagueMatchWithU1);
+    prisma.user.findUnique.mockResolvedValue({ role: 'PLAYER' });
+    prisma.matchPhoto.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        blobUrl: 'https://x.public.blob.vercel-storage.com/a.jpg',
+        width: 800,
+        height: 600,
+        createdAt: new Date(),
+        uploadedByUserId: 'u1',
+        uploader: { id: 'u1', name: 'Alice', avatarUrl: null },
+        likes: [],
+        comments: [{ id: 'c-newest', body: 'great!', user: { name: 'Bob' } }],
+        _count: { likes: 3, comments: 5 },
+      },
+    ]);
+
+    const result = await MatchPhotoService.list('m1', 'league', 'u1');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.latestComment).toEqual({
+      id: 'c-newest',
+      body: 'great!',
+      authorName: 'Bob',
+    });
+    expect(result[0]?.commentCount).toBe(5);
+    expect(result[0]?.likeCount).toBe(3);
+  });
+
+  it('returns latestComment=null when the photo has no comments', async () => {
+    const prisma = await getPrisma();
+    prisma.match.findUnique.mockResolvedValue(leagueMatchWithU1);
+    prisma.user.findUnique.mockResolvedValue({ role: 'PLAYER' });
+    prisma.matchPhoto.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        blobUrl: 'https://x.public.blob.vercel-storage.com/a.jpg',
+        width: null,
+        height: null,
+        createdAt: new Date(),
+        uploadedByUserId: 'u1',
+        uploader: { id: 'u1', name: 'Alice', avatarUrl: null },
+        likes: [],
+        comments: [],
+        _count: { likes: 0, comments: 0 },
+      },
+    ]);
+
+    const result = await MatchPhotoService.list('m1', 'league', 'u1');
+    expect(result[0]?.latestComment).toBeNull();
+  });
+});
+
 describe('MatchPhotoService.create', () => {
   beforeEach(() => {
     vi.clearAllMocks();

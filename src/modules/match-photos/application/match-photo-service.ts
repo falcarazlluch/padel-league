@@ -82,10 +82,12 @@ function makePhotoSummary(
     uploader: { id: string; name: string; avatarUrl: string | null };
     _count: { likes: number; comments: number };
     likes: { userId: string }[];
+    comments?: Array<{ id: string; body: string; user: { name: string } }>;
   },
   viewerUserId: string,
   viewerIsSuperAdmin: boolean,
 ): PhotoSummary {
+  const latest = row.comments?.[0];
   return {
     id: row.id,
     blobUrl: row.blobUrl,
@@ -99,6 +101,9 @@ function makePhotoSummary(
     commentCount: row._count.comments,
     viewerLiked: row.likes.length > 0,
     canDelete: viewerIsSuperAdmin || row.uploadedByUserId === viewerUserId,
+    latestComment: latest
+      ? { id: latest.id, body: latest.body, authorName: latest.user.name }
+      : null,
   };
 }
 
@@ -117,6 +122,12 @@ export const MatchPhotoService = {
         uploader: { select: { id: true, name: true, avatarUrl: true } },
         // Only the viewer's own like row is fetched — keeps the payload tiny.
         likes: { where: { userId: viewerUserId }, select: { userId: true } },
+        // Most recent comment for the inline preview on the grid card.
+        comments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { id: true, body: true, user: { select: { name: true } } },
+        },
         _count: { select: { likes: true, comments: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -159,6 +170,12 @@ export const MatchPhotoService = {
     const viewerIsSuperAdmin = viewer?.role === 'SUPER_ADMIN';
 
     const summary = makePhotoSummary(photo, viewerUserId, viewerIsSuperAdmin);
+    // photo.comments is asc; the latestComment in the summary should be the
+    // most recent one for the inline preview on the card.
+    const newest = photo.comments[photo.comments.length - 1];
+    summary.latestComment = newest
+      ? { id: newest.id, body: newest.body, authorName: newest.user.name }
+      : null;
     const comments: PhotoCommentEntry[] = photo.comments.map((c) => ({
       id: c.id,
       body: c.body,
