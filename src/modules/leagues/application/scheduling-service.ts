@@ -1,6 +1,6 @@
 import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
-import { NotificationService } from '@/modules/notifications/application/notification-service';
+import { NotificationService } from '@/modules/notifications';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
 

@@ -4,64 +4,51 @@ import { IndependentMatchService } from '@/modules/independent-matches';
 
 const prisma = testPrisma();
 
-async function createUser(name: string, email: string) {
+let counter = 0;
+function uniq(prefix: string): string {
+  counter += 1;
+  return `${prefix}-${Date.now()}-${counter}`;
+}
+
+async function createUser(name: string, emailSeed: string) {
   return prisma.user.create({
-    data: { name, email, passwordHash: 'hash', emailVerifiedAt: new Date() },
+    data: {
+      name,
+      email: `${uniq(emailSeed)}@test.com`,
+      passwordHash: 'hash',
+      emailVerifiedAt: new Date(),
+    },
   });
 }
 
-async function createLeagueWithTeams() {
-  const admin = await createUser('Admin', `admin-${Date.now()}@test.com`);
-  const league = await prisma.league.create({
-    data: {
-      name: 'Test Liga',
-      slug: `test-liga-${Date.now()}`,
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 86400000 * 30),
-      status: 'ACTIVE',
-      createdByUserId: admin.id,
-    },
+async function createOpenMatch(
+  organizerId: string,
+  overrides: Partial<{
+    name: string;
+    visibility: 'PUBLIC' | 'PRIVATE';
+    maxPlayers: 2 | 4;
+    scheduledAt: Date | undefined;
+  }> = {},
+) {
+  return IndependentMatchService.createOpen({
+    organizerId,
+    name: overrides.name ?? 'Test partido',
+    visibility: overrides.visibility ?? 'PUBLIC',
+    maxPlayers: overrides.maxPlayers ?? 4,
+    scheduledAt: overrides.scheduledAt,
   });
-
-  const userA1 = await createUser('Player A1', `a1-${Date.now()}@test.com`);
-  const userA2 = await createUser('Player A2', `a2-${Date.now()}@test.com`);
-  const userB1 = await createUser('Player B1', `b1-${Date.now()}@test.com`);
-  const userB2 = await createUser('Player B2', `b2-${Date.now()}@test.com`);
-
-  const teamA = await prisma.team.create({
-    data: {
-      leagueId: league.id,
-      name: 'Team A',
-      members: { create: [{ userId: userA1.id }, { userId: userA2.id }] },
-    },
-  });
-  const teamB = await prisma.team.create({
-    data: {
-      leagueId: league.id,
-      name: 'Team B',
-      members: { create: [{ userId: userB1.id }, { userId: userB2.id }] },
-    },
-  });
-
-  return { league, teamA, teamB, userA1, userA2, userB1, userB2 };
 }
 
 beforeEach(async () => {
   await truncateAll(prisma);
 });
 
-describe('IndependentMatchService — OPEN match flow', () => {
-  it('creates an OPEN match and organizer is participant', async () => {
-    const organizer = await createUser('Organizer', `org-${Date.now()}@test.com`);
-
-    const match = await IndependentMatchService.createOpen({
-      organizerId: organizer.id,
-      name: 'Partido tarde',
-      maxPlayers: 4,
-    });
+describe('IndependentMatchService — create + join', () => {
+  it('creates an OPEN match and seeds the organizer as a participant', async () => {
+    const organizer = await createUser('Organizer', 'org');
+    const match = await createOpenMatch(organizer.id);
 
     expect(match.status).toBe('OPEN');
-    expect(match.type).toBe('OPEN');
 
     const participants = await prisma.independentMatchParticipant.findMany({
       where: { independentMatchId: match.id, status: 'ACCEPTED' },
@@ -70,119 +57,232 @@ describe('IndependentMatchService — OPEN match flow', () => {
     expect(participants[0]!.userId).toBe(organizer.id);
   });
 
-  it('join request → approve → match CONFIRMED when full (maxPlayers 2)', async () => {
-    const organizer = await createUser('Org', `org2-${Date.now()}@test.com`);
-    const joiner = await createUser('Joiner', `joiner-${Date.now()}@test.com`);
+  it('joinPublicMatch confirms the match when the last slot is filled', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id, { maxPlayers: 2 });
 
-    const match = await IndependentMatchService.createOpen({
-      organizerId: organizer.id,
-      name: 'Test 2-player',
-      maxPlayers: 2,
-    });
-
-    await IndependentMatchService.requestToJoin(match.id, joiner.id);
-
-    const requests = await prisma.independentMatchJoinRequest.findMany({
-      where: { independentMatchId: match.id, status: 'PENDING' },
-    });
-    expect(requests).toHaveLength(1);
-
-    await IndependentMatchService.approveJoinRequest(requests[0]!.id, organizer.id);
+    const joiner = await createUser('Joiner', 'joiner');
+    await IndependentMatchService.joinPublicMatch(match.id, joiner.id);
 
     const updated = await prisma.independentMatch.findUnique({ where: { id: match.id } });
     expect(updated?.status).toBe('CONFIRMED');
   });
 
-  it('blocks requestToJoin when match is full', async () => {
-    const organizer = await createUser('Org3', `org3-${Date.now()}@test.com`);
-    const joiner1 = await createUser('J1', `j1-${Date.now()}@test.com`);
-    const joiner2 = await createUser('J2', `j2-${Date.now()}@test.com`);
+  it('joinPublicMatch rejects a non-public match', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id, { visibility: 'PRIVATE' });
 
-    const match = await IndependentMatchService.createOpen({
-      organizerId: organizer.id,
-      name: 'Full match',
-      maxPlayers: 2,
-    });
+    const joiner = await createUser('Joiner', 'joiner');
+    await expect(
+      IndependentMatchService.joinPublicMatch(match.id, joiner.id),
+    ).rejects.toThrow(/no es público/i);
+  });
 
-    await IndependentMatchService.requestToJoin(match.id, joiner1.id);
-    const reqs = await prisma.independentMatchJoinRequest.findMany({
-      where: { independentMatchId: match.id, status: 'PENDING' },
-    });
-    await IndependentMatchService.approveJoinRequest(reqs[0]!.id, organizer.id);
+  it('joinPublicMatch rejects a past match', async () => {
+    const organizer = await createUser('Org', 'org');
+    const past = new Date(Date.now() - 86_400_000);
+    const match = await createOpenMatch(organizer.id, { scheduledAt: past });
 
-    await expect(IndependentMatchService.requestToJoin(match.id, joiner2.id)).rejects.toThrow();
+    const joiner = await createUser('Joiner', 'joiner');
+    await expect(
+      IndependentMatchService.joinPublicMatch(match.id, joiner.id),
+    ).rejects.toThrow(/ya ha pasado/i);
   });
 });
 
-describe('IndependentMatchService — TEAM_CHALLENGE flow', () => {
-  it('creates a challenge with PENDING_APPROVAL status', async () => {
-    const { teamA, teamB, userA1, league } = await createLeagueWithTeams();
+describe('IndependentMatchService — invite-and-accept flow', () => {
+  it('inviteUser + acceptPendingInvitationByMatchId adds the user as participant', async () => {
+    const organizer = await createUser('Org', 'org');
+    const invitee = await createUser('Invitee', 'inv');
+    const match = await createOpenMatch(organizer.id, { maxPlayers: 4 });
 
-    const match = await IndependentMatchService.createChallenge({
-      organizerId: userA1.id,
-      organizerTeamId: teamA.id,
-      challengedTeamId: teamB.id,
-      leagueId: league.id,
-      name: 'Reto épico',
-    });
-
-    expect(match.status).toBe('PENDING_APPROVAL');
-    expect(match.type).toBe('TEAM_CHALLENGE');
-    expect(match.challengedTeamId).toBe(teamB.id);
-    expect(match.organizerTeamId).toBe(teamA.id);
-  });
-
-  it('accept challenge → CONFIRMED with all team members as participants', async () => {
-    const { teamA, teamB, userA1, userB1, league } = await createLeagueWithTeams();
-
-    const match = await IndependentMatchService.createChallenge({
-      organizerId: userA1.id,
-      organizerTeamId: teamA.id,
-      challengedTeamId: teamB.id,
-      leagueId: league.id,
-      name: 'Reto aceptado',
-    });
-
-    await IndependentMatchService.acceptChallenge(match.id, userB1.id);
-
-    const updated = await prisma.independentMatch.findUnique({ where: { id: match.id } });
-    expect(updated?.status).toBe('CONFIRMED');
+    await IndependentMatchService.inviteUser(match.id, organizer.id, invitee.id);
+    await IndependentMatchService.acceptPendingInvitationByMatchId(match.id, invitee.id);
 
     const participants = await prisma.independentMatchParticipant.findMany({
       where: { independentMatchId: match.id, status: 'ACCEPTED' },
     });
-    expect(participants).toHaveLength(4);
+    expect(participants.map((p) => p.userId).sort()).toEqual([organizer.id, invitee.id].sort());
   });
 
-  it('reject challenge → REJECTED status, organizer notified', async () => {
-    const { teamA, teamB, userA1, userB1, league } = await createLeagueWithTeams();
+  it('rejectPendingInvitationByMatchId removes the invitation', async () => {
+    const organizer = await createUser('Org', 'org');
+    const invitee = await createUser('Invitee', 'inv');
+    const match = await createOpenMatch(organizer.id);
 
-    const match = await IndependentMatchService.createChallenge({
-      organizerId: userA1.id,
-      organizerTeamId: teamA.id,
-      challengedTeamId: teamB.id,
-      leagueId: league.id,
-      name: 'Reto rechazado',
+    await IndependentMatchService.inviteUser(match.id, organizer.id, invitee.id);
+    await IndependentMatchService.rejectPendingInvitationByMatchId(match.id, invitee.id);
+
+    const remaining = await prisma.independentMatchInvitation.findMany({
+      where: { matchId: match.id },
+    });
+    expect(remaining).toHaveLength(0);
+  });
+
+  it('inviteTeam refuses a past match (regression: assertMatchNotPast was missing)', async () => {
+    const organizer = await createUser('Org', 'org');
+    const past = new Date(Date.now() - 86_400_000);
+    const match = await createOpenMatch(organizer.id, { scheduledAt: past, maxPlayers: 4 });
+
+    const teamMate1 = await createUser('TM1', 'tm1');
+    const teamMate2 = await createUser('TM2', 'tm2');
+    const team = await prisma.team.create({
+      data: {
+        name: uniq('Equipo'),
+        createdByUserId: teamMate1.id,
+        members: { create: [{ userId: teamMate1.id }, { userId: teamMate2.id }] },
+      },
     });
 
-    await IndependentMatchService.rejectChallenge(match.id, userB1.id);
+    await expect(
+      IndependentMatchService.inviteTeam(match.id, organizer.id, team.id),
+    ).rejects.toThrow(/ya ha pasado/i);
+  });
+
+  it('accept on a CONFIRMED match throws MATCH_CONFIRMED (regression guard)', async () => {
+    const organizer = await createUser('Org', 'org');
+    const filler1 = await createUser('F1', 'f1');
+    const filler2 = await createUser('F2', 'f2');
+    const filler3 = await createUser('F3', 'f3');
+    const match = await createOpenMatch(organizer.id, { maxPlayers: 4 });
+
+    // Fill the match.
+    await IndependentMatchService.joinPublicMatch(match.id, filler1.id);
+    await IndependentMatchService.joinPublicMatch(match.id, filler2.id);
+    await IndependentMatchService.joinPublicMatch(match.id, filler3.id);
 
     const updated = await prisma.independentMatch.findUnique({ where: { id: match.id } });
-    expect(updated?.status).toBe('REJECTED');
-  });
+    expect(updated?.status).toBe('CONFIRMED');
 
-  it('non-team-member cannot accept a challenge', async () => {
-    const { teamA, teamB, userA1, league } = await createLeagueWithTeams();
-    const outsider = await createUser('Outsider', `outsider-${Date.now()}@test.com`);
-
-    const match = await IndependentMatchService.createChallenge({
-      organizerId: userA1.id,
-      organizerTeamId: teamA.id,
-      challengedTeamId: teamB.id,
-      leagueId: league.id,
-      name: 'Reto no autorizado',
+    // Issue an invitation BEFORE the match was full would normally have been
+    // accept-able, but an invitation for a now-CONFIRMED match must fail with
+    // a clear MATCH_CONFIRMED error instead of falling through to MATCH_FULL.
+    const tooLate = await createUser('Late', 'late');
+    // Simulate a stale invitation by inserting one directly (the service
+    // would normally have prevented this via inviteUser's status check).
+    await prisma.independentMatchInvitation.create({
+      data: {
+        matchId: match.id,
+        invitedUserId: tooLate.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
     });
 
-    await expect(IndependentMatchService.acceptChallenge(match.id, outsider.id)).rejects.toThrow();
+    await expect(
+      IndependentMatchService.acceptPendingInvitationByMatchId(match.id, tooLate.id),
+    ).rejects.toThrow(/confirmado/i);
+  });
+});
+
+describe('IndependentMatchService — leaveMatch + cancelMatch + updateScheduledAt', () => {
+  it('leaveMatch reverts a CONFIRMED match back to OPEN', async () => {
+    const organizer = await createUser('Org', 'org');
+    const second = await createUser('Second', 'second');
+    const match = await createOpenMatch(organizer.id, { maxPlayers: 2 });
+    await IndependentMatchService.joinPublicMatch(match.id, second.id);
+
+    const beforeLeave = await prisma.independentMatch.findUnique({ where: { id: match.id } });
+    expect(beforeLeave?.status).toBe('CONFIRMED');
+
+    await IndependentMatchService.leaveMatch(match.id, second.id);
+
+    const after = await prisma.independentMatch.findUnique({ where: { id: match.id } });
+    expect(after?.status).toBe('OPEN');
+    const remaining = await prisma.independentMatchParticipant.findMany({
+      where: { independentMatchId: match.id, status: 'ACCEPTED' },
+    });
+    expect(remaining.map((p) => p.userId)).toEqual([organizer.id]);
+  });
+
+  it('leaveMatch rejects the organizer (must cancel instead)', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id);
+
+    await expect(
+      IndependentMatchService.leaveMatch(match.id, organizer.id),
+    ).rejects.toThrow(/cancelar/i);
+  });
+
+  it('cancelMatch flips status to CANCELLED', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id);
+
+    await IndependentMatchService.cancelMatch(match.id, organizer.id);
+
+    const after = await prisma.independentMatch.findUnique({ where: { id: match.id } });
+    expect(after?.status).toBe('CANCELLED');
+  });
+
+  it('cancelMatch rejects a non-organizer caller', async () => {
+    const organizer = await createUser('Org', 'org');
+    const stranger = await createUser('Stranger', 'str');
+    const match = await createOpenMatch(organizer.id);
+
+    await expect(
+      IndependentMatchService.cancelMatch(match.id, stranger.id),
+    ).rejects.toThrow(/organizador/i);
+  });
+
+  it('updateScheduledAt updates the value and is idempotent on equal values', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id);
+
+    const future = new Date(Date.now() + 86_400_000);
+    await IndependentMatchService.updateScheduledAt(match.id, organizer.id, future);
+
+    const after = await prisma.independentMatch.findUnique({ where: { id: match.id } });
+    expect(after?.scheduledAt?.getTime()).toBe(future.getTime());
+
+    // No-op when called with the same value.
+    await IndependentMatchService.updateScheduledAt(match.id, organizer.id, future);
+    const after2 = await prisma.independentMatch.findUnique({ where: { id: match.id } });
+    expect(after2?.updatedAt.getTime()).toBe(after?.updatedAt.getTime());
+  });
+
+  it('updateScheduledAt rejects a date in the past', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id);
+
+    await expect(
+      IndependentMatchService.updateScheduledAt(match.id, organizer.id, new Date(Date.now() - 1000)),
+    ).rejects.toThrow(/pasado/i);
+  });
+});
+
+describe('IndependentMatchService — chat', () => {
+  it('postChatMessage stores a message + listChatMessages returns it for participants', async () => {
+    const organizer = await createUser('Org', 'org');
+    const second = await createUser('Second', 'second');
+    const match = await createOpenMatch(organizer.id, { maxPlayers: 2 });
+    await IndependentMatchService.joinPublicMatch(match.id, second.id);
+
+    await IndependentMatchService.postChatMessage(match.id, organizer.id, 'Hola equipo');
+    const messages = await IndependentMatchService.listChatMessages(match.id, second.id);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.content).toBe('Hola equipo');
+    expect(messages[0]!.userId).toBe(organizer.id);
+  });
+
+  it('listChatMessages rejects non-participants', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id);
+    const outsider = await createUser('Outsider', 'out');
+
+    await expect(
+      IndependentMatchService.listChatMessages(match.id, outsider.id),
+    ).rejects.toThrow(/acceso/i);
+  });
+
+  it('postChatMessage rejects empty / oversize content', async () => {
+    const organizer = await createUser('Org', 'org');
+    const match = await createOpenMatch(organizer.id);
+
+    await expect(
+      IndependentMatchService.postChatMessage(match.id, organizer.id, '   '),
+    ).rejects.toThrow(/vacío/i);
+    await expect(
+      IndependentMatchService.postChatMessage(match.id, organizer.id, 'x'.repeat(2001)),
+    ).rejects.toThrow(/Máximo 2000/);
   });
 });

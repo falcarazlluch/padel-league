@@ -5,7 +5,7 @@ vi.mock('@/shared/db/client', () => ({
   prisma: {
     independentMatch: { findUnique: vi.fn() },
     independentMatchInvitation: {
-      findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     },
@@ -18,7 +18,7 @@ async function getPrisma() {
   return prisma as unknown as {
     independentMatch: { findUnique: ReturnType<typeof vi.fn> };
     independentMatchInvitation: {
-      findFirst: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
@@ -91,7 +91,7 @@ describe('IndependentMatchService.inviteTeam', () => {
     });
     prisma.team.findUnique.mockResolvedValue({ id: 't2', members: [{ userId: 'u3' }, { userId: 'u4' }] });
     const future = new Date(Date.now() + 60_000);
-    prisma.independentMatchInvitation.findFirst.mockResolvedValue({
+    prisma.independentMatchInvitation.findUnique.mockResolvedValue({
       id: 'inv1',
       acceptedAt: null,
       expiresAt: future,
@@ -113,7 +113,7 @@ describe('IndependentMatchService.inviteTeam', () => {
       participants: [{ userId: 'u1' }],
     });
     prisma.team.findUnique.mockResolvedValue({ id: 't2', members: [{ userId: 'u3' }, { userId: 'u4' }] });
-    prisma.independentMatchInvitation.findFirst.mockResolvedValue(null);
+    prisma.independentMatchInvitation.findUnique.mockResolvedValue(null);
     prisma.independentMatchInvitation.create.mockResolvedValue({ id: 'inv-new' });
 
     const result = await IndependentMatchService.inviteTeam('m1', 'u1', 't2');

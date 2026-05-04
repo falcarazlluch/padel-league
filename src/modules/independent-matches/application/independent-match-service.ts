@@ -277,6 +277,7 @@ export const IndependentMatchService = {
       throw new AuthorizationError('NOT_ORGANIZER', 'Solo el organizador puede invitar.');
     if (match.status !== 'OPEN')
       throw new DomainError('MATCH_NOT_INVITABLE', 'No se puede invitar a este partido.');
+    assertMatchNotPast(match);
     if (calculateAvailableSlots(match.maxPlayers, match.participants.length) < 2)
       throw new DomainError('NOT_ENOUGH_SLOTS_FOR_TEAM', 'No quedan dos huecos libres para invitar a un equipo.');
     if (match.hostTeamId === invitedTeamId)
@@ -289,8 +290,10 @@ export const IndependentMatchService = {
     if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
 
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const existing = await prisma.independentMatchInvitation.findFirst({
-      where: { matchId, invitedTeamId },
+    // Use findUnique against the (matchId, invitedTeamId) composite uniq index
+    // (imi_match_team_uniq). findFirst worked but is misleading vs. the schema.
+    const existing = await prisma.independentMatchInvitation.findUnique({
+      where: { matchId_invitedTeamId: { matchId, invitedTeamId } },
     });
 
     if (existing && !existing.acceptedAt && existing.expiresAt > new Date()) {
@@ -361,6 +364,8 @@ export const IndependentMatchService = {
 
     const { match } = invitation;
     if (match.status === 'CANCELLED') throw new DomainError('MATCH_CANCELLED', 'Este partido fue cancelado.');
+    if (match.status === 'CONFIRMED')
+      throw new DomainError('MATCH_CONFIRMED', 'Este partido ya está confirmado y completo.');
     assertMatchNotPast(match);
 
     // Branch on invitation kind.
@@ -693,7 +698,7 @@ export const IndependentMatchService = {
     NotificationService.createMany(
       others.map((u) => ({
         userId: u.id,
-        type: 'INDEPENDENT_MATCH_CONFIRMED' as const,
+        type: 'INDEPENDENT_MATCH_DATE_CHANGED' as const,
         title: headline,
         body,
         metadata: { matchId },

@@ -32,6 +32,7 @@ const INDEPENDENT_MATCH_TYPES = new Set<NotificationType>([
   'INDEPENDENT_MATCH_CONFIRMED',
   'INDEPENDENT_MATCH_CANCELLED',
   'INDEPENDENT_MATCH_CHAT',
+  'INDEPENDENT_MATCH_DATE_CHANGED',
 ]);
 
 const LEAGUE_TYPES = new Set<NotificationType>([
@@ -76,7 +77,7 @@ function resolveHref(
     // /equipos itself, where they can accept or reject it.
     return '/equipos';
   }
-  if (type === 'TEAM_INVITATION_ACCEPTED' || type === 'TEAM_INVITATION_REJECTED') {
+  if (type === 'TEAM_INVITATION_ACCEPTED' || type === 'TEAM_INVITATION_REJECTED' || type === 'TEAM_MEMBER_LEFT') {
     return teamId ? `/equipos/${teamId}` : '/equipos';
   }
   if (type === 'DISPUTE_OPENED' || type === 'DISPUTE_RESOLVED') {

@@ -420,19 +420,23 @@ export async function leaveMatchAction(
   }
 }
 
-export async function cancelMatch(formData: FormData): Promise<void> {
+export async function cancelMatchAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const user = await getSession();
   const matchId = formData.get('matchId');
-  if (typeof matchId !== 'string') return;
+  if (typeof matchId !== 'string') return { error: 'Datos inválidos.' };
 
   try {
     await IndependentMatchService.cancelMatch(matchId, user.id);
   } catch (err) {
-    if (isUserFacingError(err)) return; // silently absorb — page reload will show updated state
+    if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
 
   revalidatePath(`/jugar/${matchId}`);
   revalidatePath('/jugar');
-  redirect('/jugar' as Route);
+  revalidatePath('/partidos');
+  return { success: true };
 }

@@ -20,11 +20,13 @@ export type JobMap = {
 
 export type JobName = keyof JobMap;
 
+// Names of queues we actually create + drain. `match-reminder` is declared in
+// JobMap as a future feature but has no handler yet; including it here would
+// cause the drainer to issue a useless fetch on every heartbeat.
 export const ALL_JOB_NAMES: JobName[] = [
   'noop',
   'send-email',
   'match-auto-approve-result',
-  'match-reminder',
   'generate-match-commentary',
   'league-finalize',
   'session-cleanup',

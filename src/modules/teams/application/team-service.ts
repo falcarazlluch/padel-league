@@ -290,26 +290,30 @@ export const TeamService = {
       where: { id: teamId },
       include: {
         members: { include: { user: { select: { id: true, name: true } } } },
-        registrations: { where: { withdrawnAt: null }, select: { league: { select: { name: true } } } },
       },
     });
     if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
 
-    if (team.registrations.length > 0) {
-      const names = team.registrations.map((r) => r.league.name).join(', ');
-      throw new DomainError(
-        'TEAM_HAS_ACTIVE_REGISTRATIONS',
-        `No puedes salir mientras el equipo siga inscrito en: ${names}. Pide al admin que os desinscriba primero.`,
-      );
-    }
-
     const remainingMembers = team.members.filter((m) => m.userId !== userId);
     const leaver = team.members.find((m) => m.userId === userId);
 
+    // Re-read registrations INSIDE the transaction so a concurrent admin
+    // enrolment between the read and the member-delete cannot leave the team
+    // half-attached to a league.
     await prisma.$transaction(async (tx) => {
+      const activeRegistrations = await tx.leagueRegistration.findMany({
+        where: { teamId, withdrawnAt: null },
+        select: { league: { select: { name: true } } },
+      });
+      if (activeRegistrations.length > 0) {
+        const names = activeRegistrations.map((r) => r.league.name).join(', ');
+        throw new DomainError(
+          'TEAM_HAS_ACTIVE_REGISTRATIONS',
+          `No puedes salir mientras el equipo siga inscrito en: ${names}. Pide al admin que os desinscriba primero.`,
+        );
+      }
+
       await tx.teamMember.deleteMany({ where: { teamId, userId } });
-      // If the team is left empty, delete it altogether so it doesn't linger
-      // as an orphan with no members.
       if (remainingMembers.length === 0) {
         await tx.team.delete({ where: { id: teamId } });
       }
@@ -319,7 +323,7 @@ export const TeamService = {
       await prisma.notification.createMany({
         data: remainingMembers.map((m) => ({
           userId: m.userId,
-          type: 'TEAM_INVITATION_REJECTED' as const,
+          type: 'TEAM_MEMBER_LEFT' as const,
           title: 'Tu compañero ha salido del equipo',
           body: `${leaver.user.name} ha salido del equipo "${team.name}".`,
           metadata: { teamId },
