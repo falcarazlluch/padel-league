@@ -7,6 +7,8 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { MatchService } from '@/modules/leagues';
 import { MatchCommentaryService } from '@/modules/match-commentary';
+import { MatchPhotoService } from '@/modules/match-photos';
+import { PhotosSection } from '@/app/(app)/_components/match-photos/photos-section';
 import { prisma } from '@/shared/db/client';
 import { SubmitResultForm } from './submit-result-form';
 import { ConfirmRejectPanel } from './confirm-reject-panel';
@@ -382,6 +384,19 @@ export default async function MatchDetailPage({
             El resultado ha sido disputado. Un administrador resolverá la disputa.
           </p>
         </div>
+      )}
+
+      {/* Photos: postpartido. Only members of either team can see / upload /
+          like / comment, gated by the same ACL as the match itself. */}
+      {isPast && isTeamMember && (
+        <PhotosSection
+          matchId={match.id}
+          kind="league"
+          leagueSlug={slug}
+          photos={await MatchPhotoService.list(match.id, 'league', currentUser.id).catch(() => [])}
+          canUpload
+          currentUserId={currentUser.id}
+        />
       )}
     </div>
   );

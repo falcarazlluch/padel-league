@@ -58,6 +58,19 @@ function resolveHref(
   const leagueId = readString(metadata, 'leagueId');
   const leagueSlug = readString(metadata, 'leagueSlug');
   const teamId = readString(metadata, 'teamId');
+  const matchKind = readString(metadata, 'matchKind');
+
+  // Photo notifications carry both the match kind and id in metadata so we can
+  // route them to the right detail page without needing to hit the DB.
+  if (type === 'MATCH_PHOTO_UPLOADED' || type === 'MATCH_PHOTO_COMMENT' || type === 'MATCH_PHOTO_MENTION') {
+    if (!matchId) return null;
+    if (matchKind === 'independent') return `/jugar/${matchId}`;
+    if (matchKind === 'league') {
+      const slug = leagueSlug ?? matchToSlug.get(matchId);
+      return slug ? `/ligas/${slug}/partidos/${matchId}` : null;
+    }
+    return null;
+  }
 
   if (INDEPENDENT_MATCH_TYPES.has(type)) {
     return matchId ? `/jugar/${matchId}` : null;

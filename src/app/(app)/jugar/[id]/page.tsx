@@ -5,8 +5,10 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService, calculateAvailableSlots, isMatchPast } from '@/modules/independent-matches';
+import { MatchPhotoService } from '@/modules/match-photos';
 import { prisma } from '@/shared/db/client';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
+import { PhotosSection } from '../../_components/match-photos/photos-section';
 import { JoinPublicMatchButton } from './_components/join-public-match-button';
 import { InviteForm } from './_components/invite-form';
 import { CancelMatchButton } from './_components/cancel-match-button';
@@ -232,6 +234,20 @@ export default async function JugarDetailPage({
             content: m.content,
             createdAt: m.createdAt.toISOString(),
           }))}
+        />
+      )}
+
+      {/* Photos: postpartido. Anyone who is a participant (organizer or
+          accepted player) can see + upload + like + comment once the match
+          date has passed. The service ACL also enforces this on every
+          mutation. */}
+      {matchPast && (isOrganizer || isParticipant) && (
+        <PhotosSection
+          matchId={id}
+          kind="independent"
+          photos={await MatchPhotoService.list(id, 'independent', user.id).catch(() => [])}
+          canUpload
+          currentUserId={user.id}
         />
       )}
     </div>
