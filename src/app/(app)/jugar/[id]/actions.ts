@@ -158,7 +158,9 @@ export async function inviteEntityToMatchAction(
         parsed.data.invitedUserId,
       );
       if (isNew) {
-        await issueInvitationToken(parsed.data.matchId, invitationId);
+        // sendUserInviteEmail + sendTeamInviteNotifications already issue the
+        // signed token internally — issuing one here too just produced an
+        // unused JWT.
         await sendUserInviteEmail(parsed.data.matchId, parsed.data.invitedUserId, invitationId);
         await NotificationService.create({
           userId: parsed.data.invitedUserId,
@@ -175,7 +177,6 @@ export async function inviteEntityToMatchAction(
         parsed.data.invitedTeamId,
       );
       if (isNew) {
-        await issueInvitationToken(parsed.data.matchId, invitationId);
         await sendTeamInviteNotifications(parsed.data.matchId, parsed.data.invitedTeamId, invitationId);
       }
     }
