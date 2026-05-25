@@ -131,15 +131,18 @@ export default async function ResultadosPage() {
             {pendingValidationMatches.map((m) => {
               const result = m.results[0];
               if (!result) return null;
-              const teamAUserIds = m.teamA.members.map((mb) => mb.userId);
-              const teamBUserIds = m.teamB.members.map((mb) => mb.userId);
+              if (!m.teamA || !m.teamB) return null;
+              const teamA = m.teamA;
+              const teamB = m.teamB;
+              const teamAUserIds = teamA.members.map((mb) => mb.userId);
+              const teamBUserIds = teamB.members.map((mb) => mb.userId);
               // Prefer the snapshot stored on the result (immune to roster
               // changes after submission). Falls back to live-roster lookup
               // for legacy rows that pre-date the column.
               const viewerSide = getSubmitterSide(user.id, teamAUserIds, teamBUserIds);
               const submitterSide = resolveSubmitterSide(
                 result,
-                { teamAId: m.teamA.id, teamBId: m.teamB.id },
+                { teamAId: teamA.id, teamBId: teamB.id },
                 teamAUserIds,
                 teamBUserIds,
               );
@@ -156,7 +159,7 @@ export default async function ResultadosPage() {
                 >
                   <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
                     <p className="font-bold text-brand-navy truncate">
-                      {m.teamA.name} vs {m.teamB.name}
+                      {teamA.name} vs {teamB.name}
                     </p>
                     <span className="text-xs text-slate-400">{m.league.name}</span>
                   </div>
@@ -194,31 +197,35 @@ export default async function ResultadosPage() {
       {leagueMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Partidos de liga</h2>
-          {leagueMatches.map((m) => (
-            <MatchResultRow
-              key={m.id}
-              matchId={m.id}
-              leagueSlug={m.league.slug}
-              leagueName={m.league.name}
-              scheduledAt={m.scheduledAt}
-              teamA={{
-                id: m.teamA.id,
-                name: m.teamA.name,
-                logoUrl: m.teamA.logoUrl,
-                members: m.teamA.members.map((mb) => mb.user),
-              }}
-              teamB={{
-                id: m.teamB.id,
-                name: m.teamB.name,
-                logoUrl: m.teamB.logoUrl,
-                members: m.teamB.members.map((mb) => mb.user),
-              }}
-              winnerTeamId={m.winnerTeamId}
-              sets={m.confirmedResult?.sets ?? []}
-              adminResolved={m.status === 'ADMIN_RESOLVED'}
-              expiredUnplayed={m.status === 'EXPIRED_UNPLAYED'}
-            />
-          ))}
+          {leagueMatches
+            // Solo matches con ambos equipos asignados (Liga / Torneo / Americana
+            // FIXED_PAIRS). Americana ROTATING_INDIVIDUAL tiene su propia vista.
+            .filter((m) => m.teamA != null && m.teamB != null)
+            .map((m) => (
+              <MatchResultRow
+                key={m.id}
+                matchId={m.id}
+                leagueSlug={m.league.slug}
+                leagueName={m.league.name}
+                scheduledAt={m.scheduledAt}
+                teamA={{
+                  id: m.teamA!.id,
+                  name: m.teamA!.name,
+                  logoUrl: m.teamA!.logoUrl,
+                  members: m.teamA!.members.map((mb) => mb.user),
+                }}
+                teamB={{
+                  id: m.teamB!.id,
+                  name: m.teamB!.name,
+                  logoUrl: m.teamB!.logoUrl,
+                  members: m.teamB!.members.map((mb) => mb.user),
+                }}
+                winnerTeamId={m.winnerTeamId}
+                sets={m.confirmedResult?.sets ?? []}
+                adminResolved={m.status === 'ADMIN_RESOLVED'}
+                expiredUnplayed={m.status === 'EXPIRED_UNPLAYED'}
+              />
+            ))}
         </section>
       )}
 

@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
+import { assertTwoTeamMatch, assertMatchTeamIds } from '@/shared/match-guards';
 import { determineWinner, getSubmitterSide, resolveSubmitterSide } from './match-result-logic';
 import type { SubmitResultInput, MatchDetailRow } from '../domain/types';
 import type { DisputeResolution } from '@prisma/client';
@@ -31,6 +32,11 @@ export const MatchService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    // El getMatch (vista detalle clásica) está pensado para enfrentamientos de
+    // dos equipos. Para Americana ROTATING_INDIVIDUAL hay un fetch específico
+    // que se añadirá en su sub-fase con la vista de rondas.
+    assertTwoTeamMatch(match);
+    assertMatchTeamIds(match);
 
     const pendingResult = match.results[0] ?? null;
     const submitterSide = pendingResult
@@ -114,6 +120,8 @@ export const MatchService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
+    assertMatchTeamIds(match);
     if (!SUBMITTABLE_STATUSES.includes(match.status as SubmittableStatus)) {
       throw new DomainError(
         'MATCH_NOT_SUBMITTABLE',
@@ -187,6 +195,8 @@ export const MatchService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
+    assertMatchTeamIds(match);
     if (match.status !== 'PENDING_VALIDATION')
       throw new DomainError(
         'MATCH_NOT_PENDING',
@@ -269,6 +279,8 @@ export const MatchService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
+    assertMatchTeamIds(match);
     if (match.status !== 'PENDING_VALIDATION')
       throw new DomainError(
         'MATCH_NOT_PENDING',
@@ -360,6 +372,8 @@ export const MatchService = {
       throw new DomainError('DISPUTE_ALREADY_RESOLVED', 'Esta disputa ya fue resuelta.');
 
     const match = dispute.match;
+    assertTwoTeamMatch(match);
+    assertMatchTeamIds(match);
 
     // Determine proponent's team (team of the user who opened the dispute)
     const teamAIds = match.teamA.members.map((m) => m.userId);

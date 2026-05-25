@@ -106,14 +106,26 @@ export default async function DashboardPage({
   const leaguesWithStandings = await Promise.all(
     userLeagues.map(async (league) => {
       const matchesForStandings = await prisma.match.findMany({
-        where: { leagueId: league.id, status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] } },
+        where: {
+          leagueId: league.id,
+          status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] },
+          teamAId: { not: null },
+          teamBId: { not: null },
+        },
         include: { confirmedResult: { include: { sets: true } } },
       });
-      const leagueTeams = league.registrations.map((r) => r.team);
+      // Solo inscripciones por team (Liga / Torneo / Americana FIXED_PAIRS).
+      const leagueTeams = league.registrations
+        .map((r) => r.team)
+        .filter((t): t is NonNullable<typeof t> => t !== null);
       const teamNamesMap = Object.fromEntries(leagueTeams.map((t) => [t.id, t.name]));
+      const matchesForCalc = matchesForStandings.filter(
+        (m): m is typeof m & { teamAId: string; teamBId: string } =>
+          m.teamAId != null && m.teamBId != null,
+      );
       const standings = calculateStandings(
         teamNamesMap,
-        matchesForStandings.map((m) => ({
+        matchesForCalc.map((m) => ({
           teamAId: m.teamAId,
           teamBId: m.teamBId,
           status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
@@ -125,7 +137,7 @@ export default async function DashboardPage({
       const userTeamName = userTeamId ? teamNamesMap[userTeamId] : null;
       const progress = userTeamId
         ? computeTeamProgress(
-            matchesForStandings.map((m) => ({
+            matchesForCalc.map((m) => ({
               teamAId: m.teamAId,
               teamBId: m.teamBId,
               status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',

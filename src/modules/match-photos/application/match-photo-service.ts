@@ -32,8 +32,8 @@ async function getMatchParticipantIds(
     });
     if (!match) return { existed: false };
     const ids = [
-      ...match.teamA.members.map((m) => m.userId),
-      ...match.teamB.members.map((m) => m.userId),
+      ...(match.teamA?.members.map((m) => m.userId) ?? []),
+      ...(match.teamB?.members.map((m) => m.userId) ?? []),
     ];
     return { ids, existed: true };
   }

@@ -103,13 +103,19 @@ export async function buildLeagueMatchEvent(matchId: string, callerUserId: strin
   });
   if (!match) return { kind: 'not-found' };
   if (!match.scheduledAt) return { kind: 'no-date' };
+  // Solo soporta Liga / Torneo / Americana FIXED_PAIRS (matches con dos
+  // equipos). Para Americana ROTATING_INDIVIDUAL devolvemos not-found hasta
+  // que se implemente un builder específico.
+  if (match.teamA == null || match.teamB == null) return { kind: 'not-found' };
+  const teamA = match.teamA;
+  const teamB = match.teamB;
 
   // ACL: a league match's ICS exposes the full roster of both teams. Restrict
   // to people who actually belong to the league (any team registered in it),
   // plus SUPER_ADMINs, plus the league admin. Everybody else gets `forbidden`.
   const isParticipantOnEither =
-    match.teamA.members.some((m) => m.userId === callerUserId) ||
-    match.teamB.members.some((m) => m.userId === callerUserId);
+    teamA.members.some((m) => m.userId === callerUserId) ||
+    teamB.members.some((m) => m.userId === callerUserId);
   if (!isParticipantOnEither) {
     const caller = await prisma.user.findUnique({
       where: { id: callerUserId },
@@ -136,15 +142,15 @@ export async function buildLeagueMatchEvent(matchId: string, callerUserId: strin
     }
   }
 
-  const teamARoster = match.teamA.members.map((m) => m.user.name).join(', ');
-  const teamBRoster = match.teamB.members.map((m) => m.user.name).join(', ');
+  const teamARoster = teamA.members.map((m) => m.user.name).join(', ');
+  const teamBRoster = teamB.members.map((m) => m.user.name).join(', ');
   const description =
-    `${match.teamA.name}: ${teamARoster}\n${match.teamB.name}: ${teamBRoster}\n\nLiga: ${match.league.name}\n\nVer en la app: ${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`;
+    `${teamA.name}: ${teamARoster}\n${teamB.name}: ${teamBRoster}\n\nLiga: ${match.league.name}\n\nVer en la app: ${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`;
 
   const event: CalendarEvent = {
     uid: `match-${match.id}@padelleague.app`,
     sequence: Math.floor(match.updatedAt.getTime() / 1000),
-    summary: `${match.teamA.name} vs ${match.teamB.name}`,
+    summary: `${teamA.name} vs ${teamB.name}`,
     description,
     location: null, // league `Match` model has no location field today.
     url: `${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`,
@@ -153,5 +159,5 @@ export async function buildLeagueMatchEvent(matchId: string, callerUserId: strin
     alarmMinutes: DEFAULT_ALARM_MINUTES,
   };
 
-  return { kind: 'ok', event, filename: makeFilename(`${match.teamA.name}-vs-${match.teamB.name}`) };
+  return { kind: 'ok', event, filename: makeFilename(`${teamA.name}-vs-${teamB.name}`) };
 }

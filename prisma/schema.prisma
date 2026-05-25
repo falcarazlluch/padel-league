@@ -463,7 +463,11 @@ model TeamInvitation {
 model LeagueRegistration {
   id                 String    @id @default(cuid())
   leagueId           String    @map("league_id")
-  teamId             String    @map("team_id")
+  // teamId nullable a partir de Competitions v2 para soportar Americana
+  // ROTATING_INDIVIDUAL: la inscripción es por usuario (userId set, teamId null).
+  // Para el resto de tipos teamId sigue siendo siempre obligatorio — validado
+  // a nivel de `LeagueRegistrationService.register`.
+  teamId             String?   @map("team_id")
   userId             String?   @map("user_id")
   competitionGroupId String?   @map("competition_group_id")
   registeredByUserId String    @map("registered_by_user_id")
@@ -472,7 +476,7 @@ model LeagueRegistration {
   withdrawnByUserId  String?   @map("withdrawn_by_user_id")
 
   league       League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  team         Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team         Team?             @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user         User?             @relation("RegistrationUser", fields: [userId], references: [id], onDelete: Cascade)
   group        CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
   registeredBy User              @relation("RegistrationRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: Restrict)
@@ -567,8 +571,14 @@ model TeamMember {
 model Match {
   id       String      @id @default(cuid())
   leagueId String      @map("league_id")
-  teamAId  String      @map("team_a_id")
-  teamBId  String      @map("team_b_id")
+  // Nullables a partir de Competitions v2: en Americana ROTATING_INDIVIDUAL los
+  // 4 jugadores viven en `MatchParticipant` y no hay Team. En el primer round
+  // del bracket de Torneo con byes también pueden ser null hasta que se
+  // resuelve el match fuente. Para Liga, Torneo (post-asignación) y Americana
+  // FIXED_PAIRS siguen estando siempre presentes — el helper
+  // `assertTwoTeamMatch` se usa en los call-sites que necesitan asumirlo.
+  teamAId  String?     @map("team_a_id")
+  teamBId  String?     @map("team_b_id")
   status   MatchStatus @default(SCHEDULED)
 
   scheduledAt DateTime? @map("scheduled_at") // fecha acordada
@@ -600,8 +610,8 @@ model Match {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   league              League                      @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  teamA               Team                        @relation("TeamA", fields: [teamAId], references: [id], onDelete: Restrict)
-  teamB               Team                        @relation("TeamB", fields: [teamBId], references: [id], onDelete: Restrict)
+  teamA               Team?                       @relation("TeamA", fields: [teamAId], references: [id], onDelete: Restrict)
+  teamB               Team?                       @relation("TeamB", fields: [teamBId], references: [id], onDelete: Restrict)
   competitionGroup    CompetitionGroup?           @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
   sourceMatchA        Match?                      @relation("BracketSourceA", fields: [sourceMatchAId], references: [id], onDelete: SetNull)
   sourceMatchB        Match?                      @relation("BracketSourceB", fields: [sourceMatchBId], references: [id], onDelete: SetNull)

@@ -93,13 +93,18 @@ export default async function LigaDetailPage({
 
   const teamNamesMap = Object.fromEntries(teams.map((t) => [t.id, t.name]));
   const teamLogoMap = Object.fromEntries(teams.map((t) => [t.id, t.logoUrl]));
-  const standingMatches = matchesForStandings.map((m) => ({
-    teamAId: m.teamAId,
-    teamBId: m.teamBId,
-    status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
-    winnerTeamId: m.winnerTeamId,
-    sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
-  }));
+  // Solo matches con ambos equipos (Liga / Torneo / Americana FIXED_PAIRS).
+  const standingMatches = matchesForStandings
+    .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+      m.teamAId != null && m.teamBId != null,
+    )
+    .map((m) => ({
+      teamAId: m.teamAId,
+      teamBId: m.teamBId,
+      status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+      winnerTeamId: m.winnerTeamId,
+      sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+    }));
 
   const standings = calculateStandings(teamNamesMap, standingMatches);
 
@@ -107,9 +112,10 @@ export default async function LigaDetailPage({
     currentUser.role === 'SUPER_ADMIN' ||
     (currentUser.role === 'LEAGUE_ADMIN' && league.createdByUserId === currentUser.id);
 
-  // Fetch matches with confirmed sets for the Partidos tab
+  // Fetch matches with confirmed sets for the Partidos tab. Solo los matches
+  // con dos equipos (Liga / Torneo / Americana FIXED_PAIRS) van por aquí.
   const matchesWithSets = await prisma.match.findMany({
-    where: { leagueId: league.id },
+    where: { leagueId: league.id, teamAId: { not: null }, teamBId: { not: null } },
     include: {
       teamA: {
         select: {
@@ -132,19 +138,29 @@ export default async function LigaDetailPage({
     orderBy: [{ round: 'asc' }, { deadlineAt: 'asc' }],
   });
 
-  const matchesForJornada = matchesWithSets.map((m) => ({
-    id: m.id,
-    teamAId: m.teamAId,
-    teamBId: m.teamBId,
-    teamA: m.teamA,
-    teamB: m.teamB,
-    status: m.status,
-    scheduledAt: m.scheduledAt,
-    deadlineAt: m.deadlineAt,
-    round: m.round,
-    winnerTeamId: m.winnerTeamId,
-    confirmedSets: m.confirmedResult?.sets ?? [],
-  }));
+  type TeamWithMembers = NonNullable<(typeof matchesWithSets)[number]['teamA']>;
+  const matchesForJornada = matchesWithSets
+    .filter(
+      (m): m is typeof m & {
+        teamAId: string;
+        teamBId: string;
+        teamA: TeamWithMembers;
+        teamB: TeamWithMembers;
+      } => m.teamAId != null && m.teamBId != null && m.teamA != null && m.teamB != null,
+    )
+    .map((m) => ({
+      id: m.id,
+      teamAId: m.teamAId,
+      teamBId: m.teamBId,
+      teamA: m.teamA,
+      teamB: m.teamB,
+      status: m.status,
+      scheduledAt: m.scheduledAt,
+      deadlineAt: m.deadlineAt,
+      round: m.round,
+      winnerTeamId: m.winnerTeamId,
+      confirmedSets: m.confirmedResult?.sets ?? [],
+    }));
 
   const cronicas = tab === 'cronicas'
     ? await MatchCommentaryService.listForLeague(league.id, 20)
@@ -320,30 +336,32 @@ export default async function LigaDetailPage({
               <p className="text-sm text-slate-400">Aún no hay resultados en esta liga.</p>
             ) : (
               <div className="space-y-3">
-                {finalizedMatches.map((m) => (
-                  <MatchResultRow
-                    key={m.id}
-                    matchId={m.id}
-                    leagueSlug={slug}
-                    scheduledAt={m.scheduledAt}
-                    teamA={{
-                      id: m.teamA.id,
-                      name: m.teamA.name,
-                      logoUrl: m.teamA.logoUrl,
-                      members: m.teamA.members.map((mb) => mb.user),
-                    }}
-                    teamB={{
-                      id: m.teamB.id,
-                      name: m.teamB.name,
-                      logoUrl: m.teamB.logoUrl,
-                      members: m.teamB.members.map((mb) => mb.user),
-                    }}
-                    winnerTeamId={m.winnerTeamId}
-                    sets={m.confirmedResult?.sets ?? []}
-                    adminResolved={m.status === 'ADMIN_RESOLVED'}
-                    expiredUnplayed={m.status === 'EXPIRED_UNPLAYED'}
-                  />
-                ))}
+                {finalizedMatches
+                  .filter((m) => m.teamA != null && m.teamB != null)
+                  .map((m) => (
+                    <MatchResultRow
+                      key={m.id}
+                      matchId={m.id}
+                      leagueSlug={slug}
+                      scheduledAt={m.scheduledAt}
+                      teamA={{
+                        id: m.teamA!.id,
+                        name: m.teamA!.name,
+                        logoUrl: m.teamA!.logoUrl,
+                        members: m.teamA!.members.map((mb) => mb.user),
+                      }}
+                      teamB={{
+                        id: m.teamB!.id,
+                        name: m.teamB!.name,
+                        logoUrl: m.teamB!.logoUrl,
+                        members: m.teamB!.members.map((mb) => mb.user),
+                      }}
+                      winnerTeamId={m.winnerTeamId}
+                      sets={m.confirmedResult?.sets ?? []}
+                      adminResolved={m.status === 'ADMIN_RESOLVED'}
+                      expiredUnplayed={m.status === 'EXPIRED_UNPLAYED'}
+                    />
+                  ))}
               </div>
             )
           )}

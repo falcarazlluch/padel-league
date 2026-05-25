@@ -4,6 +4,7 @@ import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { NotificationService } from '@/modules/notifications';
 import { formatSetScore } from '@/shared/format/match';
+import { assertTwoTeamMatch } from '@/shared/match-guards';
 import type { JobMap } from '@/shared/queue/jobs';
 
 export async function matchAutoApproveResultHandler(
@@ -67,6 +68,10 @@ export async function matchAutoApproveResultHandler(
   }
 
   const match = matchResult.match;
+  // El handler de auto-approve se encola solo para matches de Liga/Torneo/
+  // Americana FIXED_PAIRS (los que pasan por submitResult clásico). Por tipos,
+  // el match siempre tiene los dos equipos definidos.
+  assertTwoTeamMatch(match);
   const allMembers = [
     ...match.teamA.members.map((m) => ({ userId: m.userId, email: m.user.email })),
     ...match.teamB.members.map((m) => ({ userId: m.userId, email: m.user.email })),

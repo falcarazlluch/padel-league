@@ -151,10 +151,12 @@ export const LeagueService = {
     return league;
   },
 
-  /** Returns teams currently registered (not withdrawn) in the league. */
+  /** Returns teams currently registered (not withdrawn) in the league. Solo
+   * devuelve registros con `team` (no incluye inscripciones individuales de
+   * Americana ROTATING_INDIVIDUAL — esas viven en su propio path). */
   async getTeams(leagueId: string): Promise<TeamRow[]> {
     const registrations = await prisma.leagueRegistration.findMany({
-      where: { leagueId, withdrawnAt: null },
+      where: { leagueId, withdrawnAt: null, teamId: { not: null } },
       include: {
         team: {
           include: {
@@ -166,28 +168,49 @@ export const LeagueService = {
       },
       orderBy: { team: { name: 'asc' } },
     });
-    return registrations.map((r) => ({
-      id: r.team.id,
-      leagueId,
-      name: r.team.name,
-      category: r.team.category,
-      logoUrl: r.team.logoUrl,
-      members: r.team.members.map((m) => ({
-        userId: m.userId,
-        user: { id: m.user.id, name: m.user.name, email: m.user.email },
-      })),
-    }));
+    return registrations
+      .filter((r): r is typeof r & { team: NonNullable<typeof r.team> } => r.team !== null)
+      .map((r) => ({
+        id: r.team.id,
+        leagueId,
+        name: r.team.name,
+        category: r.team.category,
+        logoUrl: r.team.logoUrl,
+        members: r.team.members.map((m) => ({
+          userId: m.userId,
+          user: { id: m.user.id, name: m.user.name, email: m.user.email },
+        })),
+      }));
   },
 
+  /** Solo matches entre dos equipos. Para Americana ROTATING_INDIVIDUAL hay
+   * un fetch específico que enumera `MatchParticipant` por ronda. */
   async getMatches(leagueId: string): Promise<MatchRow[]> {
-    return prisma.match.findMany({
-      where: { leagueId },
+    const matches = await prisma.match.findMany({
+      where: { leagueId, teamAId: { not: null }, teamBId: { not: null } },
       include: {
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
       },
       orderBy: [{ round: 'asc' }, { deadlineAt: 'asc' }],
     });
+    return matches
+      .filter(
+        (m): m is typeof m & { teamAId: string; teamBId: string; teamA: { id: string; name: string }; teamB: { id: string; name: string } } =>
+          m.teamAId != null && m.teamBId != null && m.teamA != null && m.teamB != null,
+      )
+      .map((m) => ({
+        id: m.id,
+        leagueId: m.leagueId,
+        teamAId: m.teamAId,
+        teamBId: m.teamBId,
+        status: m.status,
+        scheduledAt: m.scheduledAt,
+        deadlineAt: m.deadlineAt,
+        round: m.round,
+        teamA: m.teamA,
+        teamB: m.teamB,
+      }));
   },
 
   async activateLeague(leagueId: string, requestingUserId: string): Promise<void> {
@@ -214,7 +237,9 @@ export const LeagueService = {
       throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la liga puede activarla.');
     }
 
-    const registeredTeams = league.registrations.map((r) => r.team);
+    const registeredTeams = league.registrations
+      .map((r) => r.team)
+      .filter((t): t is NonNullable<typeof t> => t !== null);
     if (registeredTeams.length < 2)
       throw new DomainError('NOT_ENOUGH_TEAMS', 'La liga necesita al menos 2 equipos apuntados para activarse.');
 

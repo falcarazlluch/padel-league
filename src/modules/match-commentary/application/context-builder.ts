@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/client';
 import { calculateStandings } from '@/modules/leagues';
 import { NotFoundError } from '@/shared/errors';
+import { assertTwoTeamMatch, assertMatchTeamIds } from '@/shared/match-guards';
 import type { CommentaryContext, CommentaryType, RecentCategoryChange } from '../domain/types';
 
 const RECENT_LIMIT = 3;
@@ -46,12 +47,14 @@ async function getRecentResults(
     take: RECENT_LIMIT,
   });
 
-  return matches.map((m) => {
-    const opponentId = m.teamAId === teamId ? m.teamBId : m.teamAId;
-    const opponent = teamNamesById.get(opponentId) ?? 'Equipo desconocido';
-    const won = m.winnerTeamId === teamId;
-    return { won, opponent };
-  });
+  return matches
+    .filter((m) => m.teamAId != null && m.teamBId != null)
+    .map((m) => {
+      const opponentId = m.teamAId === teamId ? m.teamBId : m.teamAId;
+      const opponent = opponentId ? (teamNamesById.get(opponentId) ?? 'Equipo desconocido') : 'Equipo desconocido';
+      const won = m.winnerTeamId === teamId;
+      return { won, opponent };
+    });
 }
 
 export async function buildContext(
@@ -68,12 +71,16 @@ export async function buildContext(
     },
   });
   if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+  assertTwoTeamMatch(match);
+  assertMatchTeamIds(match);
 
   const registrations = await prisma.leagueRegistration.findMany({
-    where: { leagueId: match.league.id, withdrawnAt: null },
+    where: { leagueId: match.league.id, withdrawnAt: null, teamId: { not: null } },
     select: { team: { select: { id: true, name: true } } },
   });
-  const allTeams = registrations.map((r) => r.team);
+  const allTeams = registrations
+    .map((r) => r.team)
+    .filter((t): t is { id: string; name: string } => t !== null);
   const teamNamesById = new Map(allTeams.map((t) => [t.id, t.name]));
   const teamNamesMap = Object.fromEntries(allTeams.map((t) => [t.id, t.name]));
 
@@ -87,13 +94,17 @@ export async function buildContext(
 
   const standings = calculateStandings(
     teamNamesMap,
-    standingsMatches.map((m) => ({
-      teamAId: m.teamAId,
-      teamBId: m.teamBId,
-      status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
-      winnerTeamId: m.winnerTeamId,
-      sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
-    })),
+    standingsMatches
+      .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+        m.teamAId != null && m.teamBId != null,
+      )
+      .map((m) => ({
+        teamAId: m.teamAId,
+        teamBId: m.teamBId,
+        status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+        winnerTeamId: m.winnerTeamId,
+        sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+      })),
   );
 
   function rankAndPoints(teamId: string): { rank: number | null; points: number } {

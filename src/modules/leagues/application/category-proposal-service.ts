@@ -47,26 +47,36 @@ export const CategoryProposalService = {
     });
     if (!league) return { created: 0 };
 
-    const leagueTeams = league.registrations.map((r) => r.team);
+    // Solo inscripciones por Team. Las propuestas de cambio de categoría no
+    // aplican a Americana ROTATING_INDIVIDUAL (que es por usuario, no por team).
+    const leagueTeams = league.registrations
+      .map((r) => r.team)
+      .filter((t): t is NonNullable<typeof t> => t !== null);
     const teamNames = Object.fromEntries(leagueTeams.map((t) => [t.id, t.name]));
 
     const matches = await prisma.match.findMany({
       where: {
         leagueId,
         status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] },
+        teamAId: { not: null },
+        teamBId: { not: null },
       },
       include: { confirmedResult: { include: { sets: true } } },
     });
 
     const standings = calculateStandings(
       teamNames,
-      matches.map((m) => ({
-        teamAId: m.teamAId,
-        teamBId: m.teamBId,
-        status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
-        winnerTeamId: m.winnerTeamId,
-        sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
-      })),
+      matches
+        .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+          m.teamAId != null && m.teamBId != null,
+        )
+        .map((m) => ({
+          teamAId: m.teamAId,
+          teamBId: m.teamBId,
+          status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+          winnerTeamId: m.winnerTeamId,
+          sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+        })),
     );
 
     const teamCategoryMap = new Map(leagueTeams.map((t) => [t.id, t.category]));

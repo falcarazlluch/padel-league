@@ -96,7 +96,13 @@ export default async function MisPartidosPage() {
   const now = Date.now();
 
   function buildCardProps(m: (typeof matches)[number]) {
-    const teamAIds = m.teamA.members.map((tm) => tm.userId);
+    // El listado clásico solo aplica a matches con dos equipos. Filtrar por
+    // teamId NOT NULL en la query mantendrá éste path limpio de Americana
+    // ROTATING_INDIVIDUAL.
+    if (!m.teamA || !m.teamB) return null;
+    const teamA = m.teamA;
+    const teamB = m.teamB;
+    const teamAIds = teamA.members.map((tm) => tm.userId);
 
     let proposalState: 'none' | 'mine' | 'rival' = 'none';
     let proposedDate: string | null = null;
@@ -113,16 +119,16 @@ export default async function MisPartidosPage() {
       leagueSlug: m.league.slug,
       leagueName: m.league.name,
       teamA: {
-        id: m.teamA.id,
-        name: m.teamA.name,
-        logoUrl: m.teamA.logoUrl,
-        members: m.teamA.members.map((mb) => mb.user),
+        id: teamA.id,
+        name: teamA.name,
+        logoUrl: teamA.logoUrl,
+        members: teamA.members.map((mb) => mb.user),
       },
       teamB: {
-        id: m.teamB.id,
-        name: m.teamB.name,
-        logoUrl: m.teamB.logoUrl,
-        members: m.teamB.members.map((mb) => mb.user),
+        id: teamB.id,
+        name: teamB.name,
+        logoUrl: teamB.logoUrl,
+        members: teamB.members.map((mb) => mb.user),
       },
       status: m.status,
       scheduledAt: m.scheduledAt?.toISOString() ?? null,
@@ -181,27 +187,30 @@ export default async function MisPartidosPage() {
       {confirmedMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Confirmados</h2>
-          {confirmedMatches.map((m) => (
-            <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
-          ))}
+          {confirmedMatches.map((m) => {
+            const props = buildCardProps(m);
+            return props ? <MatchCardMisPartidos key={m.id} {...props} /> : null;
+          })}
         </section>
       )}
 
       {proposedMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pendiente de confirmar</h2>
-          {proposedMatches.map((m) => (
-            <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
-          ))}
+          {proposedMatches.map((m) => {
+            const props = buildCardProps(m);
+            return props ? <MatchCardMisPartidos key={m.id} {...props} /> : null;
+          })}
         </section>
       )}
 
       {scheduledMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sin programar</h2>
-          {scheduledMatches.map((m) => (
-            <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
-          ))}
+          {scheduledMatches.map((m) => {
+            const props = buildCardProps(m);
+            return props ? <MatchCardMisPartidos key={m.id} {...props} /> : null;
+          })}
         </section>
       )}
 
@@ -266,9 +275,10 @@ export default async function MisPartidosPage() {
             No jugados ({expiredMatches.length})
           </summary>
           <div className="space-y-3 mt-3">
-            {expiredMatches.map((m) => (
-              <MatchCardMisPartidos key={m.id} {...buildCardProps(m)} />
-            ))}
+            {expiredMatches.map((m) => {
+              const props = buildCardProps(m);
+              return props ? <MatchCardMisPartidos key={m.id} {...props} /> : null;
+            })}
           </div>
         </details>
       )}

@@ -127,24 +127,31 @@ async function buildUserContext(userId: string): Promise<string> {
   } else {
     const blocks = await Promise.all(
       activeLeagues.map(async (l) => {
-        const teamIds = l.registrations.map((r) => r.team.id);
+        const teamRegs = l.registrations.filter((r): r is typeof r & { team: NonNullable<typeof r.team> } => r.team !== null);
+        const teamIds = teamRegs.map((r) => r.team.id);
         const matches = await prisma.match.findMany({
           where: {
             leagueId: l.id,
             status: { in: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] },
+            teamAId: { not: null },
+            teamBId: { not: null },
           },
           include: { confirmedResult: { include: { sets: true } } },
         });
-        const teamNames = Object.fromEntries(l.registrations.map((r) => [r.team.id, r.team.name]));
+        const teamNames = Object.fromEntries(teamRegs.map((r) => [r.team.id, r.team.name]));
         const standings = calculateStandings(
           teamNames,
-          matches.map((m) => ({
-            teamAId: m.teamAId,
-            teamBId: m.teamBId,
-            status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
-            winnerTeamId: m.winnerTeamId,
-            sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
-          })),
+          matches
+            .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+              m.teamAId != null && m.teamBId != null,
+            )
+            .map((m) => ({
+              teamAId: m.teamAId,
+              teamBId: m.teamBId,
+              status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+              winnerTeamId: m.winnerTeamId,
+              sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+            })),
         );
         const top = standings
           .slice(0, 5)
@@ -183,11 +190,15 @@ async function buildUserContext(userId: string): Promise<string> {
     take: 5,
   });
   if (upcoming.length > 0) {
-    const lines = upcoming.map(
-      (m) =>
-        `- ${m.teamA.name} vs ${m.teamB.name} (liga "${m.league.name}", deadline ${m.deadlineAt.toLocaleDateString('es-ES')}, estado ${m.status})`,
-    );
-    sections.push(`PRÓXIMOS PARTIDOS:\n${lines.join('\n')}`);
+    // Solo listar matches con ambos equipos asignados (Liga / Torneo / Americana
+    // FIXED_PAIRS). El chatbot no resume aún Americana ROTATING_INDIVIDUAL.
+    const lines = upcoming
+      .filter((m) => m.teamA != null && m.teamB != null)
+      .map(
+        (m) =>
+          `- ${m.teamA!.name} vs ${m.teamB!.name} (liga "${m.league.name}", deadline ${m.deadlineAt.toLocaleDateString('es-ES')}, estado ${m.status})`,
+      );
+    if (lines.length > 0) sections.push(`PRÓXIMOS PARTIDOS:\n${lines.join('\n')}`);
   }
 
   return sections.join('\n\n');

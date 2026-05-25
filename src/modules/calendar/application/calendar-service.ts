@@ -100,6 +100,9 @@ export const CalendarService = {
     const items: CalendarMatch[] = [];
 
     for (const m of ownLeague) {
+      // Solo matches con ambos equipos. Para Americana ROTATING_INDIVIDUAL
+      // habrá un calendar item específico cuando se complete sub-fase 4.
+      if (!m.teamA || !m.teamB) continue;
       items.push({
         id: m.id,
         category: 'OWN_LEAGUE',
@@ -110,6 +113,7 @@ export const CalendarService = {
       });
     }
     for (const m of otherLeague) {
+      if (!m.teamA || !m.teamB) continue;
       items.push({
         id: m.id,
         category: 'OTHER_LEAGUE_MINE',

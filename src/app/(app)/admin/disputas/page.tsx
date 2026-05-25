@@ -53,7 +53,7 @@ export default async function DisputasAdminPage() {
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <p className="font-semibold text-brand-navy">
-                    {dispute.match.teamA.name} vs {dispute.match.teamB.name}
+                    {dispute.match.teamA?.name ?? '—'} vs {dispute.match.teamB?.name ?? '—'}
                   </p>
                   <p className="text-sm text-slate-400">
                     Liga: {dispute.match.league.name} · Abierta por {dispute.opener.name} ({dispute.opener.email})

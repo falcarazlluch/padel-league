@@ -3,6 +3,7 @@ import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors'
 import { NotificationService } from '@/modules/notifications';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
+import { assertTwoTeamMatch } from '@/shared/match-guards';
 
 const NON_EXTENDABLE_STATUSES = [
   'EXPIRED_UNPLAYED',
@@ -23,6 +24,7 @@ export const SchedulingService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
 
     const teamAIds = match.teamA.members.map((m) => m.userId);
     const teamBIds = match.teamB.members.map((m) => m.userId);
@@ -84,6 +86,7 @@ export const SchedulingService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
     if (match.status !== 'DATE_PROPOSED')
       throw new DomainError('NO_ACTIVE_PROPOSAL', 'No hay propuesta activa para este partido.');
 
@@ -147,6 +150,7 @@ export const SchedulingService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
 
     const teamAIds = match.teamA.members.map((m) => m.userId);
     const teamBIds = match.teamB.members.map((m) => m.userId);
@@ -183,6 +187,7 @@ export const SchedulingService = {
       },
     });
     if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    assertTwoTeamMatch(match);
 
     const teamAIds = match.teamA.members.map((m) => m.userId);
     const teamBIds = match.teamB.members.map((m) => m.userId);
@@ -248,6 +253,7 @@ export const SchedulingService = {
     if (proposal.status !== 'PROPOSED') {
       throw new DomainError('PROPOSAL_NOT_PROPOSED', 'Esta propuesta ya fue procesada.');
     }
+    assertTwoTeamMatch(proposal.match);
 
     const teamAIds = proposal.match.teamA.members.map((m) => m.userId);
     const teamBIds = proposal.match.teamB.members.map((m) => m.userId);
@@ -305,6 +311,7 @@ export const SchedulingService = {
     if (proposal.status !== 'PROPOSED') {
       throw new DomainError('PROPOSAL_NOT_PROPOSED', 'Esta propuesta ya fue procesada.');
     }
+    assertTwoTeamMatch(proposal.match);
 
     const teamAIds = proposal.match.teamA.members.map((m) => m.userId);
     const teamBIds = proposal.match.teamB.members.map((m) => m.userId);

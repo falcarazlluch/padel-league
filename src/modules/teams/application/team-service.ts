@@ -222,27 +222,33 @@ export const TeamService = {
     };
     stats.lost = stats.played - stats.won - stats.drawn;
 
-    const history: TeamMatchHistoryEntry[] = playedMatches.slice(0, 10).map((m) => {
-      const isTeamA = m.teamAId === teamId;
-      const rival = isTeamA ? m.teamB : m.teamA;
-      const sets = m.confirmedResult?.sets ?? [];
-      const setsDisplay = sets
-        .map((s) => (isTeamA ? `${s.gamesA}-${s.gamesB}` : `${s.gamesB}-${s.gamesA}`))
-        .join(' / ');
-      const outcome: TeamMatchHistoryEntry['outcome'] =
-        m.winnerTeamId === null ? 'drawn' : m.winnerTeamId === teamId ? 'won' : 'lost';
-      return {
-        matchId: m.id,
-        leagueSlug: m.league.slug,
-        leagueName: m.league.name,
-        scheduledAt: m.scheduledAt,
-        rivalTeamId: rival.id,
-        rivalTeamName: rival.name,
-        rivalLogoUrl: rival.logoUrl,
-        outcome,
-        setsDisplay,
-      };
-    });
+    const history: TeamMatchHistoryEntry[] = playedMatches
+      .slice(0, 10)
+      // Solo matches con dos equipos. Los partidos de Americana ROTATING_INDIVIDUAL
+      // nunca llegan aquí (filtramos por teamId), pero por seguridad de tipos
+      // descartamos también filas con teamA/teamB null.
+      .filter((m) => m.teamA != null && m.teamB != null)
+      .map((m) => {
+        const isTeamA = m.teamAId === teamId;
+        const rival = (isTeamA ? m.teamB : m.teamA)!;
+        const sets = m.confirmedResult?.sets ?? [];
+        const setsDisplay = sets
+          .map((s) => (isTeamA ? `${s.gamesA}-${s.gamesB}` : `${s.gamesB}-${s.gamesA}`))
+          .join(' / ');
+        const outcome: TeamMatchHistoryEntry['outcome'] =
+          m.winnerTeamId === null ? 'drawn' : m.winnerTeamId === teamId ? 'won' : 'lost';
+        return {
+          matchId: m.id,
+          leagueSlug: m.league.slug,
+          leagueName: m.league.name,
+          scheduledAt: m.scheduledAt,
+          rivalTeamId: rival.id,
+          rivalTeamName: rival.name,
+          rivalLogoUrl: rival.logoUrl,
+          outcome,
+          setsDisplay,
+        };
+      });
 
     return {
       id: team.id,

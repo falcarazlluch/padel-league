@@ -48,12 +48,18 @@ async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null
     },
   });
   if (!match) return null;
+  // Helper centralizado para los flujos de Liga (submitResult/confirm/dispute).
+  // Solo aplica a matches con dos equipos. Americana ROTATING_INDIVIDUAL
+  // tiene su propio path y nunca llega aquí.
+  if (!match.teamA || !match.teamB) return null;
+  const teamA = match.teamA;
+  const teamB = match.teamB;
 
   const winnerTeamId = match.winnerTeamId;
   const winnerTeam = winnerTeamId
     ? winnerTeamId === match.teamAId
-      ? { name: match.teamA.name }
-      : { name: match.teamB.name }
+      ? { name: teamA.name }
+      : { name: teamB.name }
     : null;
 
   const latest = match.results[0];
@@ -61,14 +67,14 @@ async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null
 
   return {
     teamA: {
-      id: match.teamA.id,
-      name: match.teamA.name,
-      members: match.teamA.members.map((m) => ({ userId: m.userId, user: { email: m.user.email, name: m.user.name } })),
+      id: teamA.id,
+      name: teamA.name,
+      members: teamA.members.map((m) => ({ userId: m.userId, user: { email: m.user.email, name: m.user.name } })),
     },
     teamB: {
-      id: match.teamB.id,
-      name: match.teamB.name,
-      members: match.teamB.members.map((m) => ({ userId: m.userId, user: { email: m.user.email, name: m.user.name } })),
+      id: teamB.id,
+      name: teamB.name,
+      members: teamB.members.map((m) => ({ userId: m.userId, user: { email: m.user.email, name: m.user.name } })),
     },
     leagueSlug: match.league.slug,
     winnerTeam,
