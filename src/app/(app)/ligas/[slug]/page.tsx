@@ -23,6 +23,8 @@ import {
   calculateAmericanaIndividualStandings,
   calculateAmericanaPairsStandings,
 } from '@/modules/leagues/application/americana-standings';
+import { BracketTree, type BracketCell } from './_components/bracket-tree';
+import { GroupStandings, type GroupView } from './_components/group-standings';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -321,6 +323,92 @@ export default async function LigaDetailPage({
     }
   }
 
+  // Tournament — fetch bracket + groups si aplica.
+  const isTournament = league.type === 'TOURNAMENT';
+  let bracketCells: BracketCell[] = [];
+  let tournamentGroups: GroupView[] = [];
+
+  if (isTournament) {
+    const tournamentMatches = await prisma.match.findMany({
+      where: { leagueId: league.id },
+      include: {
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
+        confirmedResult: { include: { sets: true } },
+      },
+      orderBy: [
+        { bracketSide: 'asc' },
+        { bracketRound: 'asc' },
+        { bracketPosition: 'asc' },
+        { competitionGroupId: 'asc' },
+        { round: 'asc' },
+      ],
+    });
+
+    // Bracket cells (matches con bracketSide set).
+    bracketCells = tournamentMatches
+      .filter((m): m is typeof m & { bracketSide: NonNullable<typeof m.bracketSide>; bracketRound: number; bracketPosition: number } =>
+        m.bracketSide != null && m.bracketRound != null && m.bracketPosition != null,
+      )
+      .map((m) => {
+        const sets = m.confirmedResult?.sets ?? [];
+        const setsA = sets.filter((s) => s.gamesA > s.gamesB).length;
+        const setsB = sets.filter((s) => s.gamesB > s.gamesA).length;
+        return {
+          id: m.id,
+          side: m.bracketSide,
+          round: m.bracketRound,
+          position: m.bracketPosition,
+          status: m.status,
+          teamAName: m.teamA?.name ?? null,
+          teamBName: m.teamB?.name ?? null,
+          winnerSide:
+            m.winnerTeamId === m.teamAId
+              ? 'A'
+              : m.winnerTeamId === m.teamBId
+                ? 'B'
+                : null,
+          score: m.confirmedResult ? { setsA, setsB } : null,
+        };
+      });
+
+    // Group phase: standings por grupo.
+    if (league.hasGroupPhase) {
+      const groupRows = await prisma.competitionGroup.findMany({
+        where: { leagueId: league.id },
+        orderBy: { index: 'asc' },
+        include: {
+          registrations: {
+            include: { team: { select: { id: true, name: true } } },
+          },
+        },
+      });
+      const groupMatches = tournamentMatches.filter((m) => m.competitionGroupId != null);
+      tournamentGroups = groupRows.map((g) => {
+        const groupTeams = g.registrations
+          .map((r) => r.team)
+          .filter((t): t is NonNullable<typeof t> => t !== null);
+        const groupTeamNames = Object.fromEntries(groupTeams.map((t) => [t.id, t.name]));
+        const myMatches = groupMatches
+          .filter((m) => m.competitionGroupId === g.id)
+          .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+            m.teamAId != null && m.teamBId != null,
+          );
+        const rows = calculateStandings(
+          groupTeamNames,
+          myMatches.map((m) => ({
+            teamAId: m.teamAId,
+            teamBId: m.teamBId,
+            status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+            winnerTeamId: m.winnerTeamId,
+            sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+          })),
+        );
+        return { id: g.id, name: g.name, rows };
+      });
+    }
+  }
+
   const cronicas = tab === 'cronicas'
     ? await MatchCommentaryService.listForLeague(league.id, 20)
     : [];
@@ -475,8 +563,8 @@ export default async function LigaDetailPage({
       </section>
       )}
 
-      {/* Tabs: Clasificación / Partidos|Rondas / Resultados / Crónicas */}
-      {(teams.length > 0 || individualRegistrations.length > 0) && (
+      {/* Tabs: Clasificación / Partidos|Rondas|Bracket / Resultados / Crónicas */}
+      {(teams.length > 0 || individualRegistrations.length > 0 || bracketCells.length > 0) && (
         <section>
           <div className="flex border-b border-gray-200 mb-4 flex-wrap">
             <Link
@@ -497,7 +585,7 @@ export default async function LigaDetailPage({
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
-              {isAmericana ? 'Rondas' : 'Partidos'}
+              {isAmericana ? 'Rondas' : isTournament ? 'Bracket' : 'Partidos'}
             </Link>
             <Link
               href={`/ligas/${slug}?tab=resultados` as Route}
@@ -528,6 +616,25 @@ export default async function LigaDetailPage({
                 courts={league.americanaCourts ?? 1}
                 leagueSlug={slug}
               />
+            ) : isTournament ? (
+              <div className="space-y-8">
+                {bracketCells.some((c) => c.side === 'GOLD') ? (
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Bracket Oro</p>
+                    <BracketTree cells={bracketCells} side="GOLD" leagueSlug={slug} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400">
+                    El bracket se materializará cuando se cierre la fase de grupos.
+                  </p>
+                )}
+                {bracketCells.some((c) => c.side === 'SILVER') && (
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Bracket Plata</p>
+                    <BracketTree cells={bracketCells} side="SILVER" leagueSlug={slug} />
+                  </div>
+                )}
+              </div>
             ) : (
               <PartidosTab
                 slug={slug}
@@ -588,6 +695,14 @@ export default async function LigaDetailPage({
           {tab !== 'partidos' && tab !== 'cronicas' && tab !== 'resultados' && (
             isAmericana ? (
               <AmericanaStandingsTable rows={americanaStandings} firstColLabel={americanaStandingsLabel} />
+            ) : isTournament ? (
+              tournamentGroups.length > 0 ? (
+                <GroupStandings groups={tournamentGroups} />
+              ) : (
+                <p className="text-sm text-slate-400">
+                  Este torneo no tiene fase de grupos. Mira la pestaña <strong>Bracket</strong> para ver el cuadro.
+                </p>
+              )
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
                 <table className="w-full text-sm">
