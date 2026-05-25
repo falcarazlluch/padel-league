@@ -21,7 +21,9 @@ async function getSession() {
 const categoryEnum = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
 const dateString = z.string().refine((d) => !isNaN(Date.parse(d)), 'Fecha inválida');
 
-const createLeagueSchema = z.object({
+// Discriminator + bloque común a los tres tipos. La forma final del input se
+// compone más abajo via z.discriminatedUnion según el campo `type`.
+const baseSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
   description: z.string().max(500).optional(),
   registrationStart: dateString,
@@ -31,58 +33,92 @@ const createLeagueSchema = z.object({
   category: categoryEnum.optional(),
 });
 
+const leagueSchema = baseSchema.extend({
+  type: z.literal('LEAGUE'),
+});
+
+const americanaSchema = baseSchema.extend({
+  type: z.literal('AMERICANA'),
+  americanaVariant: z.enum(['ROTATING_INDIVIDUAL', 'FIXED_PAIRS']),
+  americanaRoundFormat: z.enum(['FIRST_TO_GAMES', 'BY_TIME']),
+  americanaTargetGames: z.coerce.number().int().min(4).max(16).optional(),
+  americanaRoundMinutes: z.coerce.number().int().min(5).max(90).optional(),
+  americanaCourts: z.coerce.number().int().min(1).max(4),
+});
+
+const tournamentSchema = baseSchema.extend({
+  type: z.literal('TOURNAMENT'),
+  hasGroupPhase: z.coerce.boolean(),
+  groupCount: z.coerce.number().int().min(2).max(16).optional(),
+  teamsPerGroup: z.coerce.number().int().min(3).max(16).optional(),
+  qualifiersPerGroup: z.coerce.number().int().min(1).max(8).optional(),
+  bracketSeedingMode: z.enum(['AUTO', 'MANUAL']).optional(),
+});
+
+const createLeagueSchema = z.discriminatedUnion('type', [
+  leagueSchema,
+  americanaSchema,
+  tournamentSchema,
+]);
+
 type CreateLeagueState = {
   error?: string;
-  values?: {
-    name: string;
-    description: string;
-    category: string;
-    registrationStart: string;
-    registrationEnd: string;
-    startDate: string;
-    endDate: string;
-  };
 };
 
 export async function createLeagueAction(
   _prev: CreateLeagueState | null,
   formData: FormData,
 ): Promise<CreateLeagueState> {
-  const getRaw = (key: string): string => {
-    const v = formData.get(key);
-    return typeof v === 'string' ? v : '';
-  };
-  const submittedValues = {
-    name: getRaw('name'),
-    description: getRaw('description'),
-    category: getRaw('category'),
-    registrationStart: getRaw('registrationStart'),
-    registrationEnd: getRaw('registrationEnd'),
-    startDate: getRaw('startDate'),
-    endDate: getRaw('endDate'),
-  };
-
   const user = await getSession();
-  const parsed = createLeagueSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.', values: submittedValues };
+
+  // Normaliza el FormData a un objeto plano; los campos numéricos llegan como
+  // string y el `hasGroupPhase` checkbox llega como "on" | undefined → "true" | "false".
+  const raw = Object.fromEntries(formData);
+  if (raw['hasGroupPhase'] !== undefined) {
+    raw['hasGroupPhase'] = raw['hasGroupPhase'] === 'on' || raw['hasGroupPhase'] === 'true' ? 'true' : 'false';
   }
-  const { name, description, registrationStart, registrationEnd, startDate, endDate, category } = parsed.data;
+  // El campo `type` debe llegar siempre; sin él el discriminatedUnion falla.
+  if (typeof raw['type'] !== 'string') raw['type'] = 'LEAGUE';
+
+  const parsed = createLeagueSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  }
+  const data = parsed.data;
   let slug: string;
   try {
     const league = await LeagueService.create({
-      name,
-      description,
-      registrationStart: new Date(registrationStart),
-      registrationEnd: new Date(registrationEnd),
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      category,
+      name: data.name,
+      description: data.description,
+      registrationStart: new Date(data.registrationStart),
+      registrationEnd: new Date(data.registrationEnd),
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      category: data.category,
       createdByUserId: user.id,
+      type: data.type,
+      americana: data.type === 'AMERICANA'
+        ? {
+            americanaVariant: data.americanaVariant,
+            americanaRoundFormat: data.americanaRoundFormat,
+            americanaTargetGames: data.americanaTargetGames,
+            americanaRoundMinutes: data.americanaRoundMinutes,
+            americanaCourts: data.americanaCourts,
+          }
+        : undefined,
+      tournament: data.type === 'TOURNAMENT'
+        ? {
+            hasGroupPhase: data.hasGroupPhase,
+            groupCount: data.groupCount,
+            teamsPerGroup: data.teamsPerGroup,
+            qualifiersPerGroup: data.qualifiersPerGroup,
+            bracketSeedingMode: data.bracketSeedingMode,
+          }
+        : undefined,
     });
     slug = league.slug;
   } catch (err) {
-    if (isUserFacingError(err)) return { error: (err as Error).message, values: submittedValues };
+    if (isUserFacingError(err)) return { error: (err as Error).message };
     throw err;
   }
   redirect(`/ligas/${slug}` as Route);

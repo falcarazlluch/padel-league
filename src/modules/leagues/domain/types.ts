@@ -5,6 +5,9 @@ import type {
   DisputeResolution,
   TeamCategory,
   CompetitionType,
+  AmericanaVariant,
+  AmericanaRoundFormat,
+  BracketSeeding,
 } from '@prisma/client';
 
 export type LeagueRow = {
@@ -66,6 +69,25 @@ export type StandingEntry = {
   gamesDiff: number;
 };
 
+// Configuración específica por tipo. Solo el bloque que corresponde al `type`
+// se rellena; el resto queda null en BD. La validación del XOR vive en la
+// capa de aplicación (`LeagueService.create` y el action `createLeagueAction`).
+export type CreateLeagueAmericanaConfig = {
+  americanaVariant: AmericanaVariant;
+  americanaRoundFormat: AmericanaRoundFormat;
+  americanaTargetGames?: number; // default 8 cuando roundFormat=FIRST_TO_GAMES
+  americanaRoundMinutes?: number; // default 20 cuando roundFormat=BY_TIME
+  americanaCourts: number; // 1..4
+};
+
+export type CreateLeagueTournamentConfig = {
+  hasGroupPhase: boolean;
+  groupCount?: number;
+  teamsPerGroup?: number;
+  qualifiersPerGroup?: number;
+  bracketSeedingMode?: BracketSeeding; // default AUTO
+};
+
 export type CreateLeagueInput = {
   name: string;
   description?: string;
@@ -77,6 +99,9 @@ export type CreateLeagueInput = {
   matchFormat?: MatchFormat;
   defaultDeadlineDays?: number;
   createdByUserId: string;
+  type?: CompetitionType; // default LEAGUE para compatibilidad con call-sites existentes
+  americana?: CreateLeagueAmericanaConfig;
+  tournament?: CreateLeagueTournamentConfig;
 };
 
 export type SubmitResultInput = {

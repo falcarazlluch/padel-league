@@ -39,7 +39,7 @@ export const LeagueService = {
     if (creator?.role !== 'SUPER_ADMIN' && creator?.role !== 'LEAGUE_ADMIN') {
       throw new AuthorizationError(
         'NOT_LEAGUE_ADMIN',
-        'Solo los administradores de liga pueden crear ligas.',
+        'Solo los administradores de liga pueden crear competiciones.',
       );
     }
 
@@ -49,6 +49,52 @@ export const LeagueService = {
       startDate: input.startDate,
       endDate: input.endDate,
     });
+
+    const type = input.type ?? 'LEAGUE';
+
+    // Validación cruzada del bloque de configuración específico del tipo.
+    if (type === 'AMERICANA') {
+      if (!input.americana) {
+        throw new DomainError('AMERICANA_CONFIG_REQUIRED', 'Falta la configuración de la Americana.');
+      }
+      if (input.americana.americanaCourts < 1 || input.americana.americanaCourts > 4) {
+        throw new DomainError('INVALID_COURTS', 'El número de pistas debe estar entre 1 y 4.');
+      }
+      if (
+        input.americana.americanaRoundFormat === 'FIRST_TO_GAMES' &&
+        input.americana.americanaTargetGames !== undefined &&
+        (input.americana.americanaTargetGames < 4 || input.americana.americanaTargetGames > 16)
+      ) {
+        throw new DomainError('INVALID_TARGET_GAMES', 'El objetivo de games por ronda debe estar entre 4 y 16.');
+      }
+      if (
+        input.americana.americanaRoundFormat === 'BY_TIME' &&
+        input.americana.americanaRoundMinutes !== undefined &&
+        (input.americana.americanaRoundMinutes < 5 || input.americana.americanaRoundMinutes > 90)
+      ) {
+        throw new DomainError('INVALID_ROUND_MINUTES', 'La duración de cada ronda debe estar entre 5 y 90 minutos.');
+      }
+    }
+    if (type === 'TOURNAMENT') {
+      if (!input.tournament) {
+        throw new DomainError('TOURNAMENT_CONFIG_REQUIRED', 'Falta la configuración del Torneo.');
+      }
+      if (input.tournament.hasGroupPhase) {
+        const { groupCount, teamsPerGroup, qualifiersPerGroup } = input.tournament;
+        if (!groupCount || !teamsPerGroup || !qualifiersPerGroup) {
+          throw new DomainError(
+            'GROUP_CONFIG_REQUIRED',
+            'Si el torneo tiene fase de grupos hay que indicar grupos, parejas por grupo y clasificados por grupo.',
+          );
+        }
+        if (qualifiersPerGroup >= teamsPerGroup) {
+          throw new DomainError(
+            'INVALID_QUALIFIERS',
+            'El número de clasificados por grupo debe ser menor que el total de parejas del grupo.',
+          );
+        }
+      }
+    }
 
     const baseSlug = toSlug(input.name);
     const existing = await prisma.league.findMany({ where: { slug: { startsWith: baseSlug } } });
@@ -64,9 +110,30 @@ export const LeagueService = {
         startDate: input.startDate,
         endDate: input.endDate,
         category: input.category ?? 'INTERMEDIATE',
+        type,
         matchFormat: input.matchFormat ?? 'FLEXIBLE',
         defaultDeadlineDays: input.defaultDeadlineDays ?? 21,
         createdByUserId: input.createdByUserId,
+        // Americana
+        americanaVariant: input.americana?.americanaVariant ?? null,
+        americanaRoundFormat: input.americana?.americanaRoundFormat ?? null,
+        americanaTargetGames:
+          input.americana?.americanaRoundFormat === 'FIRST_TO_GAMES'
+            ? (input.americana.americanaTargetGames ?? 8)
+            : null,
+        americanaRoundMinutes:
+          input.americana?.americanaRoundFormat === 'BY_TIME'
+            ? (input.americana.americanaRoundMinutes ?? 20)
+            : null,
+        americanaCourts: input.americana?.americanaCourts ?? null,
+        // Tournament
+        hasGroupPhase: input.tournament?.hasGroupPhase ?? false,
+        groupCount: input.tournament?.hasGroupPhase ? (input.tournament.groupCount ?? null) : null,
+        teamsPerGroup: input.tournament?.hasGroupPhase ? (input.tournament.teamsPerGroup ?? null) : null,
+        qualifiersPerGroup: input.tournament?.hasGroupPhase
+          ? (input.tournament.qualifiersPerGroup ?? null)
+          : null,
+        bracketSeedingMode: type === 'TOURNAMENT' ? (input.tournament?.bracketSeedingMode ?? 'AUTO') : null,
       },
     });
     return league;
