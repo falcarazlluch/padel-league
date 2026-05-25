@@ -647,7 +647,7 @@ export default async function LigaDetailPage({
 
           {tab === 'resultados' && (
             finalizedMatches.length === 0 ? (
-              <p className="text-sm text-slate-400">Aún no hay resultados en esta liga.</p>
+              <p className="text-sm text-slate-400">Aún no hay resultados en esta competición.</p>
             ) : (
               <div className="space-y-3">
                 {finalizedMatches
@@ -682,7 +682,7 @@ export default async function LigaDetailPage({
 
           {tab === 'cronicas' && (
             cronicas.length === 0 ? (
-              <p className="text-sm text-slate-400">Aún no hay crónicas en esta liga.</p>
+              <p className="text-sm text-slate-400">Aún no hay crónicas en esta competición.</p>
             ) : (
               <div className="space-y-3">
                 {cronicas.map((c) => (

@@ -88,7 +88,7 @@ function RegistrationStatusBadge({ status }: { status: 'open' | 'future' | 'past
     open:   { label: 'Inscripción abierta',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     future: { label: 'Inscripción próxima',  cls: 'bg-blue-50 text-blue-700 border-blue-200' },
     past:   { label: 'Inscripción cerrada',  cls: 'bg-slate-100 text-slate-500 border-slate-200' },
-    closed: { label: 'Liga ya iniciada',     cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+    closed: { label: 'Competición ya iniciada', cls: 'bg-slate-100 text-slate-500 border-slate-200' },
   } as const;
   const s = map[status];
   return (
@@ -111,7 +111,7 @@ function RegisteredRow({
   const [error, setError] = useState<string | null>(null);
 
   const onWithdraw = () => {
-    if (!confirm(`¿Borrar al equipo "${team.name}" de esta liga?`)) return;
+    if (!confirm(`¿Borrar al equipo "${team.name}" de esta competición?`)) return;
     setError(null);
     startTransition(async () => {
       const res = await withdrawTeamAction(leagueId, team.id);

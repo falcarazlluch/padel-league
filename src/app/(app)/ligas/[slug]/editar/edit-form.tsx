@@ -31,7 +31,7 @@ export function EditLeagueForm({
   const [deletePending, startDelete] = useTransition();
 
   const onDelete = () => {
-    if (!confirm('¿Borrar esta liga? Esta acción es irreversible y borrará equipos, partidos y resultados asociados.')) return;
+    if (!confirm('¿Borrar esta competición? Esta acción es irreversible y borrará equipos, partidos y resultados asociados.')) return;
     startDelete(async () => {
       const result = await deleteLeagueAction(leagueId);
       if (result?.error) {
@@ -59,7 +59,7 @@ export function EditLeagueForm({
 
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
-            Nombre de la liga <span className="text-red-500">*</span>
+            Nombre de la competición <span className="text-red-500">*</span>
           </label>
           <input
             id="name"
