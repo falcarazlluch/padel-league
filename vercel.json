@@ -1,8 +1,9 @@
 {
+  "$comment": "Vercel Hobby limits crons to once per day, so this is a daily backup-only schedule. Push outbox + league-finalize are driven by an external cron (cron-job.org) hitting /api/cron/heartbeat?key=$CRON_SECRET every minute. This Vercel entry stays as a safety net if the external service ever fails.",
   "crons": [
     {
       "path": "/api/cron/heartbeat",
-      "schedule": "* * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
