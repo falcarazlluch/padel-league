@@ -37,21 +37,30 @@ const leagueSchema = baseSchema.extend({
   type: z.literal('LEAGUE'),
 });
 
+// El wizard envía siempre todos los hidden inputs específicos del tipo (con
+// "" cuando no aplican). Trata string vacío como undefined antes de coerce
+// para que `.optional()` lo acepte sin chocar con `min()`.
+const optionalCoerceInt = (min: number, max: number) =>
+  z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(min).max(max).optional(),
+  );
+
 const americanaSchema = baseSchema.extend({
   type: z.literal('AMERICANA'),
   americanaVariant: z.enum(['ROTATING_INDIVIDUAL', 'FIXED_PAIRS']),
   americanaRoundFormat: z.enum(['FIRST_TO_GAMES', 'BY_TIME']),
-  americanaTargetGames: z.coerce.number().int().min(4).max(16).optional(),
-  americanaRoundMinutes: z.coerce.number().int().min(5).max(90).optional(),
+  americanaTargetGames: optionalCoerceInt(4, 16),
+  americanaRoundMinutes: optionalCoerceInt(5, 90),
   americanaCourts: z.coerce.number().int().min(1).max(4),
 });
 
 const tournamentSchema = baseSchema.extend({
   type: z.literal('TOURNAMENT'),
   hasGroupPhase: z.coerce.boolean(),
-  groupCount: z.coerce.number().int().min(2).max(16).optional(),
-  teamsPerGroup: z.coerce.number().int().min(3).max(16).optional(),
-  qualifiersPerGroup: z.coerce.number().int().min(1).max(8).optional(),
+  groupCount: optionalCoerceInt(2, 16),
+  teamsPerGroup: optionalCoerceInt(3, 16),
+  qualifiersPerGroup: optionalCoerceInt(1, 8),
   bracketSeedingMode: z.enum(['AUTO', 'MANUAL']).optional(),
 });
 
