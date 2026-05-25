@@ -70,23 +70,28 @@ export function NuevaLigaForm() {
   const [qualifiersPerGroup, setQualifiersPerGroup] = useState('2');
   const [bracketSeedingMode, setBracketSeedingMode] = useState<BracketSeeding>('AUTO');
 
-  // Para Americana usamos la misma fecha como registrationEnd y endDate.
-  // Para Torneo, endDate se deriva (startDate + 30d) ya que el bracket lo determina en runtime.
+  // Derivaciones por tipo para los campos ocultos:
+  //  - Americana es de un día: registrationEnd = startDate, endDate = startDate + 1
+  //    (el validador del servicio exige endDate estrictamente > startDate).
+  //  - Torneo: endDate placeholder = startDate + 30d hasta que el bracket
+  //    determine la fecha real al confirmarse las llaves.
   const effectiveDates = (() => {
+    const addDays = (iso: string, days: number): string => {
+      const d = new Date(iso);
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
     if (type === 'AMERICANA') {
       return {
         ...dates,
         registrationEnd: dates.startDate,
-        endDate: dates.startDate,
+        endDate: addDays(dates.startDate, 1),
       };
     }
     if (type === 'TOURNAMENT') {
-      const start = new Date(dates.startDate);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 30);
       return {
         ...dates,
-        endDate: end.toISOString().slice(0, 10),
+        endDate: addDays(dates.startDate, 30),
       };
     }
     return dates;
