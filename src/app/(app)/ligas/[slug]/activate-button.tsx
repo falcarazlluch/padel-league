@@ -25,7 +25,7 @@ export function ActivateLeagueButton({ leagueId }: { leagueId: string }) {
       disabled={isPending}
       className="px-4 py-2 bg-gradient-to-br from-emerald-500 to-green-600 text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-50 transition-opacity whitespace-nowrap"
     >
-      {isPending ? 'Activando...' : 'Activar liga'}
+      {isPending ? 'Activando...' : 'Activar competición'}
     </button>
   );
 }

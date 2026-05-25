@@ -19,7 +19,7 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   return (
     <div className="flex items-center gap-6">
       <Link href={'/ligas' as Route} className={linkClass(pathname.startsWith('/ligas'))} aria-current={pathname.startsWith('/ligas') ? 'page' : undefined}>
-        Ligas
+        Competiciones
       </Link>
       <Link href={'/equipos' as Route} className={linkClass(pathname.startsWith('/equipos'))} aria-current={pathname.startsWith('/equipos') ? 'page' : undefined}>
         Mis equipos

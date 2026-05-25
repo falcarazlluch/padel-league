@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { cookies } from 'next/headers';
 import { prisma } from '@/shared/db/client';
-import type { Prisma, TeamCategory } from '@prisma/client';
+import type { Prisma, TeamCategory, CompetitionType } from '@prisma/client';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
@@ -11,6 +11,10 @@ import {
   DISPLAY_STATUS_CLASS,
   DISPLAY_STATUS_LABEL,
 } from '@/modules/leagues/presentation/league-status';
+import {
+  COMPETITION_TYPE_LABEL,
+  COMPETITION_TYPE_BADGE_CLASS,
+} from '@/modules/leagues/presentation/competition-type';
 
 function readNow(): number {
   return Date.now();
@@ -34,6 +38,20 @@ const CATEGORY_OPTIONS: Array<{ value: CategoryFilter; label: string }> = [
   { value: 'ADVANCED', label: CATEGORY_LABEL.ADVANCED },
 ];
 
+type TypeFilter = 'all' | CompetitionType;
+
+const TYPE_OPTIONS: Array<{ value: TypeFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'LEAGUE', label: COMPETITION_TYPE_LABEL.LEAGUE },
+  { value: 'AMERICANA', label: COMPETITION_TYPE_LABEL.AMERICANA },
+  { value: 'TOURNAMENT', label: COMPETITION_TYPE_LABEL.TOURNAMENT },
+];
+
+function parseType(raw: string | undefined): TypeFilter {
+  if (raw === 'LEAGUE' || raw === 'AMERICANA' || raw === 'TOURNAMENT') return raw;
+  return 'all';
+}
+
 function parseStatus(raw: string | undefined): StatusFilter {
   if (raw === 'draft' || raw === 'active' || raw === 'finished') return raw;
   return 'all';
@@ -53,12 +71,13 @@ function parseDate(raw: string | undefined): Date | null {
 export default async function LigasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; category?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; category?: string; type?: string; from?: string; to?: string }>;
 }) {
   const params = await searchParams;
   const q = (params.q ?? '').trim();
   const status = parseStatus(params.status);
   const category = parseCategory(params.category);
+  const typeFilter = parseType(params.type);
   const from = parseDate(params.from);
   const to = parseDate(params.to);
 
@@ -76,6 +95,7 @@ export default async function LigasPage({
   else if (status === 'active') where.status = 'ACTIVE';
   else if (status === 'finished') where.status = { in: ['FINISHED', 'ARCHIVED'] };
   if (category !== 'all') where.category = category;
+  if (typeFilter !== 'all') where.type = typeFilter;
   // Date overlap: league period [startDate, endDate] overlaps with [from, to]
   if (from) where.endDate = { gte: from };
   if (to) where.startDate = { ...(where.startDate as object | undefined), lte: to };
@@ -91,21 +111,22 @@ export default async function LigasPage({
     displayStatus: deriveLeagueStatus(l.status, l.registrationStart, l.registrationEnd, now, l.startDate, l.endDate),
   }));
 
-  const hasActiveFilters = q.length > 0 || status !== 'all' || category !== 'all' || from !== null || to !== null;
+  const hasActiveFilters =
+    q.length > 0 || status !== 'all' || category !== 'all' || typeFilter !== 'all' || from !== null || to !== null;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Temporada 2026</p>
-          <h1 className="text-2xl font-extrabold text-brand-navy">Ligas</h1>
+          <h1 className="text-2xl font-extrabold text-brand-navy">Competiciones</h1>
         </div>
         {canCreateLeague && (
           <Link
             href={'/ligas/nueva' as Route}
             className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
           >
-            Nueva liga
+            Nueva competición
           </Link>
         )}
       </div>
@@ -114,7 +135,7 @@ export default async function LigasPage({
       <form
         method="GET"
         action="/ligas"
-        className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto_auto] gap-3 items-end"
+        className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-3 items-end"
       >
         <div>
           <label htmlFor="q" className="block text-xs font-medium text-slate-500 mb-1">Buscar por nombre</label>
@@ -123,9 +144,22 @@ export default async function LigasPage({
             name="q"
             type="text"
             defaultValue={q}
-            placeholder="Liga verano…"
+            placeholder="Competición verano…"
             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
           />
+        </div>
+        <div>
+          <label htmlFor="type" className="block text-xs font-medium text-slate-500 mb-1">Tipo</label>
+          <select
+            id="type"
+            name="type"
+            defaultValue={typeFilter}
+            className="w-full md:w-36 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+          >
+            {TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="status" className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
@@ -196,10 +230,12 @@ export default async function LigasPage({
       {leagues.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <p className="text-lg mb-2">
-            {hasActiveFilters ? 'No hay ligas que coincidan con los filtros' : 'No hay ligas todavía'}
+            {hasActiveFilters
+              ? 'No hay competiciones que coincidan con los filtros'
+              : 'No hay competiciones todavía'}
           </p>
           <p className="text-sm">
-            {hasActiveFilters ? 'Prueba a limpiar los filtros' : 'Crea la primera liga para empezar'}
+            {hasActiveFilters ? 'Prueba a limpiar los filtros' : 'Crea la primera competición para empezar'}
           </p>
         </div>
       ) : (
@@ -216,7 +252,10 @@ export default async function LigasPage({
                   {DISPLAY_STATUS_LABEL[league.displayStatus]}
                 </span>
               </div>
-              <div className="mb-2">
+              <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${COMPETITION_TYPE_BADGE_CLASS[league.type]}`}>
+                  {COMPETITION_TYPE_LABEL[league.type]}
+                </span>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(league.category)}`}>
                   {CATEGORY_LABEL[league.category]}
                 </span>
@@ -225,7 +264,7 @@ export default async function LigasPage({
                 <p className="text-sm text-slate-500 mb-3 line-clamp-2">{league.description}</p>
               )}
               <p className="text-xs text-slate-400">
-                Liga: {league.startDate.toLocaleDateString('es-ES')} –{' '}
+                Competición: {league.startDate.toLocaleDateString('es-ES')} –{' '}
                 {league.endDate.toLocaleDateString('es-ES')}
               </p>
               <p className="text-xs text-slate-400">

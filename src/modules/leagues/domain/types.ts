@@ -1,4 +1,11 @@
-import type { LeagueStatus, MatchFormat, MatchStatus, DisputeResolution, TeamCategory } from '@prisma/client';
+import type {
+  LeagueStatus,
+  MatchFormat,
+  MatchStatus,
+  DisputeResolution,
+  TeamCategory,
+  CompetitionType,
+} from '@prisma/client';
 
 export type LeagueRow = {
   id: string;
@@ -11,6 +18,7 @@ export type LeagueRow = {
   endDate: Date;
   status: LeagueStatus;
   category: TeamCategory;
+  type: CompetitionType;
   matchFormat: MatchFormat;
   defaultDeadlineDays: number;
   pointsWin: number;

@@ -180,7 +180,9 @@ export default async function DashboardPage({
           className="bg-gradient-to-br from-brand-navy to-brand-navy-light rounded-2xl p-5 shadow-lg hover:opacity-90 transition-opacity"
         >
           <p className="text-2xl font-extrabold text-brand-yellow">{leagueCount}</p>
-          <p className="text-xs text-white/70 mt-1">Liga{leagueCount !== 1 ? 's' : ''} activa{leagueCount !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-white/70 mt-1">
+            Competici{leagueCount !== 1 ? 'ones' : 'ón'} activa{leagueCount !== 1 ? 's' : ''}
+          </p>
         </Link>
 
         <Link
@@ -205,7 +207,7 @@ export default async function DashboardPage({
           href={'/ligas' as Route}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 transition-opacity"
         >
-          Ver ligas
+          Ver competiciones
         </Link>
         {user.role === 'SUPER_ADMIN' && (
           <Link
@@ -256,7 +258,7 @@ export default async function DashboardPage({
       {leaguesWithStandings.length > 0 && (
         <section>
           <div className="flex items-baseline justify-between mb-3">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mis ligas</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mis competiciones</p>
             <p className="text-xs text-slate-400 sm:hidden">Desliza →</p>
           </div>
           <div className="-mx-6 px-6 flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 scroll-pl-6">

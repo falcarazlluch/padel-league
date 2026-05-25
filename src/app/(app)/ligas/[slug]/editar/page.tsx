@@ -27,7 +27,7 @@ export default async function EditarLigaPage({
 
   return (
     <div className="max-w-lg">
-      <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Editar liga</p>
+      <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Editar competición</p>
       <h1 className="text-2xl font-extrabold text-brand-navy mb-6">{league.name}</h1>
       <EditLeagueForm
         leagueId={league.id}

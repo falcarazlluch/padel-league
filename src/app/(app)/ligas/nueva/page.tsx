@@ -17,8 +17,8 @@ export default async function NuevaLigaPage() {
 
   return (
     <div className="max-w-lg">
-      <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Nueva liga</p>
-      <h1 className="text-2xl font-extrabold text-brand-navy mb-6">Nueva liga</h1>
+      <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Nueva competición</p>
+      <h1 className="text-2xl font-extrabold text-brand-navy mb-6">Nueva competición</h1>
       <NuevaLigaForm />
     </div>
   );

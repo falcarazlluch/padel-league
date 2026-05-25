@@ -20,6 +20,10 @@ import {
   DISPLAY_STATUS_CLASS,
   DISPLAY_STATUS_LABEL,
 } from '@/modules/leagues/presentation/league-status';
+import {
+  COMPETITION_TYPE_LABEL,
+  COMPETITION_TYPE_BADGE_CLASS,
+} from '@/modules/leagues/presentation/competition-type';
 
 function computeRegistrationWindow(
   status: LeagueStatus,
@@ -172,9 +176,14 @@ export default async function LigaDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Liga</p>
+          <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">
+            {COMPETITION_TYPE_LABEL[league.type]}
+          </p>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-extrabold text-brand-navy">{league.name}</h1>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COMPETITION_TYPE_BADGE_CLASS[league.type]}`}>
+              {COMPETITION_TYPE_LABEL[league.type]}
+            </span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${categoryBadgeClass(league.category)}`}>
               {CATEGORY_LABEL[league.category]}
             </span>
@@ -184,7 +193,7 @@ export default async function LigaDetailPage({
           </div>
           {league.description && <p className="text-slate-500 mt-1">{league.description}</p>}
           <p className="text-sm text-slate-400 mt-1">
-            Liga: {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
+            Competición: {league.startDate.toLocaleDateString('es-ES')} – {league.endDate.toLocaleDateString('es-ES')}
           </p>
           <p className="text-sm text-slate-400">
             Inscripción: {league.registrationStart.toLocaleDateString('es-ES')} – {league.registrationEnd.toLocaleDateString('es-ES')}
@@ -196,7 +205,7 @@ export default async function LigaDetailPage({
               href={`/ligas/${slug}/editar` as Route}
               className="text-sm px-3 py-1.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
             >
-              Editar liga
+              Editar competición
             </Link>
           )}
           {isLeagueAdmin && league.status === 'DRAFT' && (

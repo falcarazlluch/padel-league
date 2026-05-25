@@ -68,7 +68,7 @@ export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
             <p className="text-[11px] text-white/70 truncate">{userEmail}</p>
           </div>
           <Link href={'/ligas' as Route} onClick={close} className={linkClass(pathname.startsWith('/ligas'))}>
-            Ligas
+            Competiciones
           </Link>
           <Link href={'/equipos' as Route} onClick={close} className={linkClass(pathname.startsWith('/equipos'))}>
             Mis equipos
