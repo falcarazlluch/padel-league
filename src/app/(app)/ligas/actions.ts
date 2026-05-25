@@ -198,6 +198,48 @@ export async function deleteLeagueAction(leagueId: string): Promise<{ error?: st
   redirect('/ligas' as Route);
 }
 
+const registerIndividualSchema = z.object({
+  leagueId: z.string().cuid(),
+});
+
+export async function registerIndividualAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = registerIndividualSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await LeagueRegistrationService.registerIndividual({
+      leagueId: parsed.data.leagueId,
+      userId: user.id,
+    });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+
+  revalidatePath('/ligas');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
+export async function withdrawIndividualAction(
+  leagueId: string,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await LeagueRegistrationService.withdrawIndividual({ leagueId, userId: user.id });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas');
+  revalidatePath('/dashboard');
+  return {};
+}
+
 const registerSchema = z.object({
   leagueId: z.string().cuid(),
   teamId: z.string().cuid(),

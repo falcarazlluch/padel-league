@@ -22,6 +22,16 @@ export type LeagueRow = {
   status: LeagueStatus;
   category: TeamCategory;
   type: CompetitionType;
+  americanaVariant: AmericanaVariant | null;
+  americanaRoundFormat: AmericanaRoundFormat | null;
+  americanaTargetGames: number | null;
+  americanaRoundMinutes: number | null;
+  americanaCourts: number | null;
+  hasGroupPhase: boolean;
+  groupCount: number | null;
+  teamsPerGroup: number | null;
+  qualifiersPerGroup: number | null;
+  bracketSeedingMode: BracketSeeding | null;
   matchFormat: MatchFormat;
   defaultDeadlineDays: number;
   pointsWin: number;

@@ -13,6 +13,7 @@ import { MatchCommentaryService } from '@/modules/match-commentary';
 import { CommentaryFeedCard } from './_components/commentary-feed-card';
 import { MatchResultRow } from '@/app/(app)/_components/match-result-row';
 import { LeagueRegistrationPanel } from './registration-panel';
+import { IndividualRegistrationPanel } from './individual-registration-panel';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -84,6 +85,18 @@ export default async function LigaDetailPage({
     memberCount: t.members.length,
     isRegistered: t.registrations.some((r) => r.withdrawnAt === null),
   }));
+
+  // Estado de inscripción individual (solo aplica en Americana ROTATING_INDIVIDUAL).
+  const isRotatingIndividual =
+    league.type === 'AMERICANA' && league.americanaVariant === 'ROTATING_INDIVIDUAL';
+  const individualRegistrations = isRotatingIndividual
+    ? await prisma.leagueRegistration.findMany({
+        where: { leagueId: league.id, withdrawnAt: null, userId: { not: null } },
+        select: { userId: true, user: { select: { id: true, name: true, avatarUrl: true } } },
+      })
+    : [];
+  const iAmRegisteredIndividually =
+    isRotatingIndividual && individualRegistrations.some((r) => r.userId === currentUser.id);
 
   // Load confirmed + admin-resolved matches for standings calculation
   const matchesForStandings = await prisma.match.findMany({
@@ -230,15 +243,54 @@ export default async function LigaDetailPage({
         </div>
       </div>
 
-      {/* Inscripción */}
-      <LeagueRegistrationPanel
-        leagueId={league.id}
-        leagueStatus={league.status}
-        registrationWindow={registrationWindow}
-        userTeams={userTeamsForRegistration}
-      />
+      {/* Inscripción — panel individual para Americana ROTATING_INDIVIDUAL, por equipos para el resto. */}
+      {isRotatingIndividual ? (
+        <IndividualRegistrationPanel
+          leagueId={league.id}
+          leagueStatus={league.status}
+          registrationWindow={registrationWindow}
+          iAmRegistered={iAmRegisteredIndividually}
+          registeredCount={individualRegistrations.length}
+        />
+      ) : (
+        <LeagueRegistrationPanel
+          leagueId={league.id}
+          leagueStatus={league.status}
+          registrationWindow={registrationWindow}
+          userTeams={userTeamsForRegistration}
+        />
+      )}
 
-      {/* Equipos apuntados */}
+      {/* Jugadores apuntados (Americana individual) */}
+      {isRotatingIndividual && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Jugadores apuntados ({individualRegistrations.length})
+          </h2>
+          {individualRegistrations.length === 0 ? (
+            <p className="text-sm text-gray-400">Nadie se ha apuntado todavía.</p>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {individualRegistrations.map((r) => (
+                <li
+                  key={r.userId}
+                  className="flex items-center gap-3 bg-white rounded-xl border border-slate-200/80 shadow-sm px-3 py-2"
+                >
+                  <span className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm flex items-center justify-center font-semibold shrink-0">
+                    {r.user?.name?.[0]?.toUpperCase() ?? '?'}
+                  </span>
+                  <span className="text-sm font-medium text-slate-800 truncate">
+                    {r.user?.name ?? 'Jugador'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* Equipos apuntados (resto de tipos) */}
+      {!isRotatingIndividual && (
       <section>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Equipos apuntados ({teams.length})</h2>
         {teams.length === 0 ? (
@@ -275,6 +327,7 @@ export default async function LigaDetailPage({
           </div>
         )}
       </section>
+      )}
 
       {/* Tabs: Clasificación / Partidos / Crónicas */}
       {teams.length > 0 && (
