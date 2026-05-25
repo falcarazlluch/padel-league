@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CompetitionType, AmericanaVariant, AmericanaRoundFormat, BracketSeeding } from '@prisma/client';
 import { CATEGORY_LABEL, CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
@@ -16,9 +16,10 @@ import { createLeagueAction } from '../actions';
 // Paso 2: Datos base (nombre, descripción, categoría, fechas).
 // Paso 3: Configuración específica por tipo.
 //
-// Mantenemos useActionState para arrastrar el `error` del server. Los valores
-// los maneja React local; en `onSubmit` armamos un FormData con todos los
-// campos visibles + ocultos y se lo pasamos al action.
+// IMPORTANTE: no es un `<form>` ni usa `form action=` porque pulsar Enter
+// en cualquier input nos auto-confirmaba en el paso 2 sin dejar configurar
+// el paso 3. Toda la submisión va por un `onClick` explícito del botón
+// "Crear competición" del paso 3 que llama al server action via `useTransition`.
 
 type Step = 1 | 2 | 3;
 
@@ -45,7 +46,8 @@ function defaultDates() {
 
 export function NuevaLigaForm() {
   const router = useRouter();
-  const [state, formAction, pending] = useActionState(createLeagueAction, null);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>(1);
   const [type, setType] = useState<CompetitionType>('LEAGUE');
@@ -103,22 +105,59 @@ export function NuevaLigaForm() {
     dates.startDate &&
     (type !== 'LEAGUE' || (dates.registrationEnd && dates.endDate));
 
-  return (
-    <form
-      action={formAction}
-      // Sólo dejamos que el form se envíe cuando estamos en el paso 3. Si el
-      // usuario pulsa Enter en cualquier input de los pasos 1/2 (o si algún
-      // botón se interpretara como submit), interceptamos y, si está en el
-      // paso 2 con datos válidos, avanzamos al 3 en lugar de crear.
-      onSubmit={(e) => {
-        if (step !== 3) {
-          e.preventDefault();
-          if (step === 2 && canAdvanceStep2) setStep(3);
-          else if (step === 1) setStep(2);
+  const handleCreate = () => {
+    if (pending) return;
+    setError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set('type', type);
+      fd.set('name', name);
+      fd.set('description', description);
+      fd.set('category', category);
+      fd.set('registrationStart', effectiveDates.registrationStart);
+      fd.set('registrationEnd', effectiveDates.registrationEnd);
+      fd.set('startDate', effectiveDates.startDate);
+      fd.set('endDate', effectiveDates.endDate);
+      if (type === 'AMERICANA') {
+        fd.set('americanaVariant', americanaVariant);
+        fd.set('americanaRoundFormat', americanaRoundFormat);
+        if (americanaRoundFormat === 'FIRST_TO_GAMES') {
+          fd.set('americanaTargetGames', americanaTargetGames);
+        } else {
+          fd.set('americanaRoundMinutes', americanaRoundMinutes);
         }
-      }}
-      className="space-y-6"
-    >
+        fd.set('americanaCourts', americanaCourts);
+      } else if (type === 'TOURNAMENT') {
+        fd.set('hasGroupPhase', hasGroupPhase ? 'true' : 'false');
+        if (hasGroupPhase) {
+          fd.set('groupCount', groupCount);
+          fd.set('teamsPerGroup', teamsPerGroup);
+          fd.set('qualifiersPerGroup', qualifiersPerGroup);
+        }
+        fd.set('bracketSeedingMode', bracketSeedingMode);
+      }
+      // El server action hace `redirect()` en éxito → Next.js lanza un error
+      // especial `NEXT_REDIRECT` que el framework intercepta para navegar.
+      // Si lo capturamos en nuestro catch lo re-lanzamos para no tragarlo.
+      try {
+        const result = await createLeagueAction(null, fd);
+        if (result?.error) setError(result.error);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        // Next.js's redirect throws an error with digest 'NEXT_REDIRECT;...'
+        if (
+          (err as { digest?: string } | null)?.digest?.startsWith('NEXT_REDIRECT') ||
+          msg === 'NEXT_REDIRECT'
+        ) {
+          throw err; // dejar que Next.js navegue
+        }
+        setError('Error inesperado al crear la competición.');
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
       {/* Stepper */}
       <ol className="flex items-center gap-2 text-xs font-semibold">
         {([1, 2, 3] as const).map((s) => (
@@ -138,9 +177,9 @@ export function NuevaLigaForm() {
         ))}
       </ol>
 
-      {state?.error && (
+      {error && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          {state.error}
+          {error}
         </div>
       )}
 
@@ -490,42 +529,7 @@ export function NuevaLigaForm() {
           </>
         )}
 
-        {/* Hidden inputs con todos los valores. El form solo se envía en el paso 3. */}
-        <input type="hidden" name="type" value={type} />
-        <input type="hidden" name="name" value={name} />
-        <input type="hidden" name="description" value={description} />
-        <input type="hidden" name="category" value={category} />
-        <input type="hidden" name="registrationStart" value={effectiveDates.registrationStart} />
-        <input type="hidden" name="registrationEnd" value={effectiveDates.registrationEnd} />
-        <input type="hidden" name="startDate" value={effectiveDates.startDate} />
-        <input type="hidden" name="endDate" value={effectiveDates.endDate} />
-
-        {type === 'AMERICANA' && (
-          <>
-            <input type="hidden" name="americanaVariant" value={americanaVariant} />
-            <input type="hidden" name="americanaRoundFormat" value={americanaRoundFormat} />
-            <input
-              type="hidden"
-              name="americanaTargetGames"
-              value={americanaRoundFormat === 'FIRST_TO_GAMES' ? americanaTargetGames : ''}
-            />
-            <input
-              type="hidden"
-              name="americanaRoundMinutes"
-              value={americanaRoundFormat === 'BY_TIME' ? americanaRoundMinutes : ''}
-            />
-            <input type="hidden" name="americanaCourts" value={americanaCourts} />
-          </>
-        )}
-        {type === 'TOURNAMENT' && (
-          <>
-            <input type="hidden" name="hasGroupPhase" value={hasGroupPhase ? 'true' : 'false'} />
-            <input type="hidden" name="groupCount" value={hasGroupPhase ? groupCount : ''} />
-            <input type="hidden" name="teamsPerGroup" value={hasGroupPhase ? teamsPerGroup : ''} />
-            <input type="hidden" name="qualifiersPerGroup" value={hasGroupPhase ? qualifiersPerGroup : ''} />
-            <input type="hidden" name="bracketSeedingMode" value={bracketSeedingMode} />
-          </>
-        )}
+        {/* No hay hidden inputs: la submisión es programática (handleCreate construye el FormData). */}
       </div>
 
       {/* Navegación */}
@@ -561,7 +565,8 @@ export function NuevaLigaForm() {
           </button>
         ) : (
           <button
-            type="submit"
+            type="button"
+            onClick={handleCreate}
             disabled={pending}
             className="flex-1 px-4 py-2.5 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-md hover:opacity-90 disabled:opacity-60 transition-opacity"
           >
@@ -569,6 +574,6 @@ export function NuevaLigaForm() {
           </button>
         )}
       </div>
-    </form>
+    </div>
   );
 }
