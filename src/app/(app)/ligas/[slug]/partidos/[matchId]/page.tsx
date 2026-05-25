@@ -52,6 +52,29 @@ export default async function MatchDetailPage({
   if (!token) redirect('/login' as Route);
 
   const currentUser = await getValidatedSession(token).catch(() => redirect('/login' as Route));
+
+  // Probe the shape of the match: if it's Americana ROTATING_INDIVIDUAL
+  // (teamA/B null, americanaRound set, MatchParticipant rows) we render a
+  // dedicated view that doesn't depend on the classic two-team flow.
+  const probe = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: {
+      id: true,
+      leagueId: true,
+      teamAId: true,
+      teamBId: true,
+      americanaRound: true,
+      americanaCourt: true,
+      status: true,
+      league: { select: { slug: true, name: true, type: true } },
+    },
+  });
+  if (!probe || probe.league.slug !== slug) notFound();
+
+  if (probe.league.type === 'AMERICANA' && probe.teamAId == null && probe.teamBId == null) {
+    return renderAmericanaIndividualMatch(matchId, currentUser.id, probe.league.name);
+  }
+
   const match = await MatchService.getMatch(matchId).catch(() => null);
   if (!match || match.leagueSlug !== slug) notFound();
 
@@ -398,6 +421,132 @@ export default async function MatchDetailPage({
           currentUserId={currentUser.id}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Americana ROTATING_INDIVIDUAL — vista dedicada ──────────────────────
+// El flujo clásico de Liga (submit-result-form, schedule-section, etc.)
+// asume dos equipos con miembros. Aquí mostramos solo lo relevante para una
+// ronda de Americana: contexto (ronda + pista), 4 jugadores en 2 parejas, y
+// score en games cuando hay resultado. El form de submit/confirm para este
+// tipo se cablea en sub-fase 4h.
+async function renderAmericanaIndividualMatch(
+  matchId: string,
+  currentUserId: string,
+  leagueName: string,
+) {
+  const m = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      league: { select: { slug: true, name: true, status: true } },
+      participants: {
+        include: { user: { select: { id: true, name: true } } },
+      },
+      confirmedResult: { include: { sets: { orderBy: { setNumber: 'asc' } } } },
+      results: {
+        where: { status: 'PENDING' },
+        include: { sets: true },
+        orderBy: { submittedAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  if (!m) notFound();
+
+  const sideA = m.participants
+    .filter((p) => p.side === 'A')
+    .sort((a, b) => a.partnerIndex - b.partnerIndex);
+  const sideB = m.participants
+    .filter((p) => p.side === 'B')
+    .sort((a, b) => a.partnerIndex - b.partnerIndex);
+  const sets = m.confirmedResult?.sets ?? m.results[0]?.sets ?? [];
+  const gamesA = sets.reduce((acc, s) => acc + s.gamesA, 0);
+  const gamesB = sets.reduce((acc, s) => acc + s.gamesB, 0);
+  const hasResult = sets.length > 0;
+  const isParticipant = m.participants.some((p) => p.userId === currentUserId);
+  const winnerSide = hasResult
+    ? gamesA > gamesB
+      ? 'A'
+      : gamesB > gamesA
+        ? 'B'
+        : 'DRAW'
+    : null;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">
+          Americana · {leagueName}
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-extrabold text-brand-navy">
+            Ronda {m.americanaRound} · Pista {m.americanaCourt}
+          </h1>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${STATUS_CLASS[m.status] ?? 'bg-gray-100 text-gray-500'}`}>
+            {STATUS_LABEL[m.status] ?? m.status}
+          </span>
+        </div>
+      </div>
+
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-3">
+        <AmericanaSideRow
+          label="Pareja A"
+          players={sideA.map((p) => p.user.name)}
+          games={hasResult ? gamesA : null}
+          highlight={winnerSide === 'A'}
+        />
+        <div className="border-t border-slate-100" />
+        <AmericanaSideRow
+          label="Pareja B"
+          players={sideB.map((p) => p.user.name)}
+          games={hasResult ? gamesB : null}
+          highlight={winnerSide === 'B'}
+        />
+      </section>
+
+      {!hasResult && (
+        <p className="text-sm text-slate-500">
+          Resultado pendiente.{' '}
+          {isParticipant
+            ? 'El formulario para enviar resultado de Americana estará disponible en la próxima actualización.'
+            : 'Cuando los participantes lo envíen aparecerá aquí.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AmericanaSideRow({
+  label,
+  players,
+  games,
+  highlight,
+}: {
+  label: string;
+  players: string[];
+  games: number | null;
+  highlight: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${
+        highlight ? 'bg-emerald-50' : ''
+      }`}
+    >
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
+        <p className={`text-sm font-medium ${highlight ? 'text-emerald-800' : 'text-slate-800'}`}>
+          {players.join(' + ')}
+        </p>
+      </div>
+      <p
+        className={`text-2xl font-extrabold font-mono ${
+          highlight ? 'text-emerald-700' : games !== null ? 'text-slate-700' : 'text-slate-300'
+        }`}
+      >
+        {games ?? '—'}
+      </p>
     </div>
   );
 }

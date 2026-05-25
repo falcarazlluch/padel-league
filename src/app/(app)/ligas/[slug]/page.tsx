@@ -14,6 +14,15 @@ import { CommentaryFeedCard } from './_components/commentary-feed-card';
 import { MatchResultRow } from '@/app/(app)/_components/match-result-row';
 import { LeagueRegistrationPanel } from './registration-panel';
 import { IndividualRegistrationPanel } from './individual-registration-panel';
+import { AmericanaRoundsGrid, type AmericanaMatchView } from './_components/americana-rounds-grid';
+import {
+  AmericanaStandingsTable,
+  type AmericanaStandingsRow,
+} from './_components/americana-standings-table';
+import {
+  calculateAmericanaIndividualStandings,
+  calculateAmericanaPairsStandings,
+} from '@/modules/leagues/application/americana-standings';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -175,6 +184,143 @@ export default async function LigaDetailPage({
       confirmedSets: m.confirmedResult?.sets ?? [],
     }));
 
+  // Americana — datos específicos para las tabs "Rondas" y "Clasificación".
+  // Para ROTATING_INDIVIDUAL leemos los MatchParticipant; para FIXED_PAIRS los
+  // teamA/teamB. Solo se ejecuta esta query si la competición es AMERICANA.
+  const isAmericana = league.type === 'AMERICANA';
+  const isFixedPairs = isAmericana && league.americanaVariant === 'FIXED_PAIRS';
+
+  let americanaMatchesView: AmericanaMatchView[] = [];
+  let americanaStandings: AmericanaStandingsRow[] = [];
+  let americanaStandingsLabel: 'Jugador' | 'Pareja' = 'Jugador';
+
+  if (isAmericana) {
+    if (isRotatingIndividual) {
+      const rows = await prisma.match.findMany({
+        where: { leagueId: league.id, americanaRound: { not: null } },
+        include: {
+          participants: {
+            include: { user: { select: { id: true, name: true } } },
+          },
+          confirmedResult: { include: { sets: true } },
+        },
+        orderBy: [{ americanaRound: 'asc' }, { americanaCourt: 'asc' }],
+      });
+
+      americanaMatchesView = rows.map((m) => {
+        const sideA = m.participants
+          .filter((p) => p.side === 'A')
+          .sort((a, b) => a.partnerIndex - b.partnerIndex);
+        const sideB = m.participants
+          .filter((p) => p.side === 'B')
+          .sort((a, b) => a.partnerIndex - b.partnerIndex);
+        const sets = m.confirmedResult?.sets ?? [];
+        const gamesA = sets.reduce((acc, s) => acc + s.gamesA, 0);
+        const gamesB = sets.reduce((acc, s) => acc + s.gamesB, 0);
+        return {
+          id: m.id,
+          round: m.americanaRound ?? 0,
+          court: m.americanaCourt ?? 1,
+          status: m.status,
+          sideALabel: sideA.map((p) => p.user.name).join(' + '),
+          sideBLabel: sideB.map((p) => p.user.name).join(' + '),
+          score: m.confirmedResult ? { gamesA, gamesB } : null,
+          winnerSide: !m.confirmedResult
+            ? null
+            : gamesA > gamesB
+              ? 'A'
+              : gamesB > gamesA
+                ? 'B'
+                : 'DRAW',
+        };
+      });
+
+      const participantNames = Object.fromEntries(
+        individualRegistrations
+          .filter((r) => r.userId != null && r.user != null)
+          .map((r) => [r.userId!, r.user!.name]),
+      );
+      const standingsRows = calculateAmericanaIndividualStandings(
+        participantNames,
+        rows.map((m) => ({
+          status: m.status,
+          participants: m.participants.map((p) => ({ userId: p.userId, side: p.side as 'A' | 'B' })),
+          sets: m.confirmedResult?.sets ?? [],
+        })),
+      );
+      americanaStandings = standingsRows.map((s) => ({
+        id: s.userId,
+        name: s.name,
+        matchesPlayed: s.matchesPlayed,
+        gamesFor: s.gamesFor,
+        gamesAgainst: s.gamesAgainst,
+        gamesDiff: s.gamesDiff,
+      }));
+      americanaStandingsLabel = 'Jugador';
+    } else if (isFixedPairs) {
+      const rows = await prisma.match.findMany({
+        where: {
+          leagueId: league.id,
+          americanaRound: { not: null },
+          teamAId: { not: null },
+          teamBId: { not: null },
+        },
+        include: {
+          teamA: { select: { id: true, name: true } },
+          teamB: { select: { id: true, name: true } },
+          confirmedResult: { include: { sets: true } },
+        },
+        orderBy: [{ americanaRound: 'asc' }, { americanaCourt: 'asc' }],
+      });
+
+      americanaMatchesView = rows.map((m) => {
+        const sets = m.confirmedResult?.sets ?? [];
+        const gamesA = sets.reduce((acc, s) => acc + s.gamesA, 0);
+        const gamesB = sets.reduce((acc, s) => acc + s.gamesB, 0);
+        return {
+          id: m.id,
+          round: m.americanaRound ?? 0,
+          court: m.americanaCourt ?? 1,
+          status: m.status,
+          sideALabel: m.teamA?.name ?? '—',
+          sideBLabel: m.teamB?.name ?? '—',
+          score: m.confirmedResult ? { gamesA, gamesB } : null,
+          winnerSide: !m.confirmedResult
+            ? null
+            : gamesA > gamesB
+              ? 'A'
+              : gamesB > gamesA
+                ? 'B'
+                : 'DRAW',
+        };
+      });
+
+      const teamNames = Object.fromEntries(teams.map((t) => [t.id, t.name]));
+      const pairRows = calculateAmericanaPairsStandings(
+        teamNames,
+        rows
+          .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+            m.teamAId != null && m.teamBId != null,
+          )
+          .map((m) => ({
+            status: m.status,
+            teamAId: m.teamAId,
+            teamBId: m.teamBId,
+            sets: m.confirmedResult?.sets ?? [],
+          })),
+      );
+      americanaStandings = pairRows.map((s) => ({
+        id: s.teamId,
+        name: s.teamName,
+        matchesPlayed: s.matchesPlayed,
+        gamesFor: s.gamesFor,
+        gamesAgainst: s.gamesAgainst,
+        gamesDiff: s.gamesDiff,
+      }));
+      americanaStandingsLabel = 'Pareja';
+    }
+  }
+
   const cronicas = tab === 'cronicas'
     ? await MatchCommentaryService.listForLeague(league.id, 20)
     : [];
@@ -329,8 +475,8 @@ export default async function LigaDetailPage({
       </section>
       )}
 
-      {/* Tabs: Clasificación / Partidos / Crónicas */}
-      {teams.length > 0 && (
+      {/* Tabs: Clasificación / Partidos|Rondas / Resultados / Crónicas */}
+      {(teams.length > 0 || individualRegistrations.length > 0) && (
         <section>
           <div className="flex border-b border-gray-200 mb-4 flex-wrap">
             <Link
@@ -351,7 +497,7 @@ export default async function LigaDetailPage({
                   : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
-              Partidos
+              {isAmericana ? 'Rondas' : 'Partidos'}
             </Link>
             <Link
               href={`/ligas/${slug}?tab=resultados` as Route}
@@ -376,12 +522,20 @@ export default async function LigaDetailPage({
           </div>
 
           {tab === 'partidos' && (
-            <PartidosTab
-              slug={slug}
-              matches={matchesForJornada}
-              activeJornada={jornada ? parseInt(jornada, 10) : null}
-              teamLogos={teamLogoMap}
-            />
+            isAmericana ? (
+              <AmericanaRoundsGrid
+                matches={americanaMatchesView}
+                courts={league.americanaCourts ?? 1}
+                leagueSlug={slug}
+              />
+            ) : (
+              <PartidosTab
+                slug={slug}
+                matches={matchesForJornada}
+                activeJornada={jornada ? parseInt(jornada, 10) : null}
+                teamLogos={teamLogoMap}
+              />
+            )
           )}
 
           {tab === 'resultados' && (
@@ -432,43 +586,47 @@ export default async function LigaDetailPage({
           )}
 
           {tab !== 'partidos' && tab !== 'cronicas' && tab !== 'resultados' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Equipo</th>
-                    <th className="text-center px-3 py-3 font-medium text-gray-600">PJ</th>
-                    <th className="text-center px-3 py-3 font-medium text-gray-600">G</th>
-                    <th className="text-center px-3 py-3 font-medium text-gray-600">E</th>
-                    <th className="text-center px-3 py-3 font-medium text-gray-600">P</th>
-                    <th className="text-center px-3 py-3 font-medium text-gray-600">Sets</th>
-                    <th className="text-center px-3 py-3 font-medium text-gray-600 font-bold">Pts</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {standings.map((entry, idx) => (
-                    <tr key={entry.teamId} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-400 font-medium">{idx + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <Link href={`/equipos/${entry.teamId}` as Route} className="flex items-center gap-2 hover:underline">
-                          <TeamLogo url={teamLogoMap[entry.teamId] ?? null} name={entry.teamName} size="sm" />
-                          <span className="truncate">{entry.teamName}</span>
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3 text-center text-gray-600">{entry.played}</td>
-                      <td className="px-3 py-3 text-center text-green-600">{entry.won}</td>
-                      <td className="px-3 py-3 text-center text-gray-500">{entry.drawn}</td>
-                      <td className="px-3 py-3 text-center text-red-500">{entry.lost}</td>
-                      <td className="px-3 py-3 text-center text-gray-500">
-                        {entry.setsDiff > 0 ? `+${entry.setsDiff}` : entry.setsDiff}
-                      </td>
-                      <td className="px-3 py-3 text-center font-bold text-gray-900">{entry.points}</td>
+            isAmericana ? (
+              <AmericanaStandingsTable rows={americanaStandings} firstColLabel={americanaStandingsLabel} />
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Equipo</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-600">PJ</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-600">G</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-600">E</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-600">P</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-600">Sets</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-600 font-bold">Pts</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {standings.map((entry, idx) => (
+                      <tr key={entry.teamId} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-400 font-medium">{idx + 1}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          <Link href={`/equipos/${entry.teamId}` as Route} className="flex items-center gap-2 hover:underline">
+                            <TeamLogo url={teamLogoMap[entry.teamId] ?? null} name={entry.teamName} size="sm" />
+                            <span className="truncate">{entry.teamName}</span>
+                          </Link>
+                        </td>
+                        <td className="px-3 py-3 text-center text-gray-600">{entry.played}</td>
+                        <td className="px-3 py-3 text-center text-green-600">{entry.won}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">{entry.drawn}</td>
+                        <td className="px-3 py-3 text-center text-red-500">{entry.lost}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">
+                          {entry.setsDiff > 0 ? `+${entry.setsDiff}` : entry.setsDiff}
+                        </td>
+                        <td className="px-3 py-3 text-center font-bold text-gray-900">{entry.points}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </section>
       )}
