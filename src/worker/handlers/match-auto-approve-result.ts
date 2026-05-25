@@ -3,6 +3,7 @@ import { logger } from '@/shared/logger';
 import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { NotificationService } from '@/modules/notifications';
+import { MatchService } from '@/modules/leagues';
 import { formatSetScore } from '@/shared/format/match';
 import { assertTwoTeamMatch } from '@/shared/match-guards';
 import type { JobMap } from '@/shared/queue/jobs';
@@ -114,6 +115,11 @@ export async function matchAutoApproveResultHandler(
   }
 
   await q.publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' });
+
+  // Tournament bracket: propagar al siguiente match si el partido era de bracket.
+  await MatchService.propagateBracketWinner(match.id).catch((err) =>
+    log.warn({ err, matchId: match.id }, 'auto-approve.bracket.propagate.failed'),
+  );
 
   log.info({ matchResultId, matchId: match.id }, 'auto-approve.done');
 }

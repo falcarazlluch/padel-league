@@ -250,6 +250,14 @@ export const MatchService = {
       });
     });
 
+    // Tournament bracket: si este match era de bracket, rellenar el slot
+    // del siguiente match. Lo hacemos fuera de la TX para no anidar — los
+    // downstream son matches independientes y un fallo aquí no debe revertir
+    // la confirmación del resultado.
+    await MatchService.propagateBracketWinner(matchId).catch((err) =>
+      logger().warn({ err, matchId }, 'bracket.propagate.failed'),
+    );
+
     // Fire-and-forget: enqueue commentary recap generation.
     void queue()
       .start()
@@ -457,6 +465,54 @@ export const MatchService = {
           .then(() => queue().publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' }))
           .catch((err) => logger().warn({ err, matchId: match.id }, 'commentary.enqueue.failed'));
       }
+      // Bracket: si el match era de torneo, propagar al siguiente.
+      await MatchService.propagateBracketWinner(match.id).catch((err) =>
+        logger().warn({ err, matchId: match.id }, 'dispute.bracket.propagate.failed'),
+      );
+    }
+  },
+
+  // ─── Tournament bracket — propagación del ganador ─────────────────────
+  // Cuando un Match de bracket se confirma (CONFIRMED o ADMIN_RESOLVED) se
+  // llaman a este helper para rellenar el slot del siguiente match. Para
+  // matches GOLD: el ganador avanza al siguiente match GOLD; el perdedor
+  // entra al match SILVER que lo referencia (si existe). Para SILVER: solo
+  // se propaga el ganador.
+  async propagateBracketWinner(matchId: string): Promise<void> {
+    const m = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: {
+        id: true,
+        teamAId: true,
+        teamBId: true,
+        winnerTeamId: true,
+        bracketSide: true,
+      },
+    });
+    if (!m) return;
+    if (m.bracketSide == null) return; // No es un match de bracket.
+    if (!m.winnerTeamId) return; // Sin ganador (empate o sin resultado), nada que propagar.
+    const winnerId = m.winnerTeamId;
+    const loserId = winnerId === m.teamAId ? m.teamBId : m.teamAId;
+
+    const downstream = await prisma.match.findMany({
+      where: { OR: [{ sourceMatchAId: matchId }, { sourceMatchBId: matchId }] },
+      select: { id: true, bracketSide: true, sourceMatchAId: true, sourceMatchBId: true },
+    });
+
+    for (const d of downstream) {
+      // Si el match actual es GOLD y el downstream es SILVER, propagamos al
+      // PERDEDOR (Silver = consolación de perdedores R0 del Gold). En cualquier
+      // otra combinación, propagamos al ganador.
+      const isCrossToSilver = m.bracketSide === 'GOLD' && d.bracketSide === 'SILVER';
+      const teamToFill = isCrossToSilver ? loserId : winnerId;
+      if (!teamToFill) continue; // si no hay loser (no debería pasar en bracket), skip.
+
+      const slotIsA = d.sourceMatchAId === matchId;
+      await prisma.match.update({
+        where: { id: d.id },
+        data: slotIsA ? { teamAId: teamToFill } : { teamBId: teamToFill },
+      });
     }
   },
 
