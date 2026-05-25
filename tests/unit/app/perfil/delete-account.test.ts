@@ -66,6 +66,8 @@ vi.mock('@/shared/db/client', () => ({
     league: { findMany: vi.fn() },
     session: { deleteMany: vi.fn() },
     auditLog: { create: vi.fn() },
+    pushSubscription: { deleteMany: vi.fn() },
+    notificationPreference: { deleteMany: vi.fn() },
     $transaction: vi.fn((ops: unknown) => Promise.resolve(ops)),
   },
 }));
@@ -77,6 +79,8 @@ async function getPrisma() {
     league: { findMany: ReturnType<typeof vi.fn> };
     session: { deleteMany: ReturnType<typeof vi.fn> };
     auditLog: { create: ReturnType<typeof vi.fn> };
+    pushSubscription: { deleteMany: ReturnType<typeof vi.fn> };
+    notificationPreference: { deleteMany: ReturnType<typeof vi.fn> };
     $transaction: ReturnType<typeof vi.fn>;
   };
 }

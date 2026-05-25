@@ -16,6 +16,7 @@ export type JobMap = {
   'league-finalize': { leagueId: string };
   'session-cleanup': Record<string, never>;
   'anonymize-user': { userId: string };
+  'send-push': { notificationId: string };
 };
 
 export type JobName = keyof JobMap;
@@ -31,4 +32,5 @@ export const ALL_JOB_NAMES: JobName[] = [
   'league-finalize',
   'session-cleanup',
   'anonymize-user',
+  'send-push',
 ];

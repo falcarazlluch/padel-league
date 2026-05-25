@@ -31,6 +31,11 @@ export async function anonymizeUserHandler(data: JobMap['anonymize-user']): Prom
       },
     }),
     prisma.session.deleteMany({ where: { userId } }),
+    // Explicit cleanup: the User row stays for FK integrity so Cascade does
+    // not fire. Push channels must not survive anonymisation — otherwise a
+    // reassigned cookie/device could still receive pushes for this account.
+    prisma.pushSubscription.deleteMany({ where: { userId } }),
+    prisma.notificationPreference.deleteMany({ where: { userId } }),
   ]);
 
   logger().info({ userId }, 'anonymize-user.done');

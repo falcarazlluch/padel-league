@@ -5,6 +5,7 @@ import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/db/client';
 import { LeagueNotificationService } from '@/modules/leagues';
+import { runPushOutboxTick } from '@/modules/push';
 import { drainPendingJobs } from '@/worker/drainer';
 
 // Cron has up to 60s on Vercel Hobby and 800s on Pro; cap at 60s for safety.
@@ -115,6 +116,18 @@ async function runHeartbeat(req: Request): Promise<Response> {
     log.warn({ err }, 'cron.league-registration-open.error');
   }
 
+  // Web Push outbox: enqueue `send-push` jobs for any fresh notifications.
+  // Done BEFORE the drain so the same heartbeat can both enqueue and deliver.
+  let pushOutboxStats: Awaited<ReturnType<typeof runPushOutboxTick>> | null = null;
+  try {
+    pushOutboxStats = await runPushOutboxTick();
+    if (pushOutboxStats.enqueued > 0 || pushOutboxStats.skipped > 0) {
+      log.info({ ...pushOutboxStats }, 'cron.push-outbox.done');
+    }
+  } catch (err) {
+    log.warn({ err }, 'cron.push-outbox.error');
+  }
+
   // Drain queued jobs synchronously. Vercel does not run a long-lived worker,
   // so this cron is the only consumer for pg-boss. Budget 50s of work, leaving
   // ~10s headroom for the rest of the response under maxDuration=60.
@@ -130,6 +143,7 @@ async function runHeartbeat(req: Request): Promise<Response> {
     jobId: noopId,
     leaguesToFinalize: finalizeIds.length,
     registrationOpenNotified: notifiedLeagueIds.length,
+    pushOutbox: pushOutboxStats,
     drain: drainStats,
   });
 }

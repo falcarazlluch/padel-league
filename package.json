@@ -38,6 +38,7 @@
     "react": "^18",
     "react-dom": "^18",
     "resend": "^6.12.0",
+    "web-push": "^3.6.7",
     "zod": "^4.3.6"
   },
   "prisma": {
@@ -51,6 +52,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.3",

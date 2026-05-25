@@ -68,6 +68,15 @@ const envSchema = z.object({
   FEATURE_2FA: booleanString.default(false),
   FEATURE_AI_COMMENTARY: booleanString.default(true),
   FEATURE_INDEPENDENT_MATCHES: booleanString.default(true),
+  FEATURE_WEB_PUSH: booleanString.default(false),
+
+  // Web Push (RFC 8030). Generate once with `npx web-push generate-vapid-keys`
+  // and never rotate without breaking every existing subscription — the
+  // public key is baked into the client bundle.
+  VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  VAPID_SUBJECT: z.string().regex(/^mailto:/, 'must be a mailto: URL').optional(),
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
 
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(4),
 

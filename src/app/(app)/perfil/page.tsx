@@ -6,7 +6,9 @@ import { AvatarUploader } from './avatar-uploader';
 import { updateProfileAction, revokeAllSessionsAction } from './actions';
 import { ChangePasswordForm } from './change-password-form';
 import { DangerZone } from './danger-zone';
+import { PushSettings } from './push-settings';
 import { CATEGORY_VALUES, CATEGORY_LABEL } from '@/modules/leagues/presentation/category';
+import { PreferencesService } from '@/modules/push';
 
 export default async function PerfilPage() {
   const cookieStore = await cookies();
@@ -17,6 +19,7 @@ export default async function PerfilPage() {
     where: { id: sessionUser.id },
     select: { id: true, name: true, email: true, avatarUrl: true, category: true },
   });
+  const pushPrefs = await PreferencesService.get(sessionUser.id);
 
   return (
     <div className="max-w-xl space-y-6">
@@ -73,6 +76,8 @@ export default async function PerfilPage() {
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cambiar contraseña</h2>
         <ChangePasswordForm />
       </section>
+
+      <PushSettings initialPrefs={pushPrefs} />
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sesión</h2>

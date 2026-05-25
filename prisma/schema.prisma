@@ -243,6 +243,8 @@ model User {
   uploadedPhotos                MatchPhoto[]                  @relation("PhotoUploader")
   photoComments                 MatchPhotoComment[]           @relation("PhotoCommentAuthor")
   photoLikes                    MatchPhotoLike[]              @relation("PhotoLikeAuthor")
+  pushSubscriptions             PushSubscription[]
+  notificationPreference        NotificationPreference?
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -752,12 +754,56 @@ model Notification {
   body      String
   metadata  Json?
   readAt    DateTime?        @map("read_at")
+  // Outbox marker for the web-push fan-out: heartbeat sweeps fresh rows where
+  // this is NULL and enqueues `send-push` jobs, then stamps it. Old rows
+  // (createdAt < 5min ago at sweep time) are skipped to avoid backfilling.
+  pushDispatchedAt DateTime?  @map("push_dispatched_at")
   createdAt DateTime         @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
+  @@index([pushDispatchedAt, createdAt])
   @@map("notifications")
+}
+
+// Web Push (RFC 8030) subscription. One row per browser/device per user.
+// `endpoint` is globally unique because the same physical device can host
+// only one push registration at a time per origin; if a different user logs
+// in and re-subscribes from the same browser the upsert reassigns `userId`.
+model PushSubscription {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  lastErrorAt DateTime? @map("last_error_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// Per-user push channel preferences. In-app notifications are not gated by
+// this table (they are always created); only the push fan-out checks it.
+// Row is upserted with defaults the first time the user opts in.
+model NotificationPreference {
+  userId           String   @id @map("user_id")
+  pushInvitations  Boolean  @default(true)  @map("push_invitations")
+  pushMatchDates   Boolean  @default(true)  @map("push_match_dates")
+  pushResults      Boolean  @default(true)  @map("push_results")
+  pushPhotos       Boolean  @default(true)  @map("push_photos")
+  pushChat         Boolean  @default(false) @map("push_chat")
+  pushLeagueEvents Boolean  @default(true)  @map("push_league_events")
+  updatedAt        DateTime @updatedAt      @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 model EmailLog {

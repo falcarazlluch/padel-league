@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { PWARegister } from './_components/PWARegister';
+import { PushBootstrap } from './_components/PushBootstrap';
 
 export const metadata: Metadata = {
   title: 'Padel League',
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         {children}
         <PWARegister />
+        <PushBootstrap />
       </body>
     </html>
   );

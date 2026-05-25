@@ -237,6 +237,11 @@ export async function deleteAccountAction(
         },
       }),
       prisma.session.deleteMany({ where: { userId } }),
+      // The User row stays for FK integrity (cascades do not fire) — drop the
+      // push channels explicitly so a device that re-logs as another user
+      // can't still receive pushes targeted at the anonymised account.
+      prisma.pushSubscription.deleteMany({ where: { userId } }),
+      prisma.notificationPreference.deleteMany({ where: { userId } }),
       prisma.auditLog.create({
         data: {
           actorId: userId,

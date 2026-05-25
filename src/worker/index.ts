@@ -9,6 +9,7 @@ import { anonymizeUserHandler } from './handlers/anonymize-user';
 import { matchAutoApproveResultHandler } from './handlers/match-auto-approve-result';
 import { leagueFinalizeHandler } from './handlers/league-finalize';
 import { generateMatchCommentaryHandler } from './handlers/generate-match-commentary';
+import { sendPushHandler } from './handlers/send-push';
 
 async function main() {
   env();
@@ -27,6 +28,7 @@ async function main() {
   await registerHandler(boss, 'match-auto-approve-result', matchAutoApproveResultHandler);
   await registerHandler(boss, 'generate-match-commentary', generateMatchCommentaryHandler);
   await registerHandler(boss, 'league-finalize', leagueFinalizeHandler);
+  await registerHandler(boss, 'send-push', sendPushHandler);
 
   log.info('worker.ready');
 

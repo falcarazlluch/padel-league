@@ -10,6 +10,7 @@ import { anonymizeUserHandler } from './handlers/anonymize-user';
 import { matchAutoApproveResultHandler } from './handlers/match-auto-approve-result';
 import { generateMatchCommentaryHandler } from './handlers/generate-match-commentary';
 import { leagueFinalizeHandler } from './handlers/league-finalize';
+import { sendPushHandler } from './handlers/send-push';
 
 const DEAD_LETTER_QUEUE = 'dead-letter';
 const DEFAULT_BATCH = 5;
@@ -24,6 +25,7 @@ const HANDLERS: Partial<Record<JobName, AnyHandler>> = {
   'match-auto-approve-result': matchAutoApproveResultHandler as AnyHandler,
   'generate-match-commentary': generateMatchCommentaryHandler as AnyHandler,
   'league-finalize': leagueFinalizeHandler as AnyHandler,
+  'send-push': sendPushHandler as AnyHandler,
   // 'match-reminder' is declared in JobMap but has no handler yet.
 };
 
