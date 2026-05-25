@@ -104,7 +104,21 @@ export function NuevaLigaForm() {
     (type !== 'LEAGUE' || (dates.registrationEnd && dates.endDate));
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      action={formAction}
+      // Sólo dejamos que el form se envíe cuando estamos en el paso 3. Si el
+      // usuario pulsa Enter en cualquier input de los pasos 1/2 (o si algún
+      // botón se interpretara como submit), interceptamos y, si está en el
+      // paso 2 con datos válidos, avanzamos al 3 en lugar de crear.
+      onSubmit={(e) => {
+        if (step !== 3) {
+          e.preventDefault();
+          if (step === 2 && canAdvanceStep2) setStep(3);
+          else if (step === 1) setStep(2);
+        }
+      }}
+      className="space-y-6"
+    >
       {/* Stepper */}
       <ol className="flex items-center gap-2 text-xs font-semibold">
         {([1, 2, 3] as const).map((s) => (
