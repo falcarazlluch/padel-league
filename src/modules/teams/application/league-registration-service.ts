@@ -30,6 +30,74 @@ async function ensureTeamMember(teamId: string, userId: string): Promise<void> {
 
 export const LeagueRegistrationService = {
   /**
+   * Self-register the current user (no team) to a Competición tipo
+   * AMERICANA ROTATING_INDIVIDUAL. Devuelve el id de la fila creada.
+   */
+  async registerIndividual(input: { leagueId: string; userId: string }): Promise<{ id: string }> {
+    const league = await prisma.league.findUnique({ where: { id: input.leagueId } });
+    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Competición no encontrada.');
+    if (league.type !== 'AMERICANA' || league.americanaVariant !== 'ROTATING_INDIVIDUAL') {
+      throw new DomainError(
+        'INDIVIDUAL_REGISTRATION_NOT_ALLOWED',
+        'La inscripción individual solo aplica a Americanas de rotación individual.',
+      );
+    }
+    if (league.status !== 'DRAFT') {
+      throw new DomainError('LEAGUE_NOT_DRAFT', 'La competición ya no admite inscripciones.');
+    }
+    if (!isWithinRegistrationWindow(new Date(), league.registrationStart, league.registrationEnd)) {
+      throw new DomainError('OUT_OF_REGISTRATION_WINDOW', 'Fuera del periodo de inscripción.');
+    }
+
+    const existing = await prisma.leagueRegistration.findUnique({
+      where: { leagueId_userId: { leagueId: input.leagueId, userId: input.userId } },
+    });
+    if (existing && existing.withdrawnAt === null) {
+      throw new ConflictError('ALREADY_REGISTERED', 'Ya estás apuntado a esta Americana.');
+    }
+    const reg = existing
+      ? await prisma.leagueRegistration.update({
+          where: { id: existing.id },
+          data: {
+            registeredByUserId: input.userId,
+            registeredAt: new Date(),
+            withdrawnAt: null,
+            withdrawnByUserId: null,
+          },
+        })
+      : await prisma.leagueRegistration.create({
+          data: {
+            leagueId: input.leagueId,
+            userId: input.userId,
+            registeredByUserId: input.userId,
+          },
+        });
+    return { id: reg.id };
+  },
+
+  /** Da de baja la inscripción individual del usuario actual. */
+  async withdrawIndividual(input: { leagueId: string; userId: string }): Promise<void> {
+    const reg = await prisma.leagueRegistration.findUnique({
+      where: { leagueId_userId: { leagueId: input.leagueId, userId: input.userId } },
+    });
+    if (!reg || reg.withdrawnAt !== null) {
+      throw new NotFoundError('REGISTRATION_NOT_FOUND', 'No estás apuntado a esta Americana.');
+    }
+    const league = await prisma.league.findUnique({ where: { id: input.leagueId } });
+    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Competición no encontrada.');
+    if (league.status !== 'DRAFT') {
+      throw new DomainError('LEAGUE_NOT_DRAFT', 'La competición ya empezó; no se puede dar de baja.');
+    }
+    if (!isWithinRegistrationWindow(new Date(), league.registrationStart, league.registrationEnd)) {
+      throw new DomainError('OUT_OF_REGISTRATION_WINDOW', 'Fuera del periodo de inscripción.');
+    }
+    await prisma.leagueRegistration.update({
+      where: { id: reg.id },
+      data: { withdrawnAt: new Date(), withdrawnByUserId: input.userId },
+    });
+  },
+
+  /**
    * Register a team to a league.
    * Requirements:
    * - User must be a member of the team.

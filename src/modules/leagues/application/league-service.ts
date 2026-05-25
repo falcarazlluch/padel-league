@@ -1,8 +1,12 @@
 import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
-import type { TeamCategory } from '@prisma/client';
+import type { TeamCategory, Prisma } from '@prisma/client';
 import type { CreateLeagueInput, LeagueRow, TeamRow, MatchRow } from '../domain/types';
 import { generateFixtures } from './fixture-generator';
+import {
+  generateRotatingIndividualAmericana,
+  distributeAcrossCourts,
+} from './americana-generator';
 
 function toSlug(name: string): string {
   return name
@@ -219,13 +223,16 @@ export const LeagueService = {
       include: {
         registrations: {
           where: { withdrawnAt: null },
-          include: { team: { include: { members: true } } },
+          include: {
+            team: { include: { members: true } },
+            user: { select: { id: true, name: true } },
+          },
         },
       },
     });
-    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
+    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Competición no encontrada.');
     if (league.status !== 'DRAFT')
-      throw new DomainError('LEAGUE_NOT_DRAFT', 'La liga ya está activa o finalizada.');
+      throw new DomainError('LEAGUE_NOT_DRAFT', 'La competición ya está activa o finalizada.');
 
     const requester = await prisma.user.findUnique({
       where: { id: requestingUserId },
@@ -234,9 +241,23 @@ export const LeagueService = {
     const isLeagueAdmin =
       requester?.role === 'LEAGUE_ADMIN' && league.createdByUserId === requestingUserId;
     if (requester?.role !== 'SUPER_ADMIN' && !isLeagueAdmin) {
-      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la liga puede activarla.');
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la competición puede activarla.');
     }
 
+    // Ramificación por tipo. Cada path valida sus inscripciones y crea los
+    // matches con la forma adecuada (teams o participants individuales).
+    if (league.type === 'AMERICANA') {
+      await activateAmericana(league);
+      return;
+    }
+    if (league.type === 'TOURNAMENT') {
+      // Sub-fase 5 cablea esto. De momento dejamos pasar a ACTIVE sin generar
+      // matches para no bloquear al usuario que probó el wizard.
+      await prisma.league.update({ where: { id: leagueId }, data: { status: 'ACTIVE' } });
+      return;
+    }
+
+    // LEAGUE clásica: round-robin entre teams.
     const registeredTeams = league.registrations
       .map((r) => r.team)
       .filter((t): t is NonNullable<typeof t> => t !== null);
@@ -340,3 +361,125 @@ export const LeagueService = {
     await prisma.league.delete({ where: { id: leagueId } });
   },
 } as const;
+
+// Tipo del league con registrations + team + user, tal cual lo recibe el
+// activate path. Lo derivamos del payload de prisma usando GetPayload.
+type LeagueForActivation = Prisma.LeagueGetPayload<{
+  include: {
+    registrations: {
+      include: {
+        team: { include: { members: true } };
+        user: { select: { id: true; name: true } };
+      };
+    };
+  };
+}>;
+
+// Activación de una Americana. Ramifica según variant: ROTATING_INDIVIDUAL
+// crea matches con teamA/B null + MatchParticipant por jugador; FIXED_PAIRS
+// reusa el round-robin de generateFixtures y reparte en pistas.
+async function activateAmericana(league: LeagueForActivation): Promise<void> {
+  if (!league.americanaVariant) {
+    throw new DomainError('AMERICANA_VARIANT_MISSING', 'Falta la variante de la Americana.');
+  }
+  const courts = league.americanaCourts ?? 1;
+
+  if (league.americanaVariant === 'ROTATING_INDIVIDUAL') {
+    // Inscripciones por usuario (userId set, teamId null).
+    const userIds = league.registrations
+      .filter((r) => r.userId != null)
+      .map((r) => r.userId!);
+    if (userIds.length < 4) {
+      throw new DomainError(
+        'NOT_ENOUGH_PLAYERS',
+        'La Americana necesita al menos 4 jugadores apuntados para activarse.',
+      );
+    }
+    if (userIds.length > 16) {
+      throw new DomainError(
+        'TOO_MANY_PLAYERS',
+        'La Americana admite como máximo 16 jugadores.',
+      );
+    }
+
+    const fixtures = generateRotatingIndividualAmericana(userIds, courts);
+
+    await prisma.$transaction(async (tx) => {
+      const existingCount = await tx.match.count({ where: { leagueId: league.id } });
+      if (existingCount > 0) {
+        await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
+        return; // idempotente: si ya hay matches no regeneramos.
+      }
+      // Las Americanas son evento de un día; el deadline de cada match es el
+      // mismo startDate (cuando termine la jornada). Esto evita que el
+      // auto-approve de +7d se dispare a destiempo.
+      const deadlineAt = league.startDate;
+      for (const f of fixtures) {
+        const match = await tx.match.create({
+          data: {
+            leagueId: league.id,
+            teamAId: null,
+            teamBId: null,
+            deadlineAt,
+            americanaRound: f.round,
+            americanaCourt: f.court,
+          },
+        });
+        await tx.matchParticipant.createMany({
+          data: [
+            { matchId: match.id, userId: f.sideAUsers[0], side: 'A', partnerIndex: 1 },
+            { matchId: match.id, userId: f.sideAUsers[1], side: 'A', partnerIndex: 2 },
+            { matchId: match.id, userId: f.sideBUsers[0], side: 'B', partnerIndex: 1 },
+            { matchId: match.id, userId: f.sideBUsers[1], side: 'B', partnerIndex: 2 },
+          ],
+        });
+      }
+      await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
+    });
+    return;
+  }
+
+  // FIXED_PAIRS: round-robin entre Teams + distribución en pistas.
+  const teams = league.registrations
+    .map((r) => r.team)
+    .filter((t): t is NonNullable<typeof t> => t !== null);
+  if (teams.length < 2) {
+    throw new DomainError(
+      'NOT_ENOUGH_TEAMS',
+      'La Americana de parejas necesita al menos 2 parejas para activarse.',
+    );
+  }
+  const wrongSize = teams.filter((t) => t.members.length !== 2);
+  if (wrongSize.length > 0) {
+    const names = wrongSize.map((t) => t.name).join(', ');
+    throw new DomainError(
+      'TEAM_SIZE_INVALID',
+      `Las siguientes parejas no tienen exactamente 2 jugadores: ${names}.`,
+    );
+  }
+
+  const baseFixtures = generateFixtures(teams.map((t) => t.id), league.startDate, 0);
+  const distributed = distributeAcrossCourts(
+    baseFixtures.map((f) => ({ round: f.round, teamAId: f.teamAId, teamBId: f.teamBId })),
+    courts,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    const existingCount = await tx.match.count({ where: { leagueId: league.id } });
+    if (existingCount > 0) {
+      await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
+      return;
+    }
+    await tx.match.createMany({
+      data: distributed.map((f) => ({
+        leagueId: league.id,
+        teamAId: f.teamAId,
+        teamBId: f.teamBId,
+        deadlineAt: league.startDate,
+        americanaRound: f.round,
+        americanaCourt: f.court,
+      })),
+    });
+    await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
+  });
+}
