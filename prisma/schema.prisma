@@ -38,6 +38,41 @@ enum MatchFormat {
   FLEXIBLE
 }
 
+// Tipo de la competición. `LEAGUE` es el round-robin clásico que existía antes
+// de esta migración (toda fila previa se backfillea a LEAGUE). `AMERICANA` y
+// `TOURNAMENT` se construyen sobre el mismo modelo `League` con campos extra.
+enum CompetitionType {
+  LEAGUE
+  AMERICANA
+  TOURNAMENT
+}
+
+// Variante del formato Americana. Solo aplica si `League.type = AMERICANA`.
+//  - ROTATING_INDIVIDUAL: 4–16 jugadores individuales; las parejas cambian
+//    cada ronda. La inscripción se hace por usuario (no por Team).
+//  - FIXED_PAIRS: parejas inscritas como Team que rotan rivales cada ronda.
+enum AmericanaVariant {
+  ROTATING_INDIVIDUAL
+  FIXED_PAIRS
+}
+
+enum AmericanaRoundFormat {
+  FIRST_TO_GAMES
+  BY_TIME
+}
+
+// Bracket de eliminación del torneo. `GOLD` = bracket principal; `SILVER` =
+// bracket de consolación poblado con los perdedores de la primera ronda.
+enum BracketSide {
+  GOLD
+  SILVER
+}
+
+enum BracketSeeding {
+  AUTO
+  MANUAL
+}
+
 enum MatchStatus {
   SCHEDULED
   DATE_PROPOSED
@@ -245,6 +280,8 @@ model User {
   photoLikes                    MatchPhotoLike[]              @relation("PhotoLikeAuthor")
   pushSubscriptions             PushSubscription[]
   notificationPreference        NotificationPreference?
+  registrationsAsIndividual     LeagueRegistration[]          @relation("RegistrationUser")
+  matchParticipations           MatchParticipant[]            @relation("MatchParticipantUser")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -318,17 +355,22 @@ model RegistrationCode {
 
 // ─── LIGAS ────────────────────────────────────────────────────────────────
 
+// El modelo se llama "League" por compatibilidad histórica, pero en la UX
+// se presenta como "Competición" desde 2026-05. `type` discrimina entre los
+// tres formatos soportados; los campos `americana*` y los campos de torneo
+// solo se rellenan cuando el `type` lo requiere.
 model League {
-  id                String       @id @default(cuid())
+  id                String          @id @default(cuid())
   name              String
-  slug              String       @unique
+  slug              String          @unique
   description       String?
-  registrationStart DateTime     @map("registration_start")
-  registrationEnd   DateTime     @map("registration_end")
-  startDate         DateTime     @map("start_date")
-  endDate           DateTime     @map("end_date")
-  status            LeagueStatus @default(DRAFT)
-  category          TeamCategory @default(INTERMEDIATE)
+  registrationStart DateTime        @map("registration_start")
+  registrationEnd   DateTime        @map("registration_end")
+  startDate         DateTime        @map("start_date")
+  endDate           DateTime        @map("end_date")
+  status            LeagueStatus    @default(DRAFT)
+  category          TeamCategory    @default(INTERMEDIATE)
+  type              CompetitionType @default(LEAGUE)
 
   // Settings
   matchFormat         MatchFormat @default(FLEXIBLE) @map("match_format")
@@ -339,6 +381,20 @@ model League {
   pointsLoss          Int         @default(0) @map("points_loss")
   tiebreakerConfig    Json        @default("{}") @map("tiebreaker_config")
 
+  // Americana settings (solo aplican si type = AMERICANA)
+  americanaVariant      AmericanaVariant?     @map("americana_variant")
+  americanaRoundFormat  AmericanaRoundFormat? @map("americana_round_format")
+  americanaTargetGames  Int?                  @map("americana_target_games") // FIRST_TO_GAMES, default 8 cuando se use
+  americanaRoundMinutes Int?                  @map("americana_round_minutes") // BY_TIME, default 20 cuando se use
+  americanaCourts       Int?                  @map("americana_courts") // 1..4
+
+  // Tournament settings (solo aplican si type = TOURNAMENT)
+  hasGroupPhase      Boolean         @default(false) @map("has_group_phase")
+  groupCount         Int?            @map("group_count")
+  teamsPerGroup      Int?            @map("teams_per_group")
+  qualifiersPerGroup Int?            @map("qualifiers_per_group")
+  bracketSeedingMode BracketSeeding? @map("bracket_seeding_mode") // null hasta que se cree el bracket
+
   createdByUserId            String    @map("created_by_user_id")
   createdAt                  DateTime  @default(now()) @map("created_at")
   updatedAt                  DateTime  @updatedAt @map("updated_at")
@@ -347,11 +403,13 @@ model League {
 
   registrations      LeagueRegistration[]
   matches            Match[]
+  groups             CompetitionGroup[]
   independentMatches IndependentMatch[]           @relation("IndependentMatchLeague")
   categoryProposals  TeamCategoryChangeProposal[]
 
   @@index([status])
   @@index([startDate, endDate])
+  @@index([type, status])
   @@map("leagues")
 }
 
@@ -397,24 +455,76 @@ model TeamInvitation {
   @@map("team_invitations")
 }
 
+// Inscripción a una Competición. En LEAGUE / TOURNAMENT / AMERICANA-FIXED_PAIRS
+// la inscripción es por pareja (Team). El campo `userId` queda reservado para
+// Americana ROTATING_INDIVIDUAL — se cableará en sub-fase 4 cuando se haga
+// `teamId` nullable; ahora mismo el schema mantiene `teamId` obligatorio para
+// no romper el código existente.
 model LeagueRegistration {
   id                 String    @id @default(cuid())
   leagueId           String    @map("league_id")
   teamId             String    @map("team_id")
+  userId             String?   @map("user_id")
+  competitionGroupId String?   @map("competition_group_id")
   registeredByUserId String    @map("registered_by_user_id")
   registeredAt       DateTime  @default(now()) @map("registered_at")
   withdrawnAt        DateTime? @map("withdrawn_at")
   withdrawnByUserId  String?   @map("withdrawn_by_user_id")
 
-  league       League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  team         Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  registeredBy User   @relation("RegistrationRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: Restrict)
-  withdrawnBy  User?  @relation("RegistrationWithdrawnBy", fields: [withdrawnByUserId], references: [id], onDelete: SetNull)
+  league       League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team         Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user         User?             @relation("RegistrationUser", fields: [userId], references: [id], onDelete: Cascade)
+  group        CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
+  registeredBy User              @relation("RegistrationRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: Restrict)
+  withdrawnBy  User?             @relation("RegistrationWithdrawnBy", fields: [withdrawnByUserId], references: [id], onDelete: SetNull)
 
   @@unique([leagueId, teamId])
+  // Postgres trata múltiples NULL como distintos en UNIQUE; este constraint
+  // no afecta a filas con userId NULL.
+  @@unique([leagueId, userId])
   @@index([leagueId])
   @@index([teamId])
+  @@index([userId])
+  @@index([competitionGroupId])
   @@map("league_registrations")
+}
+
+// Grupo dentro de una competición de tipo TOURNAMENT con fase de grupos.
+// Cada `LeagueRegistration` queda asignada a UN `CompetitionGroup` cuando se
+// activa el torneo; los `Match` de fase de grupos referencian su grupo.
+model CompetitionGroup {
+  id        String   @id @default(cuid())
+  leagueId  String   @map("league_id")
+  name      String // "Grupo A", "Grupo B"...
+  index     Int // 0..N para ordenar
+  createdAt DateTime @default(now()) @map("created_at")
+
+  league        League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  registrations LeagueRegistration[]
+  matches       Match[]
+
+  @@unique([leagueId, index])
+  @@index([leagueId])
+  @@map("competition_groups")
+}
+
+// Participación en un Match de Americana ROTATING_INDIVIDUAL: enumera los 4
+// jugadores del match con su side (A/B) y su partner index. No se usa para
+// el resto de formatos (Liga / Torneo / Americana FIXED_PAIRS) donde teamA/B
+// del Match identifican ya a los dos pares.
+model MatchParticipant {
+  matchId      String @map("match_id")
+  userId       String @map("user_id")
+  side         String // "A" o "B"
+  partnerIndex Int    @map("partner_index") // 1 o 2 dentro del side
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation("MatchParticipantUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([matchId, userId])
+  @@unique([matchId, side, partnerIndex])
+  @@index([userId])
+  @@map("match_participants")
 }
 
 model TeamCategoryChangeProposal {
@@ -469,12 +579,34 @@ model Match {
   isTiebreaker      Boolean @default(false) @map("is_tiebreaker")
   round             Int?
 
+  // Americana — solo si la liga es type=AMERICANA. round/court identifican
+  // posición en la grilla de rondas × pistas paralelas.
+  americanaRound Int? @map("americana_round")
+  americanaCourt Int? @map("americana_court")
+
+  // Tournament — solo si la liga es type=TOURNAMENT. Un match es de fase de
+  // grupos (competitionGroupId set, bracket* null) o de bracket (bracketSide
+  // + bracketRound + bracketPosition set, competitionGroupId null). sourceMatchA/B
+  // referencian los matches cuyos ganadores se cruzan aquí — null en la
+  // primera ronda del bracket o cuando es bye.
+  competitionGroupId String?      @map("competition_group_id")
+  bracketSide        BracketSide? @map("bracket_side")
+  bracketRound       Int?         @map("bracket_round") // 0 = primera ronda, 1 = cuartos, etc.
+  bracketPosition    Int?         @map("bracket_position") // slot dentro de la ronda
+  sourceMatchAId     String?      @map("source_match_a_id")
+  sourceMatchBId     String?      @map("source_match_b_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   league              League                      @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   teamA               Team                        @relation("TeamA", fields: [teamAId], references: [id], onDelete: Restrict)
   teamB               Team                        @relation("TeamB", fields: [teamBId], references: [id], onDelete: Restrict)
+  competitionGroup    CompetitionGroup?           @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
+  sourceMatchA        Match?                      @relation("BracketSourceA", fields: [sourceMatchAId], references: [id], onDelete: SetNull)
+  sourceMatchB        Match?                      @relation("BracketSourceB", fields: [sourceMatchBId], references: [id], onDelete: SetNull)
+  bracketChildrenA    Match[]                     @relation("BracketSourceA")
+  bracketChildrenB    Match[]                     @relation("BracketSourceB")
   confirmedResult     MatchResult?                @relation("ConfirmedResult", fields: [confirmedResultId], references: [id])
   results             MatchResult[]               @relation("MatchResults")
   schedulingProposals MatchSchedulingProposal[]
@@ -482,11 +614,14 @@ model Match {
   dispute             Dispute?
   commentaries        MatchCommentary[]
   photos              MatchPhoto[]
+  participants        MatchParticipant[]
 
   @@index([leagueId, status])
   @@index([deadlineAt])
   @@index([teamAId])
   @@index([teamBId])
+  @@index([competitionGroupId])
+  @@index([leagueId, bracketSide, bracketRound])
   @@map("matches")
 }
 
