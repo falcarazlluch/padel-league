@@ -16,6 +16,7 @@ import { ScheduleSection } from './schedule-section';
 import { CommentaryAdminActions } from './_components/commentary-admin-actions';
 import { CommentaryGenerateButton } from './_components/commentary-generate-button';
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
+import { AmericanaResultForm } from './americana-result-form';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -72,7 +73,7 @@ export default async function MatchDetailPage({
   if (!probe || probe.league.slug !== slug) notFound();
 
   if (probe.league.type === 'AMERICANA' && probe.teamAId == null && probe.teamBId == null) {
-    return renderAmericanaIndividualMatch(matchId, currentUser.id, probe.league.name);
+    return renderAmericanaIndividualMatch(matchId, currentUser.id, probe.league.name, probe.league.slug);
   }
 
   const match = await MatchService.getMatch(matchId).catch(() => null);
@@ -435,6 +436,7 @@ async function renderAmericanaIndividualMatch(
   matchId: string,
   currentUserId: string,
   leagueName: string,
+  _leagueSlug: string,
 ) {
   const m = await prisma.match.findUnique({
     where: { id: matchId },
@@ -460,18 +462,40 @@ async function renderAmericanaIndividualMatch(
   const sideB = m.participants
     .filter((p) => p.side === 'B')
     .sort((a, b) => a.partnerIndex - b.partnerIndex);
-  const sets = m.confirmedResult?.sets ?? m.results[0]?.sets ?? [];
+  const confirmedSets = m.confirmedResult?.sets ?? [];
+  const pendingSets = m.results[0]?.sets ?? [];
+  const sets = confirmedSets.length > 0 ? confirmedSets : pendingSets;
   const gamesA = sets.reduce((acc, s) => acc + s.gamesA, 0);
   const gamesB = sets.reduce((acc, s) => acc + s.gamesB, 0);
   const hasResult = sets.length > 0;
   const isParticipant = m.participants.some((p) => p.userId === currentUserId);
-  const winnerSide = hasResult
-    ? gamesA > gamesB
-      ? 'A'
-      : gamesB > gamesA
-        ? 'B'
-        : 'DRAW'
+  const winnerSide =
+    m.status === 'CONFIRMED' || m.status === 'ADMIN_RESOLVED'
+      ? gamesA > gamesB
+        ? 'A'
+        : gamesB > gamesA
+          ? 'B'
+          : 'DRAW'
+      : null;
+
+  // Determinar el modo del formulario.
+  const submitterSide = m.results[0]
+    ? m.participants.find((p) => p.userId === m.results[0]!.submittedByUserId)?.side ?? null
     : null;
+  const mySide = m.participants.find((p) => p.userId === currentUserId)?.side ?? null;
+
+  let formMode: 'submit' | 'confirm' | 'submitter-wait' | 'view' = 'view';
+  if (isParticipant) {
+    if (m.status === 'SCHEDULED' || m.status === 'DATE_PROPOSED' || m.status === 'DATE_CONFIRMED') {
+      formMode = 'submit';
+    } else if (m.status === 'PENDING_VALIDATION') {
+      if (submitterSide && mySide && mySide !== submitterSide) {
+        formMode = 'confirm';
+      } else {
+        formMode = 'submitter-wait';
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -505,14 +529,16 @@ async function renderAmericanaIndividualMatch(
         />
       </section>
 
-      {!hasResult && (
-        <p className="text-sm text-slate-500">
-          Resultado pendiente.{' '}
-          {isParticipant
-            ? 'El formulario para enviar resultado de Americana estará disponible en la próxima actualización.'
-            : 'Cuando los participantes lo envíen aparecerá aquí.'}
-        </p>
-      )}
+      <AmericanaResultForm
+        matchId={matchId}
+        mode={formMode}
+        pendingGames={
+          formMode === 'confirm' && pendingSets.length > 0
+            ? { gamesA, gamesB }
+            : undefined
+        }
+        isParticipant={isParticipant}
+      />
     </div>
   );
 }

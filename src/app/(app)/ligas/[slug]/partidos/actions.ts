@@ -215,6 +215,77 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
   return {};
 }
 
+// ─── Americana ROTATING_INDIVIDUAL — actions ───────────────────────────
+const submitAmericanaSchema = z.object({
+  matchId: z.string().cuid(),
+  gamesA: z.coerce.number().int().min(0).max(99),
+  gamesB: z.coerce.number().int().min(0).max(99),
+});
+
+export async function submitAmericanaResultAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = submitAmericanaSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await MatchService.submitAmericanaResult(parsed.data.matchId, user.id, {
+      gamesA: parsed.data.gamesA,
+      gamesB: parsed.data.gamesB,
+    });
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/ligas', 'layout');
+  return { success: true };
+}
+
+export async function confirmAmericanaResultAction(
+  matchId: string,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await MatchService.confirmAmericanaResult(matchId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/ligas', 'layout');
+  return {};
+}
+
+const disputeAmericanaSchema = z.object({
+  matchId: z.string().cuid(),
+  reason: z.string().min(10, 'El motivo debe tener al menos 10 caracteres.').max(1000),
+});
+
+export async function disputeAmericanaResultAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  const parsed = disputeAmericanaSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await MatchService.disputeAmericanaResult(parsed.data.matchId, user.id, parsed.data.reason);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/ligas', 'layout');
+  return {};
+}
+
 const disputeSchema = z.object({
   matchId: z.string().cuid(),
   reason: z.string().min(10, 'El motivo debe tener al menos 10 caracteres.').max(1000),

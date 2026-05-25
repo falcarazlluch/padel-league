@@ -459,4 +459,207 @@ export const MatchService = {
       }
     }
   },
+
+  // ─── Americana ROTATING_INDIVIDUAL — submit / confirm / dispute ────────
+  // Estos métodos no asumen Teams: el "side" se deriva de la fila
+  // `MatchParticipant`. Sirven solo para matches con `teamAId/teamBId` null
+  // (Americana individual). Para Liga / Torneo / Americana FIXED_PAIRS se
+  // siguen usando los métodos clásicos de arriba.
+
+  async submitAmericanaResult(
+    matchId: string,
+    submittingUserId: string,
+    input: { gamesA: number; gamesB: number },
+  ): Promise<void> {
+    if (input.gamesA < 0 || input.gamesB < 0) {
+      throw new DomainError('INVALID_GAMES', 'Los games no pueden ser negativos.');
+    }
+    if (input.gamesA === 0 && input.gamesB === 0) {
+      throw new DomainError('INVALID_GAMES', 'Introduce al menos un game ganado por algún lado.');
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: { select: { userId: true, side: true } },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.americanaRound == null) {
+      throw new DomainError('NOT_AMERICANA', 'Este partido no es de una Americana individual.');
+    }
+    if (!SUBMITTABLE_STATUSES.includes(match.status as SubmittableStatus)) {
+      throw new DomainError(
+        'MATCH_NOT_SUBMITTABLE',
+        'Este partido no admite resultados en su estado actual.',
+      );
+    }
+
+    const submitter = match.participants.find((p) => p.userId === submittingUserId);
+    if (!submitter) {
+      throw new AuthorizationError(
+        'NOT_PARTICIPANT',
+        'Solo los jugadores del partido pueden enviar el resultado.',
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.matchResult.updateMany({
+        where: { matchId, status: 'PENDING' },
+        data: { status: 'SUPERSEDED' },
+      });
+      const result = await tx.matchResult.create({
+        data: {
+          matchId,
+          submittedByUserId: submittingUserId,
+          // submitterTeamId queda null en Americana individual; el flujo de
+          // confirm/dispute usa `submittedByUserId` + MatchParticipant.
+          submitterTeamId: null,
+          winnerTeamId: null, // sin teamId no hay winnerTeamId — el side ganador se infiere de los games.
+        },
+      });
+      await tx.set.create({
+        data: {
+          matchResultId: result.id,
+          setNumber: 1,
+          gamesA: input.gamesA,
+          gamesB: input.gamesB,
+        },
+      });
+      await tx.match.update({
+        where: { id: matchId },
+        data: { status: 'PENDING_VALIDATION' },
+      });
+    });
+  },
+
+  async confirmAmericanaResult(matchId: string, confirmingUserId: string): Promise<void> {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: { select: { userId: true, side: true } },
+        results: {
+          where: { status: 'PENDING' },
+          include: { sets: true },
+          take: 1,
+        },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.americanaRound == null) {
+      throw new DomainError('NOT_AMERICANA', 'Este partido no es de una Americana individual.');
+    }
+    if (match.status !== 'PENDING_VALIDATION') {
+      throw new DomainError(
+        'MATCH_NOT_PENDING',
+        'Este partido no tiene un resultado pendiente de validación.',
+      );
+    }
+    const pending = match.results[0];
+    if (!pending) throw new DomainError('NO_PENDING_RESULT', 'No hay resultado pendiente.');
+
+    const confirmer = match.participants.find((p) => p.userId === confirmingUserId);
+    if (!confirmer) {
+      throw new AuthorizationError(
+        'NOT_PARTICIPANT',
+        'Solo los jugadores del partido pueden confirmar el resultado.',
+      );
+    }
+    const submitter = match.participants.find((p) => p.userId === pending.submittedByUserId);
+    if (submitter && confirmer.side === submitter.side) {
+      throw new DomainError(
+        'SAME_SIDE_CONFIRM',
+        'No puedes confirmar el resultado enviado por tu propia pareja.',
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.matchResult.updateMany({
+        where: { id: pending.id, status: 'PENDING' },
+        data: { status: 'CONFIRMED', validatedByUserId: confirmingUserId, validatedAt: new Date() },
+      });
+      if (updated.count === 0) {
+        throw new DomainError('RESULT_ALREADY_PROCESSED', 'El resultado ya fue procesado.');
+      }
+      await tx.match.update({
+        where: { id: matchId },
+        data: { status: 'CONFIRMED', confirmedResultId: pending.id },
+      });
+    });
+  },
+
+  async disputeAmericanaResult(
+    matchId: string,
+    disputingUserId: string,
+    reason: string,
+  ): Promise<void> {
+    if (reason.trim().length < 10) {
+      throw new DomainError('REASON_TOO_SHORT', 'El motivo debe tener al menos 10 caracteres.');
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: { select: { userId: true, side: true } },
+        results: {
+          where: { status: 'PENDING' },
+          include: { sets: true },
+          take: 1,
+        },
+      },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.americanaRound == null) {
+      throw new DomainError('NOT_AMERICANA', 'Este partido no es de una Americana individual.');
+    }
+    if (match.status !== 'PENDING_VALIDATION') {
+      throw new DomainError(
+        'MATCH_NOT_PENDING',
+        'Este partido no tiene un resultado pendiente de validación.',
+      );
+    }
+    const pending = match.results[0];
+    if (!pending) throw new DomainError('NO_PENDING_RESULT', 'No hay resultado pendiente.');
+
+    const disputer = match.participants.find((p) => p.userId === disputingUserId);
+    if (!disputer) {
+      throw new AuthorizationError(
+        'NOT_PARTICIPANT',
+        'Solo los jugadores del partido pueden disputar el resultado.',
+      );
+    }
+    const submitter = match.participants.find((p) => p.userId === pending.submittedByUserId);
+    if (submitter && disputer.side === submitter.side) {
+      throw new DomainError(
+        'SAME_SIDE_DISPUTE',
+        'No puedes disputar el resultado enviado por tu propia pareja.',
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.matchResult.updateMany({
+        where: { id: pending.id, status: 'PENDING' },
+        data: { status: 'REJECTED', rejectionReason: reason, rejectedAt: new Date() },
+      });
+      if (updated.count === 0) {
+        throw new DomainError('RESULT_ALREADY_PROCESSED', 'El resultado ya fue procesado.');
+      }
+      await tx.match.update({
+        where: { id: matchId },
+        data: { status: 'DISPUTED' },
+      });
+      await tx.dispute.create({
+        data: {
+          matchId,
+          openedByUserId: disputingUserId,
+          reason,
+          evidenceSnapshot: {
+            type: 'AMERICANA_INDIVIDUAL',
+            submitterUserId: pending.submittedByUserId,
+            sets: pending.sets.map((s) => ({ setNumber: s.setNumber, gamesA: s.gamesA, gamesB: s.gamesB })),
+          },
+        },
+      });
+    });
+  },
 } as const;
