@@ -14,6 +14,7 @@ import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
 import { logger } from '@/shared/logger';
+import { formatSetScore } from '@/shared/format/match';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -28,6 +29,8 @@ type MatchTeamInfo = {
   teamB: { id: string; name: string; members: MatchMember[] };
   leagueSlug: string;
   winnerTeam: { name: string } | null;
+  /** Most recent PENDING/CONFIRMED result with sets, used to enrich notification bodies. */
+  latestResult: { score: string } | null;
 };
 
 async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null> {
@@ -37,6 +40,11 @@ async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null
       league: { select: { slug: true } },
       teamA: { include: { members: { include: { user: { select: { email: true, name: true } } } } } },
       teamB: { include: { members: { include: { user: { select: { email: true, name: true } } } } } },
+      results: {
+        orderBy: { submittedAt: 'desc' },
+        take: 1,
+        include: { sets: { select: { setNumber: true, gamesA: true, gamesB: true } } },
+      },
     },
   });
   if (!match) return null;
@@ -47,6 +55,9 @@ async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null
       ? { name: match.teamA.name }
       : { name: match.teamB.name }
     : null;
+
+  const latest = match.results[0];
+  const score = latest ? formatSetScore(latest.sets) : '';
 
   return {
     teamA: {
@@ -61,6 +72,7 @@ async function fetchMatchTeamInfo(matchId: string): Promise<MatchTeamInfo | null
     },
     leagueSlug: match.league.slug,
     winnerTeam,
+    latestResult: score ? { score } : null,
   };
 }
 
@@ -109,12 +121,13 @@ export async function submitResultAction(
       const submitterTeamName = submitterIsA ? info.teamA.name : info.teamB.name;
       const matchUrl = `${env().APP_URL}/ligas/${info.leagueSlug}/partidos/${matchId}`;
 
+      const scoreFragment = info.latestResult ? ` (${info.latestResult.score})` : '';
       await NotificationService.createMany(
         rivalTeam.members.map((m) => ({
           userId: m.userId,
           type: 'RESULT_SUBMITTED' as const,
           title: 'Resultado enviado — pendiente de confirmación',
-          body: `${submitterTeamName} ha enviado el resultado. Tienes 7 días para confirmar o disputar.`,
+          body: `${submitterTeamName} ha enviado el resultado${scoreFragment}. Tienes 7 días para confirmar o disputar.`,
           metadata: { matchId },
         })),
       );
@@ -162,12 +175,13 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
       const submitterTeam = confirmerIsA ? info.teamB : info.teamA;
       const matchUrl = `${env().APP_URL}/ligas/${info.leagueSlug}/partidos/${matchId}`;
 
+      const scoreFragment = info.latestResult ? ` (${info.latestResult.score})` : '';
       await NotificationService.createMany(
         submitterTeam.members.map((m) => ({
           userId: m.userId,
           type: 'RESULT_CONFIRMED' as const,
           title: 'Resultado confirmado',
-          body: `El resultado del partido ha sido confirmado. ${info.winnerTeam ? `Ganador: ${info.winnerTeam.name}.` : 'Partido empatado.'}`,
+          body: `Resultado confirmado${scoreFragment}. ${info.winnerTeam ? `Ganador: ${info.winnerTeam.name}.` : 'Partido empatado.'}`,
           metadata: { matchId },
         })),
       );

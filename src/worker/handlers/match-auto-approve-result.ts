@@ -3,6 +3,7 @@ import { logger } from '@/shared/logger';
 import { queue } from '@/shared/queue/client';
 import { env } from '@/shared/config/env';
 import { NotificationService } from '@/modules/notifications';
+import { formatSetScore } from '@/shared/format/match';
 import type { JobMap } from '@/shared/queue/jobs';
 
 export async function matchAutoApproveResultHandler(
@@ -14,6 +15,7 @@ export async function matchAutoApproveResultHandler(
   const matchResult = await prisma.matchResult.findUnique({
     where: { id: matchResultId },
     include: {
+      sets: { select: { setNumber: true, gamesA: true, gamesB: true } },
       match: {
         include: {
           league: { select: { slug: true } },
@@ -77,12 +79,14 @@ export async function matchAutoApproveResultHandler(
       : match.teamB.name
     : null;
 
+  const score = formatSetScore(matchResult.sets);
+  const scoreFragment = score ? ` (${score})` : '';
   await NotificationService.createMany(
     allMembers.map(({ userId }) => ({
       userId,
       type: 'RESULT_CONFIRMED' as const,
       title: 'Resultado confirmado automáticamente',
-      body: `El resultado del partido ha sido confirmado automáticamente por el sistema. ${winnerTeamName ? `Ganador: ${winnerTeamName}.` : 'Partido empatado.'}`,
+      body: `Resultado confirmado automáticamente${scoreFragment}. ${winnerTeamName ? `Ganador: ${winnerTeamName}.` : 'Partido empatado.'}`,
       metadata: { matchId: match.id, autoApproved: true },
     })),
   );

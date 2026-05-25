@@ -29,18 +29,22 @@ export function PushSettings({ initialPrefs }: { initialPrefs: PreferenceFlags }
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const support = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-    if (!support) {
-      setDevice({ kind: 'unsupported' });
-      return;
-    }
-    // iOS necesita la PWA instalada — si no, mostramos instrucciones.
+    // Order matters: check iOS-without-PWA FIRST. Safari iOS does not expose
+    // `PushManager` in a regular browser tab, only inside the installed PWA.
+    // If we checked support first, every iOS Safari user would see
+    // "unsupported" and never learn that installing fixes it.
     const isStandalone =
       (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if (isIOS && !isStandalone) {
       setDevice({ kind: 'needs-install-ios' });
+      return;
+    }
+
+    const support = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    if (!support) {
+      setDevice({ kind: 'unsupported' });
       return;
     }
 

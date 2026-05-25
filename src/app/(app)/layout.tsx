@@ -50,7 +50,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(160deg,#e8eef8 0%,#f0f4fb 40%,#f5f7fa 100%)' }}>
-      <nav aria-label="Navegación principal" className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-4 sm:px-6 py-1 flex items-center justify-between sticky top-0 z-40 shadow-md overflow-visible">
+      {/* iOS PWA: status bar overlay with viewport-fit=cover means the nav
+          contents would collide with the notch/clock. paddingTop pushes
+          children below the safe-area inset; no-op on Android/desktop. */}
+      <nav
+        aria-label="Navegación principal"
+        className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-4 sm:px-6 py-1 flex items-center justify-between sticky top-0 z-40 shadow-md overflow-visible"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.25rem)' }}
+      >
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center shrink-0 -mb-3 sm:-mb-6">
             <Image

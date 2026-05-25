@@ -111,11 +111,13 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
 
       const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email } });
       if (existingUser) {
+        const when = formatScheduledAt(match?.scheduledAt);
+        const whenFragment = when ? ` para el ${when}` : '';
         await NotificationService.create({
           userId: existingUser.id,
           type: 'INDEPENDENT_MATCH_INVITE',
           title: 'Invitación a partido',
-          body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}".`,
+          body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}"${whenFragment}.`,
           metadata: { matchId: parsed.data.matchId },
         });
       }
@@ -163,11 +165,17 @@ export async function inviteEntityToMatchAction(
         // signed token internally — issuing one here too just produced an
         // unused JWT.
         await sendUserInviteEmail(parsed.data.matchId, parsed.data.invitedUserId, invitationId);
+        const match = await prisma.independentMatch.findUnique({
+          where: { id: parsed.data.matchId },
+          select: { name: true, scheduledAt: true, organizer: { select: { name: true } } },
+        });
+        const when = formatScheduledAt(match?.scheduledAt);
+        const whenFragment = when ? ` para el ${when}` : '';
         await NotificationService.create({
           userId: parsed.data.invitedUserId,
           type: 'INDEPENDENT_MATCH_INVITE',
           title: 'Invitación a partido',
-          body: `Te invitan a un partido.`,
+          body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}"${whenFragment}.`,
           metadata: { matchId: parsed.data.matchId },
         });
       }
@@ -302,8 +310,15 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
   const matchUrl = `${env().APP_URL}/jugar/${matchId}?token=${token}`;
   const match = await prisma.independentMatch.findUnique({
     where: { id: matchId },
-    include: { organizer: { select: { name: true } } },
+    select: {
+      name: true,
+      scheduledAt: true,
+      location: true,
+      organizer: { select: { name: true } },
+    },
   });
+  const when = formatScheduledAt(match?.scheduledAt);
+  const whenFragment = when ? ` para el ${when}` : '';
 
   // In-app notification per team member.
   await NotificationService.createMany(
@@ -311,7 +326,7 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
       userId: m.userId,
       type: 'INDEPENDENT_MATCH_INVITE' as const,
       title: 'Invitación a partido',
-      body: `${match?.organizer.name ?? 'Alguien'} ha invitado a tu equipo "${team.name}" a "${match?.name ?? 'un partido'}".`,
+      body: `${match?.organizer.name ?? 'Alguien'} ha invitado a tu equipo "${team.name}" a "${match?.name ?? 'un partido'}"${whenFragment}.`,
       metadata: { matchId },
     })),
   );
