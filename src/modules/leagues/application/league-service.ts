@@ -7,6 +7,12 @@ import {
   generateRotatingIndividualAmericana,
   distributeAcrossCourts,
 } from './americana-generator';
+import {
+  distributeIntoGroups,
+  generateGroupRoundRobin,
+  generateGoldBracket,
+  generateSilverBracket,
+} from './tournament-generator';
 
 function toSlug(name: string): string {
   return name
@@ -251,9 +257,7 @@ export const LeagueService = {
       return;
     }
     if (league.type === 'TOURNAMENT') {
-      // Sub-fase 5 cablea esto. De momento dejamos pasar a ACTIVE sin generar
-      // matches para no bloquear al usuario que probó el wizard.
-      await prisma.league.update({ where: { id: leagueId }, data: { status: 'ACTIVE' } });
+      await activateTournament(league);
       return;
     }
 
@@ -480,6 +484,131 @@ async function activateAmericana(league: LeagueForActivation): Promise<void> {
         americanaCourt: f.court,
       })),
     });
+    await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
+  });
+}
+
+// Activación de un Torneo. Dos caminos:
+//  - hasGroupPhase = false: bracket Oro + Plata directos desde la lista de
+//    inscritos. Cada match del bracket se crea con sus referencias
+//    `sourceMatchAId/BId` ya resueltas a IDs reales.
+//  - hasGroupPhase = true: solo creamos los matches de la fase de grupos +
+//    las filas `CompetitionGroup`. El bracket se materializa más adelante
+//    (función `materializeTournamentBracket`, llamada por el admin cuando
+//    cierre la fase de grupos — añadible en una iteración posterior).
+async function activateTournament(league: LeagueForActivation): Promise<void> {
+  const teams = league.registrations
+    .map((r) => r.team)
+    .filter((t): t is NonNullable<typeof t> => t !== null);
+  if (teams.length < 2) {
+    throw new DomainError(
+      'NOT_ENOUGH_TEAMS',
+      'El torneo necesita al menos 2 parejas para activarse.',
+    );
+  }
+  const wrongSize = teams.filter((t) => t.members.length !== 2);
+  if (wrongSize.length > 0) {
+    const names = wrongSize.map((t) => t.name).join(', ');
+    throw new DomainError(
+      'TEAM_SIZE_INVALID',
+      `Las siguientes parejas no tienen exactamente 2 jugadores: ${names}.`,
+    );
+  }
+
+  const teamIds = teams.map((t) => t.id);
+
+  await prisma.$transaction(async (tx) => {
+    const existingCount = await tx.match.count({ where: { leagueId: league.id } });
+    if (existingCount > 0) {
+      await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
+      return;
+    }
+
+    if (league.hasGroupPhase) {
+      if (!league.groupCount || !league.teamsPerGroup) {
+        throw new DomainError(
+          'GROUP_CONFIG_REQUIRED',
+          'Falta configuración de grupos para activar el torneo.',
+        );
+      }
+      const distributed = distributeIntoGroups(teamIds, league.groupCount, league.teamsPerGroup);
+      // Crear CompetitionGroup rows.
+      const groupRows: { id: string; index: number }[] = [];
+      for (let i = 0; i < distributed.length; i++) {
+        const g = await tx.competitionGroup.create({
+          data: {
+            leagueId: league.id,
+            name: `Grupo ${String.fromCharCode(65 + i)}`,
+            index: i,
+          },
+        });
+        groupRows.push({ id: g.id, index: i });
+      }
+      // Asignar cada registration a su grupo + crear matches.
+      for (let i = 0; i < distributed.length; i++) {
+        const groupId = groupRows[i]!.id;
+        const teamsInGroup = distributed[i]!;
+        await tx.leagueRegistration.updateMany({
+          where: { leagueId: league.id, teamId: { in: teamsInGroup } },
+          data: { competitionGroupId: groupId },
+        });
+        const fixtures = generateGroupRoundRobin(i, teamsInGroup);
+        if (fixtures.length > 0) {
+          await tx.match.createMany({
+            data: fixtures.map((f) => ({
+              leagueId: league.id,
+              teamAId: f.teamAId,
+              teamBId: f.teamBId,
+              deadlineAt: league.endDate,
+              competitionGroupId: groupId,
+              round: f.round,
+            })),
+          });
+        }
+      }
+    } else {
+      // Sin fase de grupos: bracket directo desde los inscritos en orden de
+      // registro (AUTO seeding por defecto; MANUAL queda como follow-up).
+      const { matches: goldDescriptors, round0LoserSources } = generateGoldBracket(teamIds);
+      const silverDescriptors = generateSilverBracket(round0LoserSources);
+
+      // Persistencia en orden topológico: GOLD R0, GOLD R1+, SILVER R0, SILVER R1+
+      // de modo que cuando llegamos a un descriptor con sourceA/sourceB, el
+      // match referenciado ya existe y tenemos su id.
+      const allDescriptors = [...goldDescriptors, ...silverDescriptors].sort((a, b) => {
+        if (a.side !== b.side) return a.side === 'GOLD' ? -1 : 1;
+        if (a.round !== b.round) return a.round - b.round;
+        return a.position - b.position;
+      });
+
+      const keyToId = new Map<string, string>();
+      const keyOf = (side: string, round: number, position: number) =>
+        `${side}:${round}:${position}`;
+
+      for (const d of allDescriptors) {
+        const sourceAId = d.sourceA
+          ? (keyToId.get(keyOf(d.sourceA.side, d.sourceA.round, d.sourceA.position)) ?? null)
+          : null;
+        const sourceBId = d.sourceB
+          ? (keyToId.get(keyOf(d.sourceB.side, d.sourceB.round, d.sourceB.position)) ?? null)
+          : null;
+        const m = await tx.match.create({
+          data: {
+            leagueId: league.id,
+            teamAId: d.teamAId,
+            teamBId: d.teamBId,
+            deadlineAt: league.endDate,
+            bracketSide: d.side,
+            bracketRound: d.round,
+            bracketPosition: d.position,
+            sourceMatchAId: sourceAId,
+            sourceMatchBId: sourceBId,
+          },
+        });
+        keyToId.set(keyOf(d.side, d.round, d.position), m.id);
+      }
+    }
+
     await tx.league.update({ where: { id: league.id }, data: { status: 'ACTIVE' } });
   });
 }
