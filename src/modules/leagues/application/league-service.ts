@@ -348,6 +348,178 @@ export const LeagueService = {
     });
   },
 
+  /**
+   * Materializa los brackets Oro + Plata de un Torneo con fase de grupos
+   * ya jugada. Se llama desde una acción admin (`materializeTournamentBracketAction`)
+   * cuando todas las parejas han terminado su round-robin de grupo.
+   *
+   * Validaciones:
+   *  - league.type === 'TOURNAMENT' && hasGroupPhase
+   *  - status === 'ACTIVE'
+   *  - Caller es admin (createdByUserId) o SUPER_ADMIN
+   *  - No existe ya bracket (no Match con bracketSide set)
+   *  - Todos los matches de grupo están finalizados (CONFIRMED / ADMIN_RESOLVED /
+   *    EXPIRED_UNPLAYED). Si hay PENDING_VALIDATION o partidos sin jugar, se
+   *    aborta para no tomar standings inestables.
+   *
+   * Orden de qualifiers para `generateGoldBracket`: agrupados por posición
+   * dentro del grupo (todos los 1º primero, luego todos los 2º, etc) y
+   * dentro de cada nivel ordenados por groupIndex. Con linear pairing
+   * (slot i vs slot N-1-i) esto cruza 1º de un grupo contra 2º del grupo
+   * opuesto, evitando que dos primeros se enfrenten en primera ronda.
+   */
+  async materializeTournamentBracket(
+    leagueId: string,
+    requestingUserId: string,
+  ): Promise<void> {
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      include: {
+        groups: {
+          orderBy: { index: 'asc' },
+          include: {
+            registrations: { include: { team: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+    });
+    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Competición no encontrada.');
+    if (league.type !== 'TOURNAMENT') {
+      throw new DomainError('NOT_A_TOURNAMENT', 'Esta operación solo aplica a torneos.');
+    }
+    if (!league.hasGroupPhase) {
+      throw new DomainError(
+        'NO_GROUP_PHASE',
+        'El bracket de un torneo sin fase de grupos se materializa al activarlo.',
+      );
+    }
+    if (league.status !== 'ACTIVE') {
+      throw new DomainError('LEAGUE_NOT_ACTIVE', 'El torneo debe estar activo para generar el bracket.');
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    const isLeagueAdmin =
+      requester?.role === 'LEAGUE_ADMIN' && league.createdByUserId === requestingUserId;
+    if (requester?.role !== 'SUPER_ADMIN' && !isLeagueAdmin) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin del torneo puede generar el bracket.');
+    }
+
+    // Bloquea doble ejecución: si ya hay matches de bracket, salir.
+    const existingBracket = await prisma.match.count({
+      where: { leagueId, bracketSide: { not: null } },
+    });
+    if (existingBracket > 0) {
+      throw new DomainError('BRACKET_ALREADY_EXISTS', 'El bracket ya está generado.');
+    }
+
+    // Valida que todos los matches de grupo estén finalizados.
+    const FINAL_STATUSES = ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] as const;
+    const groupMatches = await prisma.match.findMany({
+      where: { leagueId, competitionGroupId: { not: null } },
+      include: { confirmedResult: { include: { sets: true } } },
+    });
+    const unfinished = groupMatches.filter((m) => !FINAL_STATUSES.includes(m.status as (typeof FINAL_STATUSES)[number]));
+    if (unfinished.length > 0) {
+      throw new DomainError(
+        'GROUP_PHASE_NOT_FINISHED',
+        `Quedan ${unfinished.length} partidos de fase de grupos sin finalizar. No se puede generar el bracket todavía.`,
+      );
+    }
+
+    if (!league.qualifiersPerGroup) {
+      throw new DomainError('QUALIFIERS_MISSING', 'Falta el número de clasificados por grupo.');
+    }
+    const K = league.qualifiersPerGroup;
+
+    // Standings por grupo → top K teamIds.
+    // Importamos calculateStandings de forma local para evitar dependencia
+    // circular en el top del archivo.
+    const { calculateStandings } = await import('./standings-calculator');
+
+    const topByGroup: string[][] = []; // topByGroup[groupIndex][rankInGroup] = teamId
+    for (const group of league.groups) {
+      const teamRegs = group.registrations.filter(
+        (r): r is typeof r & { team: NonNullable<typeof r.team> } => r.team !== null,
+      );
+      const teamNames = Object.fromEntries(teamRegs.map((r) => [r.team.id, r.team.name]));
+      const matchesOfGroup = groupMatches
+        .filter((m) => m.competitionGroupId === group.id)
+        .filter((m): m is typeof m & { teamAId: string; teamBId: string } =>
+          m.teamAId != null && m.teamBId != null,
+        );
+      const standings = calculateStandings(
+        teamNames,
+        matchesOfGroup.map((m) => ({
+          teamAId: m.teamAId,
+          teamBId: m.teamBId,
+          status: m.status as 'CONFIRMED' | 'ADMIN_RESOLVED' | 'EXPIRED_UNPLAYED',
+          winnerTeamId: m.winnerTeamId,
+          sets: m.confirmedResult?.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })) ?? [],
+        })),
+      );
+      if (standings.length < K) {
+        throw new DomainError(
+          'NOT_ENOUGH_TEAMS_IN_GROUP',
+          `El grupo ${group.name} tiene menos de ${K} parejas. Imposible escoger ${K} clasificados.`,
+        );
+      }
+      topByGroup.push(standings.slice(0, K).map((s) => s.teamId));
+    }
+
+    // Ordena qualifiers: nivel de clasificación (0=1º, 1=2º…) × groupIndex.
+    // Con linear pairing del bracket (slot i vs slot N-1-i), 1º grupo A
+    // termina cruzándose contra el último 2º (de otro grupo).
+    const qualifiers: string[] = [];
+    for (let k = 0; k < K; k++) {
+      for (let g = 0; g < topByGroup.length; g++) {
+        qualifiers.push(topByGroup[g]![k]!);
+      }
+    }
+
+    const { generateGoldBracket, generateSilverBracket } = await import('./tournament-generator');
+    const { matches: goldDescriptors, round0LoserSources } = generateGoldBracket(qualifiers);
+    const silverDescriptors = generateSilverBracket(round0LoserSources);
+
+    // Persistencia topológica: GOLD R0 → GOLD R1+ → SILVER R0 → SILVER R1+
+    const allDescriptors = [...goldDescriptors, ...silverDescriptors].sort((a, b) => {
+      if (a.side !== b.side) return a.side === 'GOLD' ? -1 : 1;
+      if (a.round !== b.round) return a.round - b.round;
+      return a.position - b.position;
+    });
+
+    await prisma.$transaction(async (tx) => {
+      const keyToId = new Map<string, string>();
+      const keyOf = (side: string, round: number, position: number) =>
+        `${side}:${round}:${position}`;
+
+      for (const d of allDescriptors) {
+        const sourceAId = d.sourceA
+          ? (keyToId.get(keyOf(d.sourceA.side, d.sourceA.round, d.sourceA.position)) ?? null)
+          : null;
+        const sourceBId = d.sourceB
+          ? (keyToId.get(keyOf(d.sourceB.side, d.sourceB.round, d.sourceB.position)) ?? null)
+          : null;
+        const m = await tx.match.create({
+          data: {
+            leagueId: league.id,
+            teamAId: d.teamAId,
+            teamBId: d.teamBId,
+            deadlineAt: league.endDate,
+            bracketSide: d.side,
+            bracketRound: d.round,
+            bracketPosition: d.position,
+            sourceMatchAId: sourceAId,
+            sourceMatchBId: sourceBId,
+          },
+        });
+        keyToId.set(keyOf(d.side, d.round, d.position), m.id);
+      }
+    });
+  },
+
   async deleteLeague(leagueId: string, requestingUserId: string): Promise<void> {
     const league = await prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');

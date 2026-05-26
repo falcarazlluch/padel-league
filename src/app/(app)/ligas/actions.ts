@@ -144,6 +144,20 @@ export async function activateLeagueAction(leagueId: string): Promise<{ error?: 
   return {};
 }
 
+export async function materializeTournamentBracketAction(
+  leagueId: string,
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await LeagueService.materializeTournamentBracket(leagueId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas', 'layout');
+  return {};
+}
+
 const updateLeagueSchema = z.object({
   leagueId: z.string().cuid(),
   slug: z.string().min(1),

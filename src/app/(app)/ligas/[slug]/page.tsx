@@ -25,6 +25,7 @@ import {
 } from '@/modules/leagues/application/americana-standings';
 import { BracketTree, type BracketCell } from './_components/bracket-tree';
 import { GroupStandings, type GroupView } from './_components/group-standings';
+import { MaterializeBracketButton } from './_components/materialize-bracket-button';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -409,6 +410,34 @@ export default async function LigaDetailPage({
     }
   }
 
+  // ¿Puede el admin generar el bracket ahora? Solo si torneo con fase de
+  // grupos, status ACTIVE, no hay bracket todavía y todos los matches de
+  // grupo están finalizados.
+  const groupPhasePending =
+    isTournament && league.hasGroupPhase && bracketCells.length === 0
+      ? await prisma.match.count({
+          where: {
+            leagueId: league.id,
+            competitionGroupId: { not: null },
+            status: { notIn: ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED'] },
+          },
+        })
+      : 0;
+  const groupMatchesTotal =
+    isTournament && league.hasGroupPhase && bracketCells.length === 0
+      ? await prisma.match.count({
+          where: { leagueId: league.id, competitionGroupId: { not: null } },
+        })
+      : 0;
+  const canMaterializeBracket =
+    isTournament &&
+    league.hasGroupPhase &&
+    league.status === 'ACTIVE' &&
+    bracketCells.length === 0 &&
+    groupMatchesTotal > 0 &&
+    groupPhasePending === 0 &&
+    isLeagueAdmin;
+
   const cronicas = tab === 'cronicas'
     ? await MatchCommentaryService.listForLeague(league.id, 20)
     : [];
@@ -618,14 +647,17 @@ export default async function LigaDetailPage({
               />
             ) : isTournament ? (
               <div className="space-y-8">
+                {canMaterializeBracket && <MaterializeBracketButton leagueId={league.id} />}
                 {bracketCells.some((c) => c.side === 'GOLD') ? (
                   <div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Bracket Oro</p>
                     <BracketTree cells={bracketCells} side="GOLD" leagueSlug={slug} />
                   </div>
-                ) : (
+                ) : canMaterializeBracket ? null : (
                   <p className="text-sm text-slate-400">
-                    El bracket se materializará cuando se cierre la fase de grupos.
+                    {league.hasGroupPhase
+                      ? 'El bracket se generará cuando termine la fase de grupos.'
+                      : 'Aún no hay partidos en el bracket.'}
                   </p>
                 )}
                 {bracketCells.some((c) => c.side === 'SILVER') && (
