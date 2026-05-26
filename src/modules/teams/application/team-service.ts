@@ -534,4 +534,103 @@ export const TeamService = {
       });
     });
   },
+
+  // ─── Admin (SUPER_ADMIN) ────────────────────────────────────────────────
+  // Listado completo de equipos para `/admin/equipos`. Incluye contadores de
+  // miembros, ligas activas y partidos para que el admin pueda valorar si un
+  // equipo "viejo y vacío" se puede borrar limpiamente.
+  async adminList(
+    requestingUserId: string,
+    search: string,
+  ): Promise<
+    Array<{
+      id: string;
+      name: string;
+      category: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+      logoUrl: string | null;
+      createdAt: Date;
+      memberCount: number;
+      activeRegistrationsCount: number;
+      matchCount: number;
+      memberNames: string[];
+    }>
+  > {
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    if (requester?.role !== 'SUPER_ADMIN') {
+      throw new AuthorizationError('FORBIDDEN', 'Solo Super Admin.');
+    }
+
+    const trimmed = search.trim();
+    const teams = await prisma.team.findMany({
+      where: trimmed.length > 0
+        ? { name: { contains: trimmed, mode: 'insensitive' } }
+        : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: {
+        _count: {
+          select: {
+            members: true,
+            homeMatches: true,
+            awayMatches: true,
+          },
+        },
+        members: { select: { user: { select: { name: true } } } },
+        registrations: {
+          where: { withdrawnAt: null },
+          select: { id: true },
+        },
+      },
+    });
+
+    return teams.map((t) => ({
+      id: t.id,
+      name: t.name,
+      category: t.category,
+      logoUrl: t.logoUrl,
+      createdAt: t.createdAt,
+      memberCount: t._count.members,
+      activeRegistrationsCount: t.registrations.length,
+      matchCount: t._count.homeMatches + t._count.awayMatches,
+      memberNames: t.members.map((m) => m.user.name),
+    }));
+  },
+
+  // Borrado admin de un equipo. Bloquea si tiene matches (FK Restrict de
+  // Match.teamAId/teamBId) — el admin debe borrar las ligas asociadas
+  // primero, lo cual cascade-elimina los matches y libera el equipo.
+  async adminDelete(teamId: string, requestingUserId: string): Promise<void> {
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    if (requester?.role !== 'SUPER_ADMIN') {
+      throw new AuthorizationError('FORBIDDEN', 'Solo Super Admin.');
+    }
+
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { homeMatches: true, awayMatches: true } },
+      },
+    });
+    if (!team) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
+
+    const totalMatches = team._count.homeMatches + team._count.awayMatches;
+    if (totalMatches > 0) {
+      throw new DomainError(
+        'TEAM_HAS_MATCHES',
+        `No se puede eliminar "${team.name}": tiene ${totalMatches} partido(s) asociado(s). Borra primero las competiciones donde participe.`,
+      );
+    }
+
+    // Cascade limpia: TeamMember, TeamInvitation, LeagueRegistration y
+    // TeamCategoryChangeProposal tienen onDelete: Cascade hacia Team.
+    await prisma.team.delete({ where: { id: teamId } });
+  },
 } as const;

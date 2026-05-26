@@ -15,6 +15,7 @@ import {
   COMPETITION_TYPE_LABEL,
   COMPETITION_TYPE_BADGE_CLASS,
 } from '@/modules/leagues/presentation/competition-type';
+import { LeagueCardActions } from './_components/league-card-actions';
 
 function readNow(): number {
   return Date.now();
@@ -85,6 +86,7 @@ export default async function LigasPage({
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   const currentUser = token ? await getValidatedSession(token).catch(() => null) : null;
   const canCreateLeague = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'LEAGUE_ADMIN';
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
   // Build the where clause
   const where: Prisma.LeagueWhereInput = {};
@@ -244,13 +246,16 @@ export default async function LigasPage({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {leaguesWithDisplay.map((league) => (
-            <Link
-              key={league.id}
-              href={`/ligas/${league.slug}` as Route}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md transition-shadow shadow-sm"
-            >
+            <div key={league.id} className="relative">
+              {isSuperAdmin && (
+                <LeagueCardActions leagueId={league.id} leagueName={league.name} />
+              )}
+              <Link
+                href={`/ligas/${league.slug}` as Route}
+                className="block bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md transition-shadow shadow-sm"
+              >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <h2 className="font-semibold text-brand-navy leading-tight">{league.name}</h2>
+                <h2 className={`font-semibold text-brand-navy leading-tight ${isSuperAdmin ? 'pr-8' : ''}`}>{league.name}</h2>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${DISPLAY_STATUS_CLASS[league.displayStatus]}`}>
                   {DISPLAY_STATUS_LABEL[league.displayStatus]}
                 </span>
@@ -274,7 +279,8 @@ export default async function LigasPage({
                 Inscripción: {league.registrationStart.toLocaleDateString('es-ES')} –{' '}
                 {league.registrationEnd.toLocaleDateString('es-ES')}
               </p>
-            </Link>
+              </Link>
+            </div>
           ))}
         </div>
       )}

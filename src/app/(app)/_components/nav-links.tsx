@@ -53,6 +53,13 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             Usuarios
           </Link>
           <Link
+            href={'/admin/equipos' as Route}
+            className={linkClass(pathname.startsWith('/admin/equipos'))}
+            aria-current={pathname.startsWith('/admin/equipos') ? 'page' : undefined}
+          >
+            Equipos
+          </Link>
+          <Link
             href={'/admin/codigos-registro' as Route}
             className={linkClass(pathname.startsWith('/admin/codigos-registro'))}
             aria-current={pathname.startsWith('/admin/codigos-registro') ? 'page' : undefined}
