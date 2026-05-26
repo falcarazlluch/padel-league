@@ -23,10 +23,12 @@ export function BracketTree({
   cells,
   side,
   leagueSlug,
+  disableLinks = false,
 }: {
   cells: BracketCell[];
   side: BracketSide;
   leagueSlug: string;
+  disableLinks?: boolean;
 }) {
   const filtered = cells.filter((c) => c.side === side);
   if (filtered.length === 0) return null;
@@ -61,7 +63,7 @@ export function BracketTree({
                 {roundLabel(r, rounds.length)}
               </p>
               {list.map((c) => (
-                <BracketCellView key={c.id} cell={c} leagueSlug={leagueSlug} />
+                <BracketCellView key={c.id} cell={c} leagueSlug={leagueSlug} disableLinks={disableLinks} />
               ))}
             </div>
           );
@@ -71,17 +73,35 @@ export function BracketTree({
   );
 }
 
-function BracketCellView({ cell, leagueSlug }: { cell: BracketCell; leagueSlug: string }) {
+function BracketCellView({
+  cell,
+  leagueSlug,
+  disableLinks,
+}: {
+  cell: BracketCell;
+  leagueSlug: string;
+  disableLinks: boolean;
+}) {
   const aWins = cell.winnerSide === 'A';
   const bWins = cell.winnerSide === 'B';
+  const body = (
+    <>
+      <SideRow name={cell.teamAName ?? 'Por determinar'} sets={cell.score?.setsA} highlight={aWins} />
+      <div className="border-t border-slate-100" />
+      <SideRow name={cell.teamBName ?? 'Por determinar'} sets={cell.score?.setsB} highlight={bWins} />
+    </>
+  );
+  if (disableLinks) {
+    return (
+      <div className="block bg-white rounded-xl border border-slate-200/80 shadow-sm">{body}</div>
+    );
+  }
   return (
     <Link
       href={`/ligas/${leagueSlug}/partidos/${cell.id}` as Route}
       className="block bg-white rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow"
     >
-      <SideRow name={cell.teamAName ?? 'Por determinar'} sets={cell.score?.setsA} highlight={aWins} />
-      <div className="border-t border-slate-100" />
-      <SideRow name={cell.teamBName ?? 'Por determinar'} sets={cell.score?.setsB} highlight={bWins} />
+      {body}
     </Link>
   );
 }

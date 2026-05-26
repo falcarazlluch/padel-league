@@ -25,10 +25,12 @@ export function AmericanaRoundsGrid({
   matches,
   courts,
   leagueSlug,
+  disableLinks = false,
 }: {
   matches: AmericanaMatchView[];
   courts: number;
   leagueSlug: string;
+  disableLinks?: boolean;
 }) {
   if (matches.length === 0) {
     return <p className="text-sm text-slate-400">Aún no hay rondas generadas.</p>;
@@ -59,7 +61,7 @@ export function AmericanaRoundsGrid({
               }}
             >
               {matchesThisRound.map((m) => (
-                <RoundCell key={m.id} match={m} leagueSlug={leagueSlug} />
+                <RoundCell key={m.id} match={m} leagueSlug={leagueSlug} disableLinks={disableLinks} />
               ))}
             </div>
           </div>
@@ -69,17 +71,22 @@ export function AmericanaRoundsGrid({
   );
 }
 
-function RoundCell({ match, leagueSlug }: { match: AmericanaMatchView; leagueSlug: string }) {
+function RoundCell({
+  match,
+  leagueSlug,
+  disableLinks,
+}: {
+  match: AmericanaMatchView;
+  leagueSlug: string;
+  disableLinks: boolean;
+}) {
   const confirmed = match.status === 'CONFIRMED' || match.status === 'ADMIN_RESOLVED';
   const pending = match.status === 'PENDING_VALIDATION';
   const aWins = match.winnerSide === 'A';
   const bWins = match.winnerSide === 'B';
 
-  return (
-    <Link
-      href={`/ligas/${leagueSlug}/partidos/${match.id}` as Route}
-      className="block bg-white rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-3"
-    >
+  const body = (
+    <>
       <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
         <span>Pista {match.court}</span>
         {confirmed && <span className="text-emerald-600 font-semibold">Confirmado</span>}
@@ -89,6 +96,17 @@ function RoundCell({ match, leagueSlug }: { match: AmericanaMatchView; leagueSlu
         <SideRow label={match.sideALabel} games={match.score?.gamesA} highlight={aWins} />
         <SideRow label={match.sideBLabel} games={match.score?.gamesB} highlight={bWins} />
       </div>
+    </>
+  );
+  if (disableLinks) {
+    return <div className="block bg-white rounded-xl border border-slate-200/80 shadow-sm p-3">{body}</div>;
+  }
+  return (
+    <Link
+      href={`/ligas/${leagueSlug}/partidos/${match.id}` as Route}
+      className="block bg-white rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow p-3"
+    >
+      {body}
     </Link>
   );
 }

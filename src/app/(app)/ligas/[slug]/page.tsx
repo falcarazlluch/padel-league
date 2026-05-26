@@ -27,6 +27,7 @@ import { BracketTree, type BracketCell } from './_components/bracket-tree';
 import { GroupStandings, type GroupView } from './_components/group-standings';
 import { MaterializeBracketButton } from './_components/materialize-bracket-button';
 import { ManualSeedingPanel } from './_components/manual-seeding-panel';
+import { SharePublicLink } from './_components/share-public-link';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -513,6 +514,7 @@ export default async function LigaDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {league.status !== 'DRAFT' && <SharePublicLink slug={slug} />}
           {isLeagueAdmin && (
             <Link
               href={`/ligas/${slug}/editar` as Route}
