@@ -1,4 +1,6 @@
 import { cookies } from 'next/headers';
+import Link from 'next/link';
+import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
@@ -28,12 +30,18 @@ export default async function PerfilPage() {
         <h1 className="text-2xl font-extrabold text-brand-navy">Perfil</h1>
       </div>
 
-      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+      <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-3">
         <AvatarUploader
           userId={user.id}
           userName={user.name}
           currentAvatarUrl={user.avatarUrl ?? null}
         />
+        <Link
+          href={`/jugadores/${user.id}` as Route}
+          className="block text-center text-sm px-3 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+        >
+          Ver mi perfil público y estadísticas →
+        </Link>
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">

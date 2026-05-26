@@ -90,9 +90,14 @@ export default async function EquipoDetailPage({
         </div>
         <ul className="space-y-2">
           {team.members.map((m) => (
-            <li key={m.userId} className="flex items-center gap-2 text-sm text-slate-700">
-              <UserAvatar url={m.avatarUrl} name={m.name} size="sm" />
-              <span className="font-medium">{m.name}</span>
+            <li key={m.userId}>
+              <Link
+                href={`/jugadores/${m.userId}` as Route}
+                className="flex items-center gap-2 text-sm text-slate-700 hover:underline"
+              >
+                <UserAvatar url={m.avatarUrl} name={m.name} size="sm" />
+                <span className="font-medium">{m.name}</span>
+              </Link>
             </li>
           ))}
         </ul>
