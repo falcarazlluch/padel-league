@@ -215,6 +215,39 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
   return {};
 }
 
+// ─── Walkover / no-show — admin action ────────────────────────────────
+const walkoverSchema = z.object({
+  matchId: z.string().cuid(),
+  winnerTeamId: z.string().cuid(),
+  reason: z.string().min(5).max(500),
+});
+
+export async function adminForfeitMatchAction(
+  _prev: { error?: string; success?: true } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = walkoverSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await MatchService.adminForfeitMatch(
+      parsed.data.matchId,
+      parsed.data.winnerTeamId,
+      parsed.data.reason,
+      user.id,
+    );
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/dashboard');
+  revalidatePath('/partidos');
+  revalidatePath('/resultados');
+  revalidatePath('/ligas', 'layout');
+  return { success: true };
+}
+
 // ─── Americana ROTATING_INDIVIDUAL — actions ───────────────────────────
 const submitAmericanaSchema = z.object({
   matchId: z.string().cuid(),

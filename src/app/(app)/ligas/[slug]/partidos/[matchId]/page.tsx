@@ -18,6 +18,7 @@ import { CommentaryGenerateButton } from './_components/commentary-generate-butt
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 import { AmericanaResultForm } from './americana-result-form';
 import { SubstituteSlotPanel } from './substitute-slot-panel';
+import { WalkoverPanel } from './walkover-panel';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -472,6 +473,20 @@ export default async function MatchDetailPage({
           availableTeams={availableSubstituteTeams}
         />
       )}
+
+      {/* Admin only: walkover / no-show. Disponible mientras el match no esté
+          finalizado (CONFIRMED / ADMIN_RESOLVED / EXPIRED_UNPLAYED / CANCELLED). */}
+      {isLeagueAdmin &&
+        match.status !== 'CONFIRMED' &&
+        match.status !== 'ADMIN_RESOLVED' &&
+        match.status !== 'EXPIRED_UNPLAYED' &&
+        match.status !== 'CANCELLED' && (
+          <WalkoverPanel
+            matchId={match.id}
+            teamA={{ id: match.teamA.id, name: match.teamA.name }}
+            teamB={{ id: match.teamB.id, name: match.teamB.name }}
+          />
+        )}
     </div>
   );
 }
