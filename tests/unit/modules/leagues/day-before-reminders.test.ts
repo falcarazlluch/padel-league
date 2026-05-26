@@ -3,11 +3,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock prisma BEFORE importing the service.
 const findManyMock = vi.fn();
 const updateMock = vi.fn();
+const independentFindManyMock = vi.fn(() => Promise.resolve([]));
+const independentUpdateMock = vi.fn();
 vi.mock('@/shared/db/client', () => ({
   prisma: {
     match: {
       findMany: (...a: unknown[]) => findManyMock(...a),
       update: (...a: unknown[]) => updateMock(...a),
+    },
+    independentMatch: {
+      findMany: (...a: unknown[]) => independentFindManyMock(...a),
+      update: (...a: unknown[]) => independentUpdateMock(...a),
     },
   },
 }));
@@ -75,10 +81,47 @@ describe('runDayBeforeRemindersSweep', () => {
 
   it('does nothing when there are no eligible matches', async () => {
     findManyMock.mockResolvedValueOnce([]);
+    independentFindManyMock.mockResolvedValueOnce([]);
     const result = await runDayBeforeRemindersSweep();
     expect(result).toEqual({ sent: 0, matchesProcessed: 0 });
     expect(createManyMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
+    expect(independentUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it('also reminds participants of an independent match the day before', async () => {
+    findManyMock.mockResolvedValueOnce([]);
+    independentFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'im1',
+        name: 'Sábado entre amigos',
+        location: 'Real Pádel Avenida',
+        scheduledAt: new Date(),
+        organizerId: 'organizer-1',
+        participants: [{ userId: 'p1' }, { userId: 'p2' }, { userId: 'organizer-1' }],
+      },
+    ]);
+    const result = await runDayBeforeRemindersSweep();
+    // organizer + 2 distinct participants (Set dedupes organizer-1 appearing twice)
+    expect(result.sent).toBe(3);
+    expect(result.matchesProcessed).toBe(1);
+    const notifs = createManyMock.mock.calls[0]?.[0] as Array<{
+      userId: string;
+      type: string;
+      body: string;
+      metadata: { matchId: string; matchKind: string };
+    }>;
+    expect(notifs.map((n) => n.userId).sort()).toEqual(['organizer-1', 'p1', 'p2'].sort());
+    for (const n of notifs) {
+      expect(n.metadata.matchKind).toBe('independent');
+      expect(n.metadata.matchId).toBe('im1');
+      expect(n.body).toContain('Sábado entre amigos');
+      expect(n.body).toContain('Real Pádel Avenida');
+    }
+    expect(independentUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'im1' },
+      data: expect.objectContaining({ dayBeforeReminderSentAt: expect.any(Date) }),
+    });
   });
 
   it('uses a deterministic motivational line per matchId (no flapping)', async () => {

@@ -7,9 +7,13 @@ import { NotificationService } from '@/modules/notifications';
 // dentro de las próximas 18–30h (ventana amplia para tolerar caídas del cron
 // o cambios de hora puntuales) y que aún no han sido recordados.
 //
-// Solo aplica a competiciones LEAGUE y TOURNAMENT. Para Americana el evento
-// es de un día completo y el usuario ya conoce la fecha al inscribirse —
-// recordatorios por match no aportan ahí.
+// Cubre tres orígenes:
+//   - Match de competición LEAGUE o TOURNAMENT (dos equipos asignados).
+//   - IndependentMatch ("partido suelto") — recordatorio a todos los
+//     participants aceptados + organizador.
+//
+// La Americana queda fuera porque el evento es de un día completo y el
+// usuario ya conoce la fecha al inscribirse.
 
 const REMINDER_WINDOW_FROM_MS = 18 * 60 * 60 * 1000;
 const REMINDER_WINDOW_TO_MS = 30 * 60 * 60 * 1000;
@@ -74,7 +78,26 @@ export async function runDayBeforeRemindersSweep(): Promise<{ sent: number; matc
     take: 500, // ventana de seguridad — un día típico mueve <50 matches
   });
 
-  if (matches.length === 0) {
+  // Independent matches con fecha dentro de la ventana. Notificamos a los
+  // participants aceptados + organizador (que puede no estar en participants
+  // si solo gestiona). Deduplicamos por la columna del modelo.
+  const independentMatches = await prisma.independentMatch.findMany({
+    where: {
+      scheduledAt: { gte: from, lte: to },
+      dayBeforeReminderSentAt: null,
+      status: { in: ['OPEN', 'CONFIRMED'] },
+    },
+    include: {
+      organizer: { select: { id: true, name: true } },
+      participants: {
+        where: { status: 'ACCEPTED' },
+        select: { userId: true },
+      },
+    },
+    take: 500,
+  });
+
+  if (matches.length === 0 && independentMatches.length === 0) {
     return { sent: 0, matchesProcessed: 0 };
   }
 
@@ -109,5 +132,41 @@ export async function runDayBeforeRemindersSweep(): Promise<{ sent: number; matc
     }
   }
 
-  return { sent, matchesProcessed: matches.length };
+  for (const im of independentMatches) {
+    if (!im.scheduledAt) continue;
+    // Set evita avisar dos veces al organizador si también está en
+    // participants (caso típico cuando él mismo se apunta a su partido).
+    const userIds = new Set<string>();
+    userIds.add(im.organizerId);
+    for (const p of im.participants) userIds.add(p.userId);
+    if (userIds.size === 0) continue;
+
+    const time = formatMatchTime(im.scheduledAt);
+    const motivational = pickMotivational(im.id);
+    const where = im.location ? ` en ${im.location}` : '';
+    const body = `Mañana a las ${time} tienes partido "${im.name}"${where}. ${motivational}`;
+
+    try {
+      await NotificationService.createMany(
+        [...userIds].map((userId) => ({
+          userId,
+          type: 'DEADLINE_REMINDER' as const,
+          title: 'Mañana tienes partido',
+          body,
+          // matchKind=independent permite al payload-builder enviar el push
+          // a `/jugar/{id}` en lugar de la URL de competición.
+          metadata: { matchId: im.id, matchKind: 'independent', kind: 'day-before' },
+        })),
+      );
+      await prisma.independentMatch.update({
+        where: { id: im.id },
+        data: { dayBeforeReminderSentAt: new Date() },
+      });
+      sent += userIds.size;
+    } catch (err) {
+      log.warn({ err, independentMatchId: im.id }, 'day-before-reminder.independent.failed');
+    }
+  }
+
+  return { sent, matchesProcessed: matches.length + independentMatches.length };
 }

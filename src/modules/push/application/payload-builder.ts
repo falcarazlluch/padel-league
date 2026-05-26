@@ -62,9 +62,16 @@ async function resolveHref(n: Pick<Notification, 'type' | 'metadata'>): Promise<
   const matchKind = readString(meta, 'matchKind');
   const type = n.type;
 
+  // Atajo: si quien crea la notificación marca explícitamente que el match
+  // es independent (p.ej. el recordatorio día-antes para un partido suelto),
+  // saltamos directo a /jugar/{id} sin pasar por `slugFromMatchId` (que mira
+  // la tabla `matches`, no `independent_matches`, y devolvería /dashboard).
+  if (matchKind === 'independent' && matchId) {
+    return `/jugar/${matchId}`;
+  }
+
   if (type === 'MATCH_PHOTO_UPLOADED' || type === 'MATCH_PHOTO_COMMENT' || type === 'MATCH_PHOTO_MENTION') {
     if (!matchId) return '/dashboard';
-    if (matchKind === 'independent') return `/jugar/${matchId}`;
     if (matchKind === 'league') {
       const slug = leagueSlug ?? (await slugFromMatchId(matchId));
       return slug ? `/ligas/${slug}/partidos/${matchId}` : '/dashboard';
