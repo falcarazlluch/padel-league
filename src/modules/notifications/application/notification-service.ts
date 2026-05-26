@@ -103,13 +103,20 @@ function resolveHref(
 }
 
 export const NotificationService = {
-  async create(input: {
-    userId: string;
-    type: NotificationType;
-    title: string;
-    body: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<void> {
+  // `excludeActorId` filtra al usuario que dispara la acción para que no reciba
+  // su propia notificación (ej: tú confirmas un resultado → solo se notifica al
+  // resto, no a ti mismo). Sin él, la API es retro-compatible.
+  async create(
+    input: {
+      userId: string;
+      type: NotificationType;
+      title: string;
+      body: string;
+      metadata?: Record<string, unknown>;
+    },
+    options?: { excludeActorId?: string },
+  ): Promise<void> {
+    if (options?.excludeActorId && options.excludeActorId === input.userId) return;
     await prisma.notification.create({
       data: {
         userId: input.userId,
@@ -121,16 +128,22 @@ export const NotificationService = {
     });
   },
 
-  async createMany(inputs: Array<{
-    userId: string;
-    type: NotificationType;
-    title: string;
-    body: string;
-    metadata?: Record<string, unknown>;
-  }>): Promise<void> {
-    if (inputs.length === 0) return;
+  async createMany(
+    inputs: Array<{
+      userId: string;
+      type: NotificationType;
+      title: string;
+      body: string;
+      metadata?: Record<string, unknown>;
+    }>,
+    options?: { excludeActorId?: string },
+  ): Promise<void> {
+    const filtered = options?.excludeActorId
+      ? inputs.filter((n) => n.userId !== options.excludeActorId)
+      : inputs;
+    if (filtered.length === 0) return;
     await prisma.notification.createMany({
-      data: inputs.map((n) => ({
+      data: filtered.map((n) => ({
         userId: n.userId,
         type: n.type,
         title: n.title,

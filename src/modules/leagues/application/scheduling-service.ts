@@ -69,6 +69,7 @@ export const SchedulingService = {
         body: `${proposerTeamName} propone jugar el ${dateStr}`,
         metadata: { matchId },
       })),
+      { excludeActorId: proposingUserId },
     ).catch(() => undefined);
   },
 
@@ -138,6 +139,7 @@ export const SchedulingService = {
         body: `${acceptorTeamName} ha aceptado jugar el ${dateStr}`,
         metadata: { matchId },
       })),
+      { excludeActorId: acceptingUserId },
     ).catch(() => undefined);
   },
 
@@ -233,6 +235,7 @@ export const SchedulingService = {
           body: `Te proponen extender el plazo de un partido hasta el ${newDeadlineAt.toLocaleDateString('es-ES')}.`,
           metadata: { matchId },
         })),
+        { excludeActorId: userId },
       ).catch(() => undefined);
     }
   },
@@ -286,13 +289,16 @@ export const SchedulingService = {
     });
 
     // Notify proposer (fire-and-forget)
-    NotificationService.create({
-      userId: proposal.proposedByUserId,
-      type: 'EXTENSION_ACCEPTED',
-      title: 'Tu propuesta de extensión fue aceptada',
-      body: `El nuevo plazo es el ${proposal.proposedDeadlineAt.toLocaleDateString('es-ES')}.`,
-      metadata: { matchId: proposal.matchId },
-    }).catch(() => undefined);
+    NotificationService.create(
+      {
+        userId: proposal.proposedByUserId,
+        type: 'EXTENSION_ACCEPTED',
+        title: 'Tu propuesta de extensión fue aceptada',
+        body: `El nuevo plazo es el ${proposal.proposedDeadlineAt.toLocaleDateString('es-ES')}.`,
+        metadata: { matchId: proposal.matchId },
+      },
+      { excludeActorId: userId },
+    ).catch(() => undefined);
   },
 
   async rejectDeadlineExtension(proposalId: string, userId: string): Promise<void> {
@@ -330,12 +336,15 @@ export const SchedulingService = {
       data: { status: 'REJECTED', respondedByUserId: userId, respondedAt: new Date() },
     });
 
-    NotificationService.create({
-      userId: proposal.proposedByUserId,
-      type: 'EXTENSION_REJECTED',
-      title: 'Tu propuesta de extensión fue rechazada',
-      body: 'El equipo rival no ha aceptado la nueva fecha.',
-      metadata: { matchId: proposal.matchId },
-    }).catch(() => undefined);
+    NotificationService.create(
+      {
+        userId: proposal.proposedByUserId,
+        type: 'EXTENSION_REJECTED',
+        title: 'Tu propuesta de extensión fue rechazada',
+        body: 'El equipo rival no ha aceptado la nueva fecha.',
+        metadata: { matchId: proposal.matchId },
+      },
+      { excludeActorId: userId },
+    ).catch(() => undefined);
   },
 } as const;

@@ -423,13 +423,16 @@ export const IndependentMatchService = {
         }
       });
 
-      NotificationService.create({
-        userId: match.organizerId,
-        type: 'INDEPENDENT_MATCH_CONFIRMED',
-        title: 'Equipo aceptó tu invitación',
-        body: `${invitation.invitedTeam.name} se unió a "${match.name}".`,
-        metadata: { matchId: match.id },
-      }).catch(() => undefined);
+      NotificationService.create(
+        {
+          userId: match.organizerId,
+          type: 'INDEPENDENT_MATCH_CONFIRMED',
+          title: 'Equipo aceptó tu invitación',
+          body: `${invitation.invitedTeam.name} se unió a "${match.name}".`,
+          metadata: { matchId: match.id },
+        },
+        { excludeActorId: userId },
+      ).catch(() => undefined);
 
       return match.id;
     }
@@ -474,13 +477,16 @@ export const IndependentMatchService = {
       }
     });
 
-    NotificationService.create({
-      userId: match.organizerId,
-      type: 'INDEPENDENT_MATCH_CONFIRMED',
-      title: 'Alguien aceptó tu invitación',
-      body: `Un jugador se unió a "${match.name}".`,
-      metadata: { matchId: match.id },
-    }).catch(() => undefined);
+    NotificationService.create(
+      {
+        userId: match.organizerId,
+        type: 'INDEPENDENT_MATCH_CONFIRMED',
+        title: 'Alguien aceptó tu invitación',
+        body: `Un jugador se unió a "${match.name}".`,
+        metadata: { matchId: match.id },
+      },
+      { excludeActorId: userId },
+    ).catch(() => undefined);
 
     return match.id;
   },
@@ -518,13 +524,16 @@ export const IndependentMatchService = {
       }
     });
 
-    NotificationService.create({
-      userId: match.organizerId,
-      type: 'INDEPENDENT_MATCH_CONFIRMED',
-      title: 'Alguien se unió a tu partido',
-      body: `Un jugador se unió a "${match.name}".`,
-      metadata: { matchId: match.id },
-    }).catch(() => undefined);
+    NotificationService.create(
+      {
+        userId: match.organizerId,
+        type: 'INDEPENDENT_MATCH_CONFIRMED',
+        title: 'Alguien se unió a tu partido',
+        body: `Un jugador se unió a "${match.name}".`,
+        metadata: { matchId: match.id },
+      },
+      { excludeActorId: userId },
+    ).catch(() => undefined);
   },
 
   async cancelMatch(matchId: string, organizerId: string): Promise<void> {
@@ -564,6 +573,7 @@ export const IndependentMatchService = {
         body: `${match.organizer.name} ha cancelado el partido "${match.name}".`,
         metadata: { matchId },
       })),
+      { excludeActorId: organizerId },
     ).catch(() => undefined);
 
     void notifyParticipantsByEmail(others, {
@@ -650,6 +660,7 @@ export const IndependentMatchService = {
         body: preview,
         metadata: { matchId },
       })),
+      { excludeActorId: userId },
     ).catch(() => undefined);
   },
 
@@ -714,6 +725,7 @@ export const IndependentMatchService = {
         body,
         metadata: { matchId },
       })),
+      { excludeActorId: organizerId },
     ).catch(() => undefined);
 
     void notifyParticipantsByEmail(others, {
@@ -777,6 +789,7 @@ export const IndependentMatchService = {
         body,
         metadata: { matchId },
       })),
+      { excludeActorId: userId },
     ).catch(() => undefined);
 
     void notifyParticipantsByEmail(others, {

@@ -136,6 +136,7 @@ export async function submitResultAction(
           body: `${submitterTeamName} ha enviado el resultado${scoreFragment}. Tienes 7 días para confirmar o disputar.`,
           metadata: { matchId },
         })),
+        { excludeActorId: user.id },
       );
 
       const q = queue();
@@ -190,6 +191,7 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
           body: `Resultado confirmado${scoreFragment}. ${info.winnerTeam ? `Ganador: ${info.winnerTeam.name}.` : 'Partido empatado.'}`,
           metadata: { matchId },
         })),
+        { excludeActorId: user.id },
       );
 
       const q = queue();
@@ -356,6 +358,7 @@ export async function disputeResultAction(
           body: 'El equipo rival ha disputado el resultado que enviaste. Un administrador revisará el caso.',
           metadata: { matchId: parsed.data.matchId },
         })),
+        { excludeActorId: user.id },
       );
     }
   } catch (err) {

@@ -113,13 +113,16 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
       if (existingUser) {
         const when = formatScheduledAt(match?.scheduledAt);
         const whenFragment = when ? ` para el ${when}` : '';
-        await NotificationService.create({
-          userId: existingUser.id,
-          type: 'INDEPENDENT_MATCH_INVITE',
-          title: 'Invitación a partido',
-          body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}"${whenFragment}.`,
-          metadata: { matchId: parsed.data.matchId },
-        });
+        await NotificationService.create(
+          {
+            userId: existingUser.id,
+            type: 'INDEPENDENT_MATCH_INVITE',
+            title: 'Invitación a partido',
+            body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}"${whenFragment}.`,
+            metadata: { matchId: parsed.data.matchId },
+          },
+          { excludeActorId: user.id },
+        );
       }
     }
 
@@ -171,13 +174,16 @@ export async function inviteEntityToMatchAction(
         });
         const when = formatScheduledAt(match?.scheduledAt);
         const whenFragment = when ? ` para el ${when}` : '';
-        await NotificationService.create({
-          userId: parsed.data.invitedUserId,
-          type: 'INDEPENDENT_MATCH_INVITE',
-          title: 'Invitación a partido',
-          body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}"${whenFragment}.`,
-          metadata: { matchId: parsed.data.matchId },
-        });
+        await NotificationService.create(
+          {
+            userId: parsed.data.invitedUserId,
+            type: 'INDEPENDENT_MATCH_INVITE',
+            title: 'Invitación a partido',
+            body: `${match?.organizer.name ?? 'Alguien'} te invita a "${match?.name ?? 'un partido'}"${whenFragment}.`,
+            metadata: { matchId: parsed.data.matchId },
+          },
+          { excludeActorId: user.id },
+        );
       }
     } else if (parsed.data.invitedTeamId) {
       const { invitationId, isNew } = await IndependentMatchService.inviteTeam(
@@ -186,7 +192,7 @@ export async function inviteEntityToMatchAction(
         parsed.data.invitedTeamId,
       );
       if (isNew) {
-        await sendTeamInviteNotifications(parsed.data.matchId, parsed.data.invitedTeamId, invitationId);
+        await sendTeamInviteNotifications(parsed.data.matchId, parsed.data.invitedTeamId, invitationId, user.id);
       }
     }
 
@@ -299,7 +305,12 @@ async function sendUserInviteEmail(matchId: string, invitedUserId: string, invit
   });
 }
 
-async function sendTeamInviteNotifications(matchId: string, invitedTeamId: string, invitationId: string): Promise<void> {
+async function sendTeamInviteNotifications(
+  matchId: string,
+  invitedTeamId: string,
+  invitationId: string,
+  inviterUserId?: string,
+): Promise<void> {
   const team = await prisma.team.findUnique({
     where: { id: invitedTeamId },
     include: { members: { include: { user: { select: { id: true, email: true } } } } },
@@ -329,6 +340,7 @@ async function sendTeamInviteNotifications(matchId: string, invitedTeamId: strin
       body: `${match?.organizer.name ?? 'Alguien'} ha invitado a tu equipo "${team.name}" a "${match?.name ?? 'un partido'}"${whenFragment}.`,
       metadata: { matchId },
     })),
+    inviterUserId ? { excludeActorId: inviterUserId } : undefined,
   );
 
   // Email per team member with an email.

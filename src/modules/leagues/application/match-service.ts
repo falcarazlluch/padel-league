@@ -254,8 +254,9 @@ export const MatchService = {
     // Tournament bracket: si este match era de bracket, rellenar el slot
     // del siguiente match. Lo hacemos fuera de la TX para no anidar — los
     // downstream son matches independientes y un fallo aquí no debe revertir
-    // la confirmación del resultado.
-    await MatchService.propagateBracketWinner(matchId).catch((err) =>
+    // la confirmación del resultado. Pasamos el confirmer como actor para
+    // que no reciba el push "te toca jugar" si quedó en el siguiente match.
+    await MatchService.propagateBracketWinner(matchId, confirmingUserId).catch((err) =>
       logger().warn({ err, matchId }, 'bracket.propagate.failed'),
     );
 
@@ -466,8 +467,10 @@ export const MatchService = {
           .then(() => queue().publish('generate-match-commentary', { matchId: match.id, type: 'RECAP' }))
           .catch((err) => logger().warn({ err, matchId: match.id }, 'commentary.enqueue.failed'));
       }
-      // Bracket: si el match era de torneo, propagar al siguiente.
-      await MatchService.propagateBracketWinner(match.id).catch((err) =>
+      // Bracket: si el match era de torneo, propagar al siguiente. El admin
+      // que resolvió la disputa podría ser jugador del siguiente match;
+      // pasamos su id para que no reciba el push "te toca jugar".
+      await MatchService.propagateBracketWinner(match.id, adminUserId).catch((err) =>
         logger().warn({ err, matchId: match.id }, 'dispute.bracket.propagate.failed'),
       );
     }
@@ -588,10 +591,13 @@ export const MatchService = {
         body: `El admin ha decidido el partido sin jugar. Ganador: ${winningTeam?.name ?? '?'}${losingTeam ? ` (sobre ${losingTeam.name})` : ''}.`,
         metadata: { matchId, reason },
       })),
+      { excludeActorId: requestingUserId },
     ).catch(() => undefined);
 
-    // Si es match de bracket, propagar al siguiente.
-    await MatchService.propagateBracketWinner(matchId).catch((err) =>
+    // Si es match de bracket, propagar al siguiente. El admin que ejecutó
+    // el walkover puede ser jugador en el siguiente partido del bracket;
+    // pasamos su id para que la notificación "te toca jugar" no le llegue.
+    await MatchService.propagateBracketWinner(matchId, requestingUserId).catch((err) =>
       logger().warn({ err, matchId }, 'walkover.bracket.propagate.failed'),
     );
   },
@@ -602,7 +608,7 @@ export const MatchService = {
   // matches GOLD: el ganador avanza al siguiente match GOLD; el perdedor
   // entra al match SILVER que lo referencia (si existe). Para SILVER: solo
   // se propaga el ganador.
-  async propagateBracketWinner(matchId: string): Promise<void> {
+  async propagateBracketWinner(matchId: string, actorUserId?: string): Promise<void> {
     const m = await prisma.match.findUnique({
       where: { id: matchId },
       select: {
@@ -642,7 +648,7 @@ export const MatchService = {
       // rellenos, los 4 jugadores deben recibir un push "te toca jugar". Solo
       // notificamos cuando nuestra escritura ha completado el match, no si
       // la otra fuente todavía no se ha resuelto.
-      await maybeNotifyBracketMatchReady(d.id);
+      await maybeNotifyBracketMatchReady(d.id, actorUserId);
     }
   },
 
@@ -858,7 +864,10 @@ export const MatchService = {
 // alguna razón, leemos `_notifiedReadyAt` en metadata futura si se hiciese
 // necesario. Para MVP confiamos en que `propagateBracketWinner` solo se
 // llama una vez por confirmación.
-async function maybeNotifyBracketMatchReady(matchId: string): Promise<void> {
+async function maybeNotifyBracketMatchReady(
+  matchId: string,
+  actorUserId?: string,
+): Promise<void> {
   const m = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -892,5 +901,6 @@ async function maybeNotifyBracketMatchReady(matchId: string): Promise<void> {
       body: `${m.teamA!.name} vs ${m.teamB!.name} en ${m.league.name}. ¡Proponed fecha cuando podáis!`,
       metadata: { matchId: m.id, leagueId: m.leagueId, leagueSlug: m.league.slug },
     })),
+    actorUserId ? { excludeActorId: actorUserId } : undefined,
   ).catch(() => undefined);
 }

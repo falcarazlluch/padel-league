@@ -159,13 +159,17 @@ export const LeagueRegistrationService = {
         select: { name: true },
       });
       await tx.notification.createMany({
-        data: team.members.map((m) => ({
-          userId: m.userId,
-          type: 'LEAGUE_REGISTRATION_ADDED' as const,
-          title: 'Equipo apuntado a liga',
-          body: `${actor?.name ?? 'Un compañero'} ha apuntado al equipo "${team.name}" a la liga "${league.name}".`,
-          metadata: { teamId: team.id, leagueId: league.id, registrationId: reg.id },
-        })),
+        // El actor (quien apunta al equipo) no necesita un push de su propia
+        // acción — solo el compañero de equipo que no realizó el alta.
+        data: team.members
+          .filter((m) => m.userId !== input.userId)
+          .map((m) => ({
+            userId: m.userId,
+            type: 'LEAGUE_REGISTRATION_ADDED' as const,
+            title: 'Equipo apuntado a liga',
+            body: `${actor?.name ?? 'Un compañero'} ha apuntado al equipo "${team.name}" a la liga "${league.name}".`,
+            metadata: { teamId: team.id, leagueId: league.id, registrationId: reg.id },
+          })),
       });
       return reg;
     });
@@ -211,13 +215,16 @@ export const LeagueRegistrationService = {
         select: { name: true },
       });
       await tx.notification.createMany({
-        data: team.members.map((m) => ({
-          userId: m.userId,
-          type: 'LEAGUE_REGISTRATION_REMOVED' as const,
-          title: 'Equipo dado de baja',
-          body: `${actor?.name ?? 'Un compañero'} ha dado de baja al equipo "${team.name}" de la liga "${league.name}".`,
-          metadata: { teamId: team.id, leagueId: league.id, registrationId: registration.id },
-        })),
+        // El actor que se da de baja no necesita push de su propia acción.
+        data: team.members
+          .filter((m) => m.userId !== input.userId)
+          .map((m) => ({
+            userId: m.userId,
+            type: 'LEAGUE_REGISTRATION_REMOVED' as const,
+            title: 'Equipo dado de baja',
+            body: `${actor?.name ?? 'Un compañero'} ha dado de baja al equipo "${team.name}" de la liga "${league.name}".`,
+            metadata: { teamId: team.id, leagueId: league.id, registrationId: registration.id },
+          })),
       });
     });
   },
