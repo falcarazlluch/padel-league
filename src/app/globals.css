@@ -15,3 +15,17 @@
 *, *::before, *::after {
   box-sizing: border-box;
 }
+
+/* iOS Safari hace zoom automático en inputs con font-size < 16px y obliga al
+   usuario a hacer pinch-out para ver la pantalla completa. Como nuestros
+   inputs usan Tailwind text-sm (14px), forzamos 16px en viewports móviles
+   reales (touch + no hover). Mantenemos la apariencia visual con CSS zoom
+   inverso ligero solo en iOS — pero la opción más segura y compatible es
+   simplemente subir el font-size del input nativo a 16px en móvil. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
