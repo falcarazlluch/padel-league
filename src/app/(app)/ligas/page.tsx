@@ -187,7 +187,10 @@ export default async function LigasPage({
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        {/* En móvil apilamos los dos date inputs (los date pickers nativos son
+            anchos y se solapaban con grid-cols-2). En ≥sm vuelven a estar
+            lado a lado. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <label htmlFor="from" className="block text-xs font-medium text-slate-500 mb-1">Desde</label>
             <input

@@ -56,6 +56,14 @@ export function NotificationsBadge() {
     );
   }
 
+  function markAllRead() {
+    // Optimistic clear: vaciamos la lista inmediatamente y llamamos al server.
+    // Si el POST falla refrescamos el estado real al siguiente tick (30s) o
+    // al volver a abrir el popover.
+    setData({ count: 0, items: [] });
+    void fetch('/api/notifications/read-all', { method: 'POST' }).catch(() => undefined);
+  }
+
   function handleNavigate(id: string) {
     markRead(id);
     setOpen(false);
@@ -78,10 +86,18 @@ export function NotificationsBadge() {
 
       {open && (
         <div className="fixed top-[4.5rem] inset-x-4 w-auto md:absolute md:top-auto md:inset-x-auto md:right-0 md:mt-2 md:w-80 bg-white border border-slate-200/80 rounded-2xl shadow-lg z-50">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-gray-900">
               Notificaciones{count > 0 ? ` (${count})` : ''}
             </span>
+            {count > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-xs font-medium text-brand-blue hover:text-brand-navy"
+              >
+                Marcar todas como leídas
+              </button>
+            )}
           </div>
           {!data || data.items.length === 0 ? (
             <p className="px-4 py-6 text-sm text-gray-400 text-center">Sin notificaciones nuevas</p>

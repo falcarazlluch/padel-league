@@ -3,7 +3,7 @@
 // online normal y evitar problemas de invalidación entre despliegues.
 // Si en el futuro añadimos cache de assets, hay que bumpear CACHE_VERSION.
 
-const CACHE_VERSION = 'pl-v2';
+const CACHE_VERSION = 'pl-v3';
 
 self.addEventListener('install', () => {
   // Activate inmediatamente sin esperar a que se cierren todas las pestañas.
@@ -58,20 +58,35 @@ self.addEventListener('notificationclick', (event) => {
         type: 'window',
         includeUncontrolled: true,
       });
-      // Si ya hay una pestaña abierta, foquéala y navega allí.
-      for (const client of allClients) {
+
+      // Preferimos clients ya enfocados o visibles (suelen ser la PWA
+      // standalone abierta). Solo si no hay ninguno utilizable, abrimos
+      // ventana nueva — el SO decide entonces entre PWA instalada o tab.
+      const score = (c) => {
+        if (c.focused) return 3;
+        if (c.visibilityState === 'visible') return 2;
+        return 1;
+      };
+      const sorted = [...allClients].sort((a, b) => score(b) - score(a));
+
+      for (const client of sorted) {
         if ('focus' in client) {
           try {
             await client.focus();
-            if ('navigate' in client && client.url !== new URL(targetUrl, self.location.origin).href) {
+            const dest = new URL(targetUrl, self.location.origin).href;
+            if ('navigate' in client && client.url !== dest) {
               await client.navigate(targetUrl);
             }
             return;
           } catch (err) {
-            // Continuar al siguiente si el foco falla (ventana minimizada en algunos navegadores).
+            // Continuar al siguiente si el foco falla (algunos browsers lo
+            // restringen cuando la ventana está minimizada).
           }
         }
       }
+      // Sin clients disponibles: openWindow respetará la PWA instalada en
+      // Android Chrome / Edge (con `capture_links` del manifest) y abrirá
+      // la PWA si el OS lo permite; si no, cae en una tab estándar.
       await self.clients.openWindow(targetUrl);
     })(),
   );

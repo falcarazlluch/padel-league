@@ -20,8 +20,17 @@ export function InviteForm({ matchId, availableSlots }: Props) {
   );
   const entityFormRef = useRef<HTMLFormElement>(null);
 
+  // El picker tiene state interno (chip con el nombre invitado) que `form.reset()`
+  // no puede limpiar. Cambiamos su `key` tras cada invite exitoso para forzar
+  // un remount limpio — así el usuario puede invitar a otro sin tener que
+  // pulsar la ✕ del chip anterior primero.
+  const [pickerNonce, setPickerNonce] = useState(0);
+
   useEffect(() => {
-    if (entityState && 'success' in entityState) entityFormRef.current?.reset();
+    if (entityState && 'success' in entityState) {
+      entityFormRef.current?.reset();
+      setPickerNonce((n) => n + 1);
+    }
   }, [entityState]);
 
   const [emailState, emailAction, emailPending] = useActionState<ActionResult, FormData>(
@@ -33,7 +42,7 @@ export function InviteForm({ matchId, availableSlots }: Props) {
     <div className="space-y-3">
       <form ref={entityFormRef} action={entityAction} className="flex flex-col gap-2">
         <input type="hidden" name="matchId" value={matchId} />
-        <MatchEntityPicker matchId={matchId} availableSlots={availableSlots} />
+        <MatchEntityPicker key={pickerNonce} matchId={matchId} availableSlots={availableSlots} />
         <div className="flex items-center gap-2">
           <button
             type="submit"
