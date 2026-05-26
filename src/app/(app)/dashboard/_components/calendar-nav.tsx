@@ -9,6 +9,7 @@ interface Props {
   year: number;
   month: number;
   view: 'grid' | 'list';
+  filter: 'mios' | 'todos';
 }
 
 const MONTH_LABELS_ES = [
@@ -21,15 +22,24 @@ function monthShift(year: number, month: number, delta: number): { year: number;
   return { year: Math.floor(total / 12), month: (total % 12) + 1 };
 }
 
-function buildHref(pathname: string, year: number, month: number, view: 'grid' | 'list'): Route {
+function buildHref(
+  pathname: string,
+  year: number,
+  month: number,
+  view: 'grid' | 'list',
+  filter: 'mios' | 'todos',
+): Route {
   const cal = `${year}-${String(month).padStart(2, '0')}`;
   const params = new URLSearchParams();
   params.set('cal', cal);
   params.set('view', view);
+  // Solo serializamos filter cuando es 'todos' — 'mios' es el default y deja
+  // el URL más limpio.
+  if (filter === 'todos') params.set('filtro', 'todos');
   return `${pathname}?${params.toString()}` as Route;
 }
 
-export function CalendarNav({ year, month, view }: Props) {
+export function CalendarNav({ year, month, view, filter }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -55,13 +65,16 @@ export function CalendarNav({ year, month, view }: Props) {
   const prev = monthShift(year, month, -1);
   const next = monthShift(year, month, 1);
   const today = new Date();
-  const todayHref = `${pathname}?view=${view}` as Route;
+  const todayParams = new URLSearchParams();
+  todayParams.set('view', view);
+  if (filter === 'todos') todayParams.set('filtro', 'todos');
+  const todayHref = `${pathname}?${todayParams.toString()}` as Route;
 
   return (
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <div className="flex items-center gap-2">
         <Link
-          href={buildHref(pathname, prev.year, prev.month, view)}
+          href={buildHref(pathname, prev.year, prev.month, view, filter)}
           scroll={false}
           className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
           aria-label="Mes anterior"
@@ -72,7 +85,7 @@ export function CalendarNav({ year, month, view }: Props) {
           {MONTH_LABELS_ES[month - 1]} {year}
         </span>
         <Link
-          href={buildHref(pathname, next.year, next.month, view)}
+          href={buildHref(pathname, next.year, next.month, view, filter)}
           scroll={false}
           className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
           aria-label="Mes siguiente"
@@ -89,23 +102,41 @@ export function CalendarNav({ year, month, view }: Props) {
           </Link>
         )}
       </div>
-      <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
-        <Link
-          href={buildHref(pathname, year, month, 'grid')}
-          scroll={false}
-          onClick={() => persistView('grid')}
-          className={`px-3 py-1.5 ${view === 'grid' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
-        >
-          Calendario
-        </Link>
-        <Link
-          href={buildHref(pathname, year, month, 'list')}
-          scroll={false}
-          onClick={() => persistView('list')}
-          className={`px-3 py-1.5 ${view === 'list' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
-        >
-          Lista
-        </Link>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
+          <Link
+            href={buildHref(pathname, year, month, view, 'mios')}
+            scroll={false}
+            className={`px-3 py-1.5 ${filter === 'mios' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
+          >
+            Míos
+          </Link>
+          <Link
+            href={buildHref(pathname, year, month, view, 'todos')}
+            scroll={false}
+            className={`px-3 py-1.5 ${filter === 'todos' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
+          >
+            Todos
+          </Link>
+        </div>
+        <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
+          <Link
+            href={buildHref(pathname, year, month, 'grid', filter)}
+            scroll={false}
+            onClick={() => persistView('grid')}
+            className={`px-3 py-1.5 ${view === 'grid' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
+          >
+            Calendario
+          </Link>
+          <Link
+            href={buildHref(pathname, year, month, 'list', filter)}
+            scroll={false}
+            onClick={() => persistView('list')}
+            className={`px-3 py-1.5 ${view === 'list' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
+          >
+            Lista
+          </Link>
+        </div>
       </div>
     </div>
   );

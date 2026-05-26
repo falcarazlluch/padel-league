@@ -31,7 +31,7 @@ function greeting(): string {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cal?: string; view?: string }>;
+  searchParams: Promise<{ cal?: string; view?: string; filtro?: string }>;
 }) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -50,6 +50,7 @@ export default async function DashboardPage({
     }
   }
   const calView: 'grid' | 'list' = sp.view === 'grid' ? 'grid' : 'list';
+  const calFilter: 'mios' | 'todos' = sp.filtro === 'todos' ? 'todos' : 'mios';
 
   // Count leagues whose calendar puts them in the "active" window — matches
   // what `deriveLeagueStatus` shows as 'ACTIVE' on the league listing, even
@@ -343,7 +344,7 @@ export default async function DashboardPage({
         </section>
       )}
 
-      <CalendarSection userId={user.id} year={calYear} month={calMonth} view={calView} />
+      <CalendarSection userId={user.id} year={calYear} month={calMonth} view={calView} filter={calFilter} />
     </div>
   );
 }
