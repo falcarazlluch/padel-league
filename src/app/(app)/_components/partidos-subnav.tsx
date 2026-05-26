@@ -17,13 +17,13 @@ export function PartidosSubnav({ active }: Props) {
   return (
     <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200/80">
       <div className="flex flex-wrap">
-        <Link href={'/partidos' as Route} className={tabClass(active === 'mis')}>
+        <Link href={'/partidos' as Route} scroll={false} className={tabClass(active === 'mis')}>
           Mis partidos
         </Link>
-        <Link href={'/jugar' as Route} className={tabClass(active === 'tablon')}>
+        <Link href={'/jugar' as Route} scroll={false} className={tabClass(active === 'tablon')}>
           Tablón
         </Link>
-        <Link href={'/resultados' as Route} className={tabClass(active === 'resultados')}>
+        <Link href={'/resultados' as Route} scroll={false} className={tabClass(active === 'resultados')}>
           Resultados
         </Link>
       </div>

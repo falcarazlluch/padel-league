@@ -624,6 +624,7 @@ export default async function LigaDetailPage({
           <div className="flex border-b border-gray-200 mb-4 flex-wrap">
             <Link
               href={`/ligas/${slug}` as Route}
+              scroll={false}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab !== 'partidos' && tab !== 'cronicas' && tab !== 'resultados'
                   ? 'border-brand-yellow text-brand-navy font-bold'
@@ -634,6 +635,7 @@ export default async function LigaDetailPage({
             </Link>
             <Link
               href={`/ligas/${slug}?tab=partidos` as Route}
+              scroll={false}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === 'partidos'
                   ? 'border-brand-yellow text-brand-navy font-bold'
@@ -644,6 +646,7 @@ export default async function LigaDetailPage({
             </Link>
             <Link
               href={`/ligas/${slug}?tab=resultados` as Route}
+              scroll={false}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === 'resultados'
                   ? 'border-brand-yellow text-brand-navy font-bold'
@@ -654,6 +657,7 @@ export default async function LigaDetailPage({
             </Link>
             <Link
               href={`/ligas/${slug}?tab=cronicas` as Route}
+              scroll={false}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === 'cronicas'
                   ? 'border-brand-yellow text-brand-navy font-bold'

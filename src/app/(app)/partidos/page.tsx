@@ -13,21 +13,60 @@ import { PlayerStack } from '../_components/player-stack';
 
 export const metadata = { title: 'Mis partidos — Padel League' };
 
-export default async function MisPartidosPage() {
+type Filtro = 'mios' | 'todos';
+
+export default async function MisPartidosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filtro?: string }>;
+}) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);
   const user = await getValidatedSession(token).catch(() => redirect('/login' as Route));
 
+  const sp = await searchParams;
+  const filtro: Filtro = sp.filtro === 'todos' ? 'todos' : 'mios';
+
+  // Para el filtro "todos" mostramos todos los partidos de las competiciones a
+  // las que el usuario está inscrito (vía equipo o como individual en Americana
+  // ROTATING_INDIVIDUAL). No es "todos los partidos de la app" — sería ruido.
+  const userLeagueIds =
+    filtro === 'todos'
+      ? (
+          await prisma.leagueRegistration.findMany({
+            where: {
+              withdrawnAt: null,
+              OR: [
+                { team: { members: { some: { userId: user.id } } } },
+                { userId: user.id },
+              ],
+            },
+            select: { leagueId: true },
+          })
+        ).map((r) => r.leagueId)
+      : [];
+
   const [matches, independentMatches, pendingInvitations] = await Promise.all([
     prisma.match.findMany({
-      where: {
-        status: { notIn: ['CANCELLED'] },
-        OR: [
-          { teamA: { members: { some: { userId: user.id } } } },
-          { teamB: { members: { some: { userId: user.id } } } },
-        ],
-      },
+      where:
+        filtro === 'todos'
+          ? {
+              status: { notIn: ['CANCELLED'] },
+              leagueId: { in: userLeagueIds },
+              // Excluimos Americana ROTATING_INDIVIDUAL (sin teams) — el listado
+              // muestra tarjetas pareja-vs-pareja. Las rondas individuales
+              // siguen visibles en la página de la competición.
+              teamAId: { not: null },
+              teamBId: { not: null },
+            }
+          : {
+              status: { notIn: ['CANCELLED'] },
+              OR: [
+                { teamA: { members: { some: { userId: user.id } } } },
+                { teamB: { members: { some: { userId: user.id } } } },
+              ],
+            },
       include: {
         league: { select: { id: true, name: true, slug: true } },
         teamA: {
@@ -143,10 +182,33 @@ export default async function MisPartidosPage() {
     <div className="space-y-6">
       <div>
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Partidos</p>
-        <h1 className="text-2xl font-extrabold text-brand-navy">Mis partidos</h1>
+        <h1 className="text-2xl font-extrabold text-brand-navy">
+          {filtro === 'todos' ? 'Partidos de mis competiciones' : 'Mis partidos'}
+        </h1>
       </div>
 
       <PartidosSubnav active="mis" />
+
+      <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
+        <Link
+          href={'/partidos' as Route}
+          scroll={false}
+          className={`px-3 py-1.5 transition-colors ${
+            filtro === 'mios' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Míos
+        </Link>
+        <Link
+          href={'/partidos?filtro=todos' as Route}
+          scroll={false}
+          className={`px-3 py-1.5 transition-colors ${
+            filtro === 'todos' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Todos
+        </Link>
+      </div>
 
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">

@@ -62,6 +62,7 @@ export function CalendarNav({ year, month, view }: Props) {
       <div className="flex items-center gap-2">
         <Link
           href={buildHref(pathname, prev.year, prev.month, view)}
+          scroll={false}
           className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
           aria-label="Mes anterior"
         >
@@ -72,6 +73,7 @@ export function CalendarNav({ year, month, view }: Props) {
         </span>
         <Link
           href={buildHref(pathname, next.year, next.month, view)}
+          scroll={false}
           className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
           aria-label="Mes siguiente"
         >
@@ -80,6 +82,7 @@ export function CalendarNav({ year, month, view }: Props) {
         {(year !== today.getFullYear() || month !== today.getMonth() + 1) && (
           <Link
             href={todayHref}
+            scroll={false}
             className="text-xs text-slate-500 hover:text-slate-700 underline"
           >
             Hoy
@@ -89,6 +92,7 @@ export function CalendarNav({ year, month, view }: Props) {
       <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
         <Link
           href={buildHref(pathname, year, month, 'grid')}
+          scroll={false}
           onClick={() => persistView('grid')}
           className={`px-3 py-1.5 ${view === 'grid' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
         >
@@ -96,6 +100,7 @@ export function CalendarNav({ year, month, view }: Props) {
         </Link>
         <Link
           href={buildHref(pathname, year, month, 'list')}
+          scroll={false}
           onClick={() => persistView('list')}
           className={`px-3 py-1.5 ${view === 'list' ? 'bg-brand-navy text-white' : 'bg-white text-slate-600 hover:bg-slate-50'} transition-colors`}
         >
