@@ -470,6 +470,10 @@ model LeagueRegistration {
   teamId             String?   @map("team_id")
   userId             String?   @map("user_id")
   competitionGroupId String?   @map("competition_group_id")
+  // Seeding manual del torneo (League.bracketSeedingMode = 'MANUAL'). 0-based,
+  // único por liga. NULL = sin asignar; al activar se cae al orden de
+  // inscripción si faltan.
+  seedOrder          Int?      @map("seed_order")
   registeredByUserId String    @map("registered_by_user_id")
   registeredAt       DateTime  @default(now()) @map("registered_at")
   withdrawnAt        DateTime? @map("withdrawn_at")
@@ -490,6 +494,7 @@ model LeagueRegistration {
   @@index([teamId])
   @@index([userId])
   @@index([competitionGroupId])
+  @@index([leagueId, seedOrder])
   @@map("league_registrations")
 }
 

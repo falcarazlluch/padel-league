@@ -26,6 +26,7 @@ import {
 import { BracketTree, type BracketCell } from './_components/bracket-tree';
 import { GroupStandings, type GroupView } from './_components/group-standings';
 import { MaterializeBracketButton } from './_components/materialize-bracket-button';
+import { ManualSeedingPanel } from './_components/manual-seeding-panel';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -410,6 +411,26 @@ export default async function LigaDetailPage({
     }
   }
 
+  // ¿Aplica el panel de seeding manual? Solo torneo MANUAL en DRAFT con
+  // admin viendo la página. Leemos las inscripciones ordenadas por seedOrder
+  // (con fallback a registeredAt) para mostrar el orden actual.
+  const showManualSeedingPanel =
+    isTournament &&
+    league.bracketSeedingMode === 'MANUAL' &&
+    league.status === 'DRAFT' &&
+    isLeagueAdmin;
+  const manualSeedingRows = showManualSeedingPanel
+    ? (
+        await prisma.leagueRegistration.findMany({
+          where: { leagueId: league.id, withdrawnAt: null, teamId: { not: null } },
+          include: { team: { select: { id: true, name: true } } },
+          orderBy: [{ seedOrder: { sort: 'asc', nulls: 'last' } }, { registeredAt: 'asc' }],
+        })
+      )
+        .filter((r): r is typeof r & { team: NonNullable<typeof r.team> } => r.team !== null)
+        .map((r) => ({ registrationId: r.id, teamId: r.team.id, teamName: r.team.name }))
+    : [];
+
   // ¿Puede el admin generar el bracket ahora? Solo si torneo con fase de
   // grupos, status ACTIVE, no hay bracket todavía y todos los matches de
   // grupo están finalizados.
@@ -523,6 +544,9 @@ export default async function LigaDetailPage({
           userTeams={userTeamsForRegistration}
         />
       )}
+
+      {/* Siembra manual del bracket (solo torneo MANUAL en DRAFT, admin). */}
+      {showManualSeedingPanel && <ManualSeedingPanel rows={manualSeedingRows} />}
 
       {/* Jugadores apuntados (Americana individual) */}
       {isRotatingIndividual && (

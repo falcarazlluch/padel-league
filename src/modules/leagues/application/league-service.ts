@@ -521,6 +521,81 @@ export const LeagueService = {
   },
 
   /**
+   * Mueve un registration arriba o abajo en el seeding manual del torneo.
+   * Llamado desde la UI de admin (botones ↑↓). Reasigna seedOrder a TODAS las
+   * inscripciones de la liga (0..N-1) para evitar huecos y conflictos.
+   *
+   * Solo aplica si league.type=TOURNAMENT, bracketSeedingMode=MANUAL,
+   * status=DRAFT (una vez activado, el bracket está sellado).
+   */
+  async reorderSeed(
+    registrationId: string,
+    direction: 'UP' | 'DOWN',
+    requestingUserId: string,
+  ): Promise<void> {
+    const reg = await prisma.leagueRegistration.findUnique({
+      where: { id: registrationId },
+      include: { league: { select: { id: true, type: true, bracketSeedingMode: true, status: true, createdByUserId: true } } },
+    });
+    if (!reg) throw new NotFoundError('REGISTRATION_NOT_FOUND', 'Inscripción no encontrada.');
+    if (reg.league.type !== 'TOURNAMENT' || reg.league.bracketSeedingMode !== 'MANUAL') {
+      throw new DomainError(
+        'NOT_MANUAL_TOURNAMENT',
+        'El reorden manual solo aplica a torneos con seeding MANUAL.',
+      );
+    }
+    if (reg.league.status !== 'DRAFT') {
+      throw new DomainError(
+        'LEAGUE_NOT_DRAFT',
+        'El seeding solo se puede modificar antes de activar el torneo.',
+      );
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    const isAdmin =
+      requester?.role === 'SUPER_ADMIN' ||
+      (requester?.role === 'LEAGUE_ADMIN' && reg.league.createdByUserId === requestingUserId);
+    if (!isAdmin) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin del torneo puede reordenar el seeding.');
+    }
+
+    // Leemos todas las inscripciones de la liga, ordenadas: seedOrder NULL al
+    // final, desempate por registeredAt asc. Eso da un orden inicial estable.
+    const all = await prisma.leagueRegistration.findMany({
+      where: { leagueId: reg.league.id, withdrawnAt: null },
+      orderBy: [{ seedOrder: { sort: 'asc', nulls: 'last' } }, { registeredAt: 'asc' }],
+      select: { id: true },
+    });
+
+    const idx = all.findIndex((r) => r.id === registrationId);
+    if (idx === -1) throw new NotFoundError('REGISTRATION_NOT_FOUND', 'Inscripción no encontrada.');
+
+    const swapWith = direction === 'UP' ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= all.length) {
+      // Ya está en el extremo; no-op silencioso (la UI ya debería ocultar el botón).
+      return;
+    }
+
+    // Swap y persistir seedOrder de toda la lista.
+    const reordered = [...all];
+    const tmp = reordered[idx]!;
+    reordered[idx] = reordered[swapWith]!;
+    reordered[swapWith] = tmp;
+
+    await prisma.$transaction(
+      reordered.map((r, i) =>
+        prisma.leagueRegistration.update({
+          where: { id: r.id },
+          data: { seedOrder: i },
+        }),
+      ),
+    );
+  },
+
+  /**
    * Sustituye uno de los slots iniciales (teamA o teamB) de un match del
    * bracket por otra pareja inscrita. Solo aplica a la primera ronda
    * (bracketRound=0) y solo si el match aún no se ha jugado. Las llaves
@@ -763,7 +838,23 @@ async function activateAmericana(league: LeagueForActivation): Promise<void> {
 //    (función `materializeTournamentBracket`, llamada por el admin cuando
 //    cierre la fase de grupos — añadible en una iteración posterior).
 async function activateTournament(league: LeagueForActivation): Promise<void> {
-  const teams = league.registrations
+  // Construimos la lista ordenada por seeding. Para MANUAL, leemos el seedOrder
+  // explícito que el admin haya marcado en la UI antes de activar; si algún
+  // registro no lo tiene, caemos a registeredAt (fallback estable). Para AUTO,
+  // usamos directamente registeredAt.
+  const isManualSeeding = league.bracketSeedingMode === 'MANUAL';
+  const orderedRegistrations = [...league.registrations]
+    .filter((r) => r.team != null)
+    .sort((a, b) => {
+      if (isManualSeeding) {
+        const aOrder = a.seedOrder ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = b.seedOrder ?? Number.MAX_SAFE_INTEGER;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+      }
+      return a.registeredAt.getTime() - b.registeredAt.getTime();
+    });
+
+  const teams = orderedRegistrations
     .map((r) => r.team)
     .filter((t): t is NonNullable<typeof t> => t !== null);
   if (teams.length < 2) {

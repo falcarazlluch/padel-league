@@ -158,6 +158,21 @@ export async function materializeTournamentBracketAction(
   return {};
 }
 
+export async function reorderSeedAction(
+  registrationId: string,
+  direction: 'UP' | 'DOWN',
+): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await LeagueService.reorderSeed(registrationId, direction, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas', 'layout');
+  return {};
+}
+
 const substituteBracketSlotSchema = z.object({
   matchId: z.string().cuid(),
   slot: z.enum(['A', 'B']),
