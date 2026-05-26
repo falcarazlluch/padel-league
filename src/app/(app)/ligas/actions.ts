@@ -158,6 +158,35 @@ export async function materializeTournamentBracketAction(
   return {};
 }
 
+const substituteBracketSlotSchema = z.object({
+  matchId: z.string().cuid(),
+  slot: z.enum(['A', 'B']),
+  newTeamId: z.string().cuid(),
+});
+
+export async function substituteBracketSlotAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = substituteBracketSlotSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await LeagueService.substituteBracketSlot(
+      parsed.data.matchId,
+      parsed.data.slot,
+      parsed.data.newTeamId,
+      user.id,
+    );
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas', 'layout');
+  return { success: true };
+}
+
 const updateLeagueSchema = z.object({
   leagueId: z.string().cuid(),
   slug: z.string().min(1),

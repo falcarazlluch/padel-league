@@ -17,6 +17,7 @@ import { CommentaryAdminActions } from './_components/commentary-admin-actions';
 import { CommentaryGenerateButton } from './_components/commentary-generate-button';
 import { AddToCalendarButton } from '@/app/(app)/_components/add-to-calendar-button';
 import { AmericanaResultForm } from './americana-result-form';
+import { SubstituteSlotPanel } from './substitute-slot-panel';
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Pendiente',
@@ -98,6 +99,44 @@ export default async function MatchDetailPage({
   const isLeagueAdmin =
     currentUser.role === 'SUPER_ADMIN' ||
     (currentUser.role === 'LEAGUE_ADMIN' && leagueRow?.createdByUserId === currentUser.id);
+
+  // Para slots de bracket R0 pre-juego cargamos también la lista de parejas
+  // inscritas que NO están ya en el bracket: candidatas a sustituir.
+  const bracketInfo = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { bracketSide: true, bracketRound: true },
+  });
+  const isBracketR0 = bracketInfo?.bracketSide != null && bracketInfo?.bracketRound === 0;
+  const canSubstituteSlot =
+    isLeagueAdmin &&
+    isBracketR0 &&
+    (match.status === 'SCHEDULED' ||
+      match.status === 'DATE_PROPOSED' ||
+      match.status === 'DATE_CONFIRMED');
+
+  let availableSubstituteTeams: { id: string; name: string }[] = [];
+  if (canSubstituteSlot) {
+    // Parejas inscritas en la competición que NO están ya en algún slot del bracket.
+    const teamsInBracket = await prisma.match.findMany({
+      where: { leagueId: match.leagueId, bracketSide: { not: null } },
+      select: { teamAId: true, teamBId: true },
+    });
+    const idsInBracket = new Set<string>();
+    for (const m of teamsInBracket) {
+      if (m.teamAId) idsInBracket.add(m.teamAId);
+      if (m.teamBId) idsInBracket.add(m.teamBId);
+    }
+    const candidates = await prisma.leagueRegistration.findMany({
+      where: { leagueId: match.leagueId, withdrawnAt: null, teamId: { not: null } },
+      include: { team: { select: { id: true, name: true } } },
+      orderBy: { team: { name: 'asc' } },
+    });
+    availableSubstituteTeams = candidates
+      .map((r) => r.team)
+      .filter((t): t is NonNullable<typeof t> => t !== null)
+      .filter((t) => !idsInBracket.has(t.id))
+      .map((t) => ({ id: t.id, name: t.name }));
+  }
 
   const teamAIds = match.teamA.members.map((m) => m.userId);
   const teamBIds = match.teamB.members.map((m) => m.userId);
@@ -420,6 +459,17 @@ export default async function MatchDetailPage({
           photos={await MatchPhotoService.list(match.id, 'league', currentUser.id).catch(() => [])}
           canUpload
           currentUserId={currentUser.id}
+        />
+      )}
+
+      {/* Admin only: sustituir slot inicial del bracket cuando una pareja
+          se baja antes de jugar su primer partido. Solo R0 pre-juego. */}
+      {canSubstituteSlot && (
+        <SubstituteSlotPanel
+          matchId={match.id}
+          teamAName={match.teamA.name}
+          teamBName={match.teamB.name}
+          availableTeams={availableSubstituteTeams}
         />
       )}
     </div>

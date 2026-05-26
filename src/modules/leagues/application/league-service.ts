@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/client';
-import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
+import { NotFoundError, AuthorizationError, DomainError, ConflictError } from '@/shared/errors';
 import type { TeamCategory, Prisma } from '@prisma/client';
 import type { CreateLeagueInput, LeagueRow, TeamRow, MatchRow } from '../domain/types';
 import { generateFixtures } from './fixture-generator';
@@ -517,6 +517,100 @@ export const LeagueService = {
         });
         keyToId.set(keyOf(d.side, d.round, d.position), m.id);
       }
+    });
+  },
+
+  /**
+   * Sustituye uno de los slots iniciales (teamA o teamB) de un match del
+   * bracket por otra pareja inscrita. Solo aplica a la primera ronda
+   * (bracketRound=0) y solo si el match aún no se ha jugado. Las llaves
+   * ya resueltas son inmutables — decisión del plan #10.
+   *
+   * Casos de uso:
+   *  - Una pareja se baja antes de empezar el bracket; el admin la sustituye
+   *    por otra ya inscrita pero que no entró al cuadro (p.ej. el "primer
+   *    no-clasificado" en tournament con grupos).
+   *  - Una pareja se equivocó y hay que cambiarla por la correcta antes de
+   *    que jueguen su primer partido.
+   *
+   * Restricciones:
+   *  - league.type = TOURNAMENT
+   *  - Match.bracketRound = 0 y status en SCHEDULED/DATE_PROPOSED/DATE_CONFIRMED
+   *  - Caller es league admin o SUPER_ADMIN
+   *  - newTeam existe, tiene 2 miembros, no está ya en otro slot del bracket
+   *    actual (evita duplicados en el mismo bracket).
+   */
+  async substituteBracketSlot(
+    matchId: string,
+    slot: 'A' | 'B',
+    newTeamId: string,
+    requestingUserId: string,
+  ): Promise<void> {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { league: { select: { id: true, type: true, createdByUserId: true } } },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.league.type !== 'TOURNAMENT') {
+      throw new DomainError('NOT_A_TOURNAMENT', 'La sustitución solo aplica a torneos.');
+    }
+    if (match.bracketSide == null || match.bracketRound !== 0) {
+      throw new DomainError(
+        'NOT_INITIAL_BRACKET_SLOT',
+        'Solo se pueden sustituir slots de la primera ronda del bracket.',
+      );
+    }
+    if (
+      match.status !== 'SCHEDULED' &&
+      match.status !== 'DATE_PROPOSED' &&
+      match.status !== 'DATE_CONFIRMED'
+    ) {
+      throw new DomainError(
+        'MATCH_ALREADY_PLAYED',
+        'No se puede sustituir un slot de un partido ya jugado o en validación.',
+      );
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    const isAdmin =
+      requester?.role === 'SUPER_ADMIN' ||
+      (requester?.role === 'LEAGUE_ADMIN' && match.league.createdByUserId === requestingUserId);
+    if (!isAdmin) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin del torneo puede sustituir slots.');
+    }
+
+    const newTeam = await prisma.team.findUnique({
+      where: { id: newTeamId },
+      include: { members: { select: { userId: true } } },
+    });
+    if (!newTeam) throw new NotFoundError('TEAM_NOT_FOUND', 'Pareja nueva no encontrada.');
+    if (newTeam.members.length !== 2) {
+      throw new DomainError('TEAM_SIZE_INVALID', 'La pareja nueva debe tener exactamente 2 jugadores.');
+    }
+
+    // ¿Está ya esa pareja en otro slot del bracket actual?
+    const duplicate = await prisma.match.findFirst({
+      where: {
+        leagueId: match.league.id,
+        bracketSide: { not: null },
+        id: { not: matchId },
+        OR: [{ teamAId: newTeamId }, { teamBId: newTeamId }],
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictError(
+        'TEAM_ALREADY_IN_BRACKET',
+        'Esa pareja ya está en otro slot del bracket.',
+      );
+    }
+
+    await prisma.match.update({
+      where: { id: matchId },
+      data: slot === 'A' ? { teamAId: newTeamId } : { teamBId: newTeamId },
     });
   },
 
