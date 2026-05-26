@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/client';
 import { NotFoundError, AuthorizationError, DomainError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
+import { NotificationService } from '@/modules/notifications';
 import { assertTwoTeamMatch, assertMatchTeamIds } from '@/shared/match-guards';
 import { determineWinner, getSubmitterSide, resolveSubmitterSide } from './match-result-logic';
 import type { SubmitResultInput, MatchDetailRow } from '../domain/types';
@@ -472,6 +473,129 @@ export const MatchService = {
     }
   },
 
+  // ─── Walkover / no-show — admin declara ganador sin jugar ─────────────
+  // Cuando una pareja no se presenta el día del partido, o por cualquier razón
+  // hay que zanjar un match sin disputar el resultado, el admin de la liga
+  // marca ADMIN_RESOLVED con winnerTeamId. Aplica a Liga / Torneo / Americana
+  // FIXED_PAIRS (no individual — para ROTATING_INDIVIDUAL aún no hay caso).
+  //
+  // Distinto de EXPIRED_UNPLAYED ("ambos pierden"): aquí UNA pareja gana.
+  // Si el match es de bracket, se propaga el ganador al siguiente automáticamente.
+  async adminForfeitMatch(
+    matchId: string,
+    winnerTeamId: string,
+    reason: string,
+    requestingUserId: string,
+  ): Promise<void> {
+    if (reason.trim().length < 5) {
+      throw new DomainError('REASON_TOO_SHORT', 'Indica un motivo (mínimo 5 caracteres).');
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { league: { select: { id: true, type: true, createdByUserId: true } } },
+    });
+    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (match.teamAId == null || match.teamBId == null) {
+      throw new DomainError(
+        'NO_TEAMS_ASSIGNED',
+        'No se puede declarar walkover en un partido sin parejas asignadas (Americana individual o slot vacío).',
+      );
+    }
+    if (winnerTeamId !== match.teamAId && winnerTeamId !== match.teamBId) {
+      throw new DomainError(
+        'WINNER_NOT_IN_MATCH',
+        'La pareja ganadora debe ser una de las dos del partido.',
+      );
+    }
+    const FINAL = ['CONFIRMED', 'ADMIN_RESOLVED', 'EXPIRED_UNPLAYED', 'CANCELLED'] as const;
+    if ((FINAL as readonly string[]).includes(match.status)) {
+      throw new DomainError(
+        'MATCH_ALREADY_FINAL',
+        'Este partido ya está cerrado y no admite walkover.',
+      );
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { role: true },
+    });
+    const isAdmin =
+      requester?.role === 'SUPER_ADMIN' ||
+      (requester?.role === 'LEAGUE_ADMIN' && match.league.createdByUserId === requestingUserId);
+    if (!isAdmin) {
+      throw new AuthorizationError('NOT_LEAGUE_ADMIN', 'Solo el admin de la competición puede declarar walkover.');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Marcar cualquier MatchResult pendiente como SUPERSEDED para no
+      // dejar resultados huérfanos.
+      await tx.matchResult.updateMany({
+        where: { matchId, status: 'PENDING' },
+        data: { status: 'SUPERSEDED' },
+      });
+
+      // Crear un MatchResult sintético (sin sets) que captura la decisión.
+      const result = await tx.matchResult.create({
+        data: {
+          matchId,
+          submittedByUserId: requestingUserId,
+          submitterTeamId: null,
+          status: 'CONFIRMED',
+          winnerTeamId,
+          validatedByUserId: requestingUserId,
+          validatedAt: new Date(),
+        },
+      });
+
+      await tx.match.update({
+        where: { id: matchId },
+        data: {
+          status: 'ADMIN_RESOLVED',
+          confirmedResultId: result.id,
+          winnerTeamId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: requestingUserId,
+          action: 'match.walkover.awarded',
+          targetType: 'Match',
+          targetId: matchId,
+          metadata: { winnerTeamId, reason },
+        },
+      });
+    });
+
+    // Notificar a los miembros del match (ganadores y perdedores).
+    const teamMembers = await prisma.team.findMany({
+      where: { id: { in: [match.teamAId, match.teamBId] } },
+      select: {
+        id: true,
+        name: true,
+        members: { select: { userId: true } },
+      },
+    });
+    const winningTeam = teamMembers.find((t) => t.id === winnerTeamId);
+    const losingTeam = teamMembers.find((t) => t.id !== winnerTeamId);
+    const allUserIds = teamMembers.flatMap((t) => t.members.map((m) => m.userId));
+    await NotificationService.createMany(
+      allUserIds.map((userId) => ({
+        userId,
+        type: 'RESULT_CONFIRMED' as const,
+        title: 'Partido resuelto por walkover',
+        body: `El admin ha decidido el partido sin jugar. Ganador: ${winningTeam?.name ?? '?'}${losingTeam ? ` (sobre ${losingTeam.name})` : ''}.`,
+        metadata: { matchId, reason },
+      })),
+    ).catch(() => undefined);
+
+    // Si es match de bracket, propagar al siguiente.
+    await MatchService.propagateBracketWinner(matchId).catch((err) =>
+      logger().warn({ err, matchId }, 'walkover.bracket.propagate.failed'),
+    );
+  },
+
   // ─── Tournament bracket — propagación del ganador ─────────────────────
   // Cuando un Match de bracket se confirma (CONFIRMED o ADMIN_RESOLVED) se
   // llaman a este helper para rellenar el slot del siguiente match. Para
@@ -513,6 +637,12 @@ export const MatchService = {
         where: { id: d.id },
         data: slotIsA ? { teamAId: teamToFill } : { teamBId: teamToFill },
       });
+
+      // ¿Quedó listo para jugar? Si tras nuestra escritura ambos slots están
+      // rellenos, los 4 jugadores deben recibir un push "te toca jugar". Solo
+      // notificamos cuando nuestra escritura ha completado el match, no si
+      // la otra fuente todavía no se ha resuelto.
+      await maybeNotifyBracketMatchReady(d.id);
     }
   },
 
@@ -719,3 +849,48 @@ export const MatchService = {
     });
   },
 } as const;
+
+// Helper local: tras llenar un slot de un match de bracket, comprueba si
+// queda listo para jugar (ambos equipos asignados) y notifica a los 4
+// jugadores. Idempotencia: solo enviamos cuando la transición a "completo"
+// la causa esta misma llamada — para evitar dobles si la otra fuente del
+// match ya se había resuelto antes y se ejecuta dos veces el propagate por
+// alguna razón, leemos `_notifiedReadyAt` en metadata futura si se hiciese
+// necesario. Para MVP confiamos en que `propagateBracketWinner` solo se
+// llama una vez por confirmación.
+async function maybeNotifyBracketMatchReady(matchId: string): Promise<void> {
+  const m = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: {
+      id: true,
+      teamAId: true,
+      teamBId: true,
+      status: true,
+      bracketSide: true,
+      bracketRound: true,
+      leagueId: true,
+      teamA: { select: { name: true, members: { select: { userId: true } } } },
+      teamB: { select: { name: true, members: { select: { userId: true } } } },
+      league: { select: { slug: true, name: true } },
+    },
+  });
+  if (!m || !m.teamA || !m.teamB || !m.teamAId || !m.teamBId) return;
+  // Solo notificamos en estados pre-juego — si alguien ya envió resultado
+  // o el match está en disputa, no tiene sentido mandar "te toca jugar".
+  if (m.status !== 'SCHEDULED' && m.status !== 'DATE_PROPOSED' && m.status !== 'DATE_CONFIRMED') return;
+
+  const sideLabel = m.bracketSide === 'GOLD' ? 'Oro' : 'Plata';
+  const allMembers = [
+    ...m.teamA.members.map((mb) => mb.userId),
+    ...m.teamB.members.map((mb) => mb.userId),
+  ];
+  await NotificationService.createMany(
+    allMembers.map((userId) => ({
+      userId,
+      type: 'MATCH_ASSIGNED' as const,
+      title: `Te toca jugar — Bracket ${sideLabel}`,
+      body: `${m.teamA!.name} vs ${m.teamB!.name} en ${m.league.name}. ¡Proponed fecha cuando podáis!`,
+      metadata: { matchId: m.id, leagueId: m.leagueId, leagueSlug: m.league.slug },
+    })),
+  ).catch(() => undefined);
+}
