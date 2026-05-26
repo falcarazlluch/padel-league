@@ -611,6 +611,11 @@ model Match {
   sourceMatchAId     String?      @map("source_match_a_id")
   sourceMatchBId     String?      @map("source_match_b_id")
 
+  // Marca cuándo se envió el recordatorio "mañana juegas" para no
+  // duplicarlo. Lo rellena el cron diario que barre matches con scheduledAt
+  // dentro de 24h.
+  dayBeforeReminderSentAt DateTime? @map("day_before_reminder_sent_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

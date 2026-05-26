@@ -5,6 +5,7 @@ import { queue } from '@/shared/queue/client';
 import { logger } from '@/shared/logger';
 import { prisma } from '@/shared/db/client';
 import { LeagueNotificationService } from '@/modules/leagues';
+import { runDayBeforeRemindersSweep } from '@/modules/leagues/application/match-reminders';
 import { runPushOutboxTick } from '@/modules/push';
 import { drainPendingJobs } from '@/worker/drainer';
 
@@ -116,6 +117,19 @@ async function runHeartbeat(req: Request): Promise<Response> {
     log.warn({ err }, 'cron.league-registration-open.error');
   }
 
+  // Day-before reminders: notifica "mañana juegas" a las parejas con un
+  // partido scheduled en las próximas ~24h. Va ANTES del push outbox para
+  // que las notificaciones creadas aquí se entreguen en la misma vuelta.
+  let dayBeforeStats: Awaited<ReturnType<typeof runDayBeforeRemindersSweep>> | null = null;
+  try {
+    dayBeforeStats = await runDayBeforeRemindersSweep();
+    if (dayBeforeStats.matchesProcessed > 0) {
+      log.info({ ...dayBeforeStats }, 'cron.day-before-reminders.done');
+    }
+  } catch (err) {
+    log.warn({ err }, 'cron.day-before-reminders.error');
+  }
+
   // Web Push outbox: enqueue `send-push` jobs for any fresh notifications.
   // Done BEFORE the drain so the same heartbeat can both enqueue and deliver.
   let pushOutboxStats: Awaited<ReturnType<typeof runPushOutboxTick>> | null = null;
@@ -143,6 +157,7 @@ async function runHeartbeat(req: Request): Promise<Response> {
     jobId: noopId,
     leaguesToFinalize: finalizeIds.length,
     registrationOpenNotified: notifiedLeagueIds.length,
+    dayBeforeReminders: dayBeforeStats,
     pushOutbox: pushOutboxStats,
     drain: drainStats,
   });
