@@ -28,6 +28,10 @@ import { GroupStandings, type GroupView } from './_components/group-standings';
 import { MaterializeBracketButton } from './_components/materialize-bracket-button';
 import { ManualSeedingPanel } from './_components/manual-seeding-panel';
 import { SharePublicLink } from './_components/share-public-link';
+import { InviteLinksPanel } from './_components/invite-links-panel';
+import { EnrollmentRosterPanel } from './_components/enrollment-roster-panel';
+import { getTenant } from '@/shared/tenant/context';
+import { EnrollmentService, InviteLinkService, OrganizationService } from '@/modules/organizations';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import type { LeagueStatus } from '@prisma/client';
 import {
@@ -73,9 +77,10 @@ export default async function LigaDetailPage({
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);
 
+  const tenant = await getTenant();
   const [currentUser, league] = await Promise.all([
     getValidatedSession(token),
-    LeagueService.getBySlug(slug).catch(() => null),
+    LeagueService.getBySlug(slug, tenant?.id ?? null).catch(() => null),
   ]);
   if (!league) notFound();
 
@@ -84,8 +89,13 @@ export default async function LigaDetailPage({
   ]);
 
   // Teams the current user belongs to + their registration status for this league.
+  // Scoped to the tenant: a public-platform pair must not be offerable for a
+  // RACC competition (and vice versa).
   const userTeams = await prisma.team.findMany({
-    where: { members: { some: { userId: currentUser.id } } },
+    where: {
+      members: { some: { userId: currentUser.id } },
+      organizationId: league.organizationId,
+    },
     include: {
       members: { select: { userId: true } },
       registrations: { where: { leagueId: league.id }, select: { withdrawnAt: true } },
@@ -135,9 +145,23 @@ export default async function LigaDetailPage({
 
   const standings = calculateStandings(teamNamesMap, standingMatches);
 
-  const isLeagueAdmin =
-    currentUser.role === 'SUPER_ADMIN' ||
-    (currentUser.role === 'LEAGUE_ADMIN' && league.createdByUserId === currentUser.id);
+  // Inside a tenant, administration follows the org role; on the public
+  // platform it stays creator-scoped as before.
+  const isLeagueAdmin = league.organizationId
+    ? await OrganizationService.canAdminister(league.organizationId, currentUser.id)
+    : currentUser.role === 'SUPER_ADMIN' ||
+      (currentUser.role === 'LEAGUE_ADMIN' && league.createdByUserId === currentUser.id);
+
+  // Shareable inscription links — only meaningful for a tenant competition
+  // that is still accepting entries.
+  const inviteLinks =
+    league.organizationId && isLeagueAdmin
+      ? await InviteLinkService.listForLeague(league.id, currentUser.id).catch(() => [])
+      : [];
+  const enrollmentRoster =
+    league.organizationId && isLeagueAdmin
+      ? await EnrollmentService.listForLeague(league.id, currentUser.id).catch(() => [])
+      : [];
 
   // Fetch matches with confirmed sets for the Partidos tab. Solo los matches
   // con dos equipos (Liga / Torneo / Americana FIXED_PAIRS) van por aquí.
@@ -545,6 +569,37 @@ export default async function LigaDetailPage({
           registrationWindow={registrationWindow}
           userTeams={userTeamsForRegistration}
         />
+      )}
+
+      {/* Enlace de inscripción compartible + estado de las inscripciones guiadas
+          (solo competiciones de una organización, vista de admin). */}
+      {league.organizationId && isLeagueAdmin && (
+        <>
+          <InviteLinksPanel
+            leagueId={league.id}
+            links={inviteLinks.map((l) => ({
+              id: l.id,
+              label: l.label,
+              shareUrl: l.shareUrl,
+              useCount: l.useCount,
+              maxUses: l.maxUses,
+              expiresAt: l.expiresAt ? l.expiresAt.toISOString() : null,
+              revoked: l.revokedAt !== null,
+            }))}
+          />
+          <EnrollmentRosterPanel
+            rows={enrollmentRoster.map((r) => ({
+              id: r.id,
+              status: r.status,
+              userName: r.user.name,
+              userEmail: r.user.email,
+              userPhone: r.user.phone,
+              teamName: r.teamName,
+              teamMemberCount: r.teamMemberCount,
+              pendingPartnerName: r.pendingPartner?.name ?? null,
+            }))}
+          />
+        </>
       )}
 
       {/* Siembra manual del bracket (solo torneo MANUAL en DRAFT, admin). */}

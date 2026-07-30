@@ -6,6 +6,7 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
 import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
 import { UserSearchService } from '@/modules/users';
+import { getTenantId } from '@/shared/tenant/context';
 import { logger } from '@/shared/logger';
 
 const querySchema = z
@@ -45,6 +46,11 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
+  // /api/** is outside the middleware matcher, so the tenant is resolved from
+  // the Host header here (see `getTenant`). Inside a tenant the candidate pool
+  // is limited to that org's members.
+  const organizationId = await getTenantId();
+
   try {
     if (parsed.data.teamId) {
       // Team-invite scope: caller must be member of the team.
@@ -58,6 +64,7 @@ export async function GET(request: Request): Promise<Response> {
         q: parsed.data.q,
         teamId: parsed.data.teamId,
         callerId: user.id,
+        organizationId,
       });
       return NextResponse.json(rows);
     }
@@ -75,6 +82,7 @@ export async function GET(request: Request): Promise<Response> {
       q: parsed.data.q,
       matchId: parsed.data.matchId!,
       callerId: user.id,
+      organizationId,
     });
     return NextResponse.json(rows);
   } catch (err) {

@@ -43,6 +43,14 @@ const LEAGUE_TYPES = new Set<NotificationType>([
   'LEAGUE_REGISTRATION_REMOVED',
 ]);
 
+// Enrolment notifications that resolve to `/inscripcion/estado/<leagueSlug>`,
+// so they need the same leagueId → slug batch lookup as LEAGUE_TYPES.
+const ENROLLMENT_TYPES = new Set<NotificationType>([
+  'TOURNAMENT_PARTNER_ACCEPTED',
+  'TOURNAMENT_PARTNER_DECLINED',
+  'TOURNAMENT_ENROLLMENT_COMPLETED',
+]);
+
 function readString(metadata: Record<string, unknown> | null, key: string): string | undefined {
   const v = metadata?.[key];
   return typeof v === 'string' && v.length > 0 ? v : undefined;
@@ -83,6 +91,22 @@ function resolveHref(
   if (LEAGUE_TYPES.has(type)) {
     const slug = leagueSlug ?? (leagueId ? leagueIdToSlug.get(leagueId) : undefined);
     return slug ? `/ligas/${slug}` : null;
+  }
+  // Guided tournament enrolment. The partner invite needs its own accept page
+  // (the invitee is not a team member yet); the rest land on the enrolment
+  // status page, which is the one screen that states plainly whether the pair
+  // is in and what — if anything — is still missing.
+  if (type === 'TOURNAMENT_PARTNER_INVITE') {
+    const inviteToken = readString(metadata, 'partnerInviteToken');
+    return inviteToken ? `/pareja/${inviteToken}` : '/dashboard';
+  }
+  if (
+    type === 'TOURNAMENT_PARTNER_ACCEPTED' ||
+    type === 'TOURNAMENT_PARTNER_DECLINED' ||
+    type === 'TOURNAMENT_ENROLLMENT_COMPLETED'
+  ) {
+    const slug = leagueSlug ?? (leagueId ? leagueIdToSlug.get(leagueId) : undefined);
+    return slug ? `/inscripcion/estado/${slug}` : '/dashboard';
   }
   if (type === 'TEAM_INVITATION') {
     // The invitee isn't a member of the team yet, so /equipos/[id] would 404
@@ -178,7 +202,9 @@ export const NotificationService = {
       const leagueSlug = readString(meta, 'leagueSlug');
       const leagueId = readString(meta, 'leagueId');
       if (matchId && LEAGUE_MATCH_TYPES.has(n.type) && !leagueSlug) matchIds.add(matchId);
-      if (leagueId && LEAGUE_TYPES.has(n.type) && !leagueSlug) leagueIds.add(leagueId);
+      if (leagueId && (LEAGUE_TYPES.has(n.type) || ENROLLMENT_TYPES.has(n.type)) && !leagueSlug) {
+        leagueIds.add(leagueId);
+      }
     }
 
     const [matches, leagues] = await Promise.all([

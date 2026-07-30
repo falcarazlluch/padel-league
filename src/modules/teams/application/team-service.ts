@@ -48,6 +48,7 @@ export const TeamService = {
       data: {
         name,
         category: input.category,
+        organizationId: input.organizationId ?? null,
         createdByUserId: input.createdByUserId,
         members: { create: { userId: input.createdByUserId } },
       },
@@ -56,9 +57,14 @@ export const TeamService = {
     return team;
   },
 
-  async listForUser(userId: string): Promise<TeamSummary[]> {
+  /**
+   * `organizationId` is a required tenant scope (pass `null` for the public
+   * platform). A player who belongs to both RACC and the public platform sees
+   * two disjoint sets of pairs, which is what "entorno aislado" means.
+   */
+  async listForUser(userId: string, organizationId: string | null): Promise<TeamSummary[]> {
     const teams = await prisma.team.findMany({
-      where: { members: { some: { userId } } },
+      where: { members: { some: { userId } }, organizationId },
       include: {
         members: {
           include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },

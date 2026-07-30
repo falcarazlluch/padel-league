@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { TeamService } from '@/modules/teams';
 import { prisma } from '@/shared/db/client';
+import { getTenantId } from '@/shared/tenant/context';
 import { AuthorizationError, NotFoundError, isUserFacingError } from '@/shared/errors';
 
 async function getSession() {
@@ -39,6 +40,8 @@ export async function createTeamAction(
       name: parsed.data.name,
       category: parsed.data.category,
       createdByUserId: user.id,
+      // A pair created inside a tenant belongs to that tenant.
+      organizationId: await getTenantId(),
     });
     teamId = team.id;
   } catch (err) {

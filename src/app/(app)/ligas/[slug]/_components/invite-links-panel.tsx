@@ -1,0 +1,175 @@
+'use client';
+
+import { useActionState, useState, useTransition } from 'react';
+import { createInviteLinkAction, revokeInviteLinkAction } from '../../actions';
+
+export type InviteLinkView = {
+  id: string;
+  label: string | null;
+  shareUrl: string;
+  useCount: number;
+  maxUses: number | null;
+  /** ISO string — serialised for the client boundary. */
+  expiresAt: string | null;
+  revoked: boolean;
+};
+
+/**
+ * The organiser's control panel for the shareable inscription link. The link is
+ * the entry point of the whole guided flow: it lands on the tenant's own
+ * subdomain, works for logged-in and brand-new players alike, and dies when the
+ * registration window closes.
+ */
+export function InviteLinksPanel({
+  leagueId,
+  links,
+}: {
+  leagueId: string;
+  links: InviteLinkView[];
+}) {
+  const [state, formAction, pending] = useActionState(createInviteLinkAction, null);
+  const active = links.filter((l) => !l.revoked);
+  const revoked = links.filter((l) => l.revoked);
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-brand-navy">Enlace de inscripción</h2>
+        <p className="text-xs text-slate-500 mt-1">
+          Compártelo por email o WhatsApp. Quien lo abra verá el torneo, se registrará si hace falta
+          y completará su inscripción con el asistente guiado.
+        </p>
+      </div>
+
+      {active.length > 0 ? (
+        <ul className="space-y-3">
+          {active.map((link) => (
+            <LinkRow key={link.id} link={link} />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-slate-500">
+          Todavía no has generado ningún enlace para esta competición.
+        </p>
+      )}
+
+      <form action={formAction} className="flex flex-col sm:flex-row sm:items-end gap-2 pt-3 border-t border-slate-100">
+        <input type="hidden" name="leagueId" value={leagueId} />
+        <div className="flex-1">
+          <label htmlFor="label" className="block text-xs font-medium text-slate-500 mb-1">
+            Nombre interno (opcional)
+          </label>
+          <input
+            id="label"
+            name="label"
+            type="text"
+            maxLength={80}
+            placeholder="Ej: Socios RACC"
+            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+          />
+        </div>
+        <div className="sm:w-36">
+          <label htmlFor="maxUses" className="block text-xs font-medium text-slate-500 mb-1">
+            Máx. inscritos
+          </label>
+          <input
+            id="maxUses"
+            name="maxUses"
+            type="number"
+            min={1}
+            placeholder="Sin límite"
+            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={pending}
+          className="px-4 py-2 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
+        >
+          {pending ? 'Generando...' : 'Generar enlace'}
+        </button>
+      </form>
+      {state?.error && <p className="text-xs text-red-600">{state.error}</p>}
+
+      {revoked.length > 0 && (
+        <details className="text-xs text-slate-400">
+          <summary className="cursor-pointer">{revoked.length} enlace(s) desactivado(s)</summary>
+          <ul className="mt-2 space-y-1">
+            {revoked.map((l) => (
+              <li key={l.id} className="line-through truncate">
+                {l.label ?? l.shareUrl} · {l.useCount} inscripción(es)
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function LinkRow({ link }: { link: InviteLinkView }) {
+  const [copied, setCopied] = useState(false);
+  const [pendingRevoke, startRevoke] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link.shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard is unavailable on insecure origins and some in-app browsers;
+      // the URL stays selectable in the input as the fallback.
+      setError('No se pudo copiar. Selecciona el enlace y cópialo a mano.');
+    }
+  };
+
+  const revoke = () => {
+    if (!confirm('¿Desactivar este enlace? Quien lo abra ya no podrá inscribirse.')) return;
+    setError(null);
+    startRevoke(async () => {
+      const res = await revokeInviteLinkAction(link.id);
+      if (res.error) setError(res.error);
+    });
+  };
+
+  const expiry = link.expiresAt ? new Date(link.expiresAt) : null;
+
+  return (
+    <li className="bg-slate-50 rounded-xl p-3 space-y-2">
+      {link.label && <p className="text-xs font-semibold text-slate-600">{link.label}</p>}
+      <div className="flex gap-2">
+        <input
+          readOnly
+          value={link.shareUrl}
+          onFocus={(e) => e.currentTarget.select()}
+          aria-label="Enlace de inscripción"
+          className="flex-1 min-w-0 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-600"
+        />
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="px-3 py-2 bg-brand-navy text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity shrink-0"
+        >
+          {copied ? '¡Copiado!' : 'Copiar'}
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+        <span>
+          {link.useCount} inscripción(es) iniciada(s)
+          {link.maxUses != null ? ` de ${link.maxUses}` : ''}
+        </span>
+        {expiry && <span>Caduca el {expiry.toLocaleDateString('es-ES')}</span>}
+        <button
+          type="button"
+          onClick={revoke}
+          disabled={pendingRevoke}
+          className="text-red-600 font-semibold hover:underline disabled:opacity-60"
+        >
+          {pendingRevoke ? 'Desactivando...' : 'Desactivar'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </li>
+  );
+}

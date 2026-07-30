@@ -12,6 +12,8 @@ import type {
 
 export type LeagueRow = {
   id: string;
+  /** Tenant propietario. `null` = plataforma pública. */
+  organizationId: string | null;
   name: string;
   slug: string;
   description: string | null;
@@ -109,6 +111,8 @@ export type CreateLeagueInput = {
   matchFormat?: MatchFormat;
   defaultDeadlineDays?: number;
   createdByUserId: string;
+  /** Tenant propietario. `undefined`/`null` = plataforma pública. */
+  organizationId?: string | null;
   type?: CompetitionType; // default LEAGUE para compatibilidad con call-sites existentes
   americana?: CreateLeagueAmericanaConfig;
   tournament?: CreateLeagueTournamentConfig;

@@ -10,7 +10,17 @@ function linkClass(active: boolean) {
     : 'text-sm font-medium text-white/70 hover:text-white transition-colors';
 }
 
-export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+export function NavLinks({
+  isSuperAdmin,
+  isOrgAdmin = false,
+  inTenant = false,
+}: {
+  isSuperAdmin: boolean;
+  /** ORG_ADMIN of the current tenant (or platform SUPER_ADMIN). */
+  isOrgAdmin?: boolean;
+  /** Rendering under a whitelabel subdomain. */
+  inTenant?: boolean;
+}) {
   const pathname = usePathname();
 
   const partidosActive =
@@ -33,10 +43,32 @@ export function NavLinks({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       <Link href={'/como-funciona' as Route} className={linkClass(pathname.startsWith('/como-funciona'))} aria-current={pathname.startsWith('/como-funciona') ? 'page' : undefined}>
         Ayuda
       </Link>
-      <Link href={'/invitar' as Route} className={linkClass(pathname.startsWith('/invitar'))} aria-current={pathname.startsWith('/invitar') ? 'page' : undefined}>
-        Invitar
-      </Link>
-      {isSuperAdmin && (
+      {/* "Invitar" mints a platform-wide registration code — meaningless inside
+          a tenant, where the way in is the organiser's inscription link. */}
+      {!inTenant && (
+        <Link href={'/invitar' as Route} className={linkClass(pathname.startsWith('/invitar'))} aria-current={pathname.startsWith('/invitar') ? 'page' : undefined}>
+          Invitar
+        </Link>
+      )}
+      {inTenant && isOrgAdmin && (
+        <Link
+          href={'/admin/inscripciones' as Route}
+          className={linkClass(pathname.startsWith('/admin/inscripciones'))}
+          aria-current={pathname.startsWith('/admin/inscripciones') ? 'page' : undefined}
+        >
+          Inscripciones
+        </Link>
+      )}
+      {isSuperAdmin && !inTenant && (
+        <Link
+          href={'/admin/organizaciones' as Route}
+          className={linkClass(pathname.startsWith('/admin/organizaciones'))}
+          aria-current={pathname.startsWith('/admin/organizaciones') ? 'page' : undefined}
+        >
+          Organizaciones
+        </Link>
+      )}
+      {isSuperAdmin && !inTenant && (
         <>
           <Link
             href={'/admin/disputas' as Route}

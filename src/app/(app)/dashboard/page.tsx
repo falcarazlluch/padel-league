@@ -12,6 +12,9 @@ import { CategoryProposalBanner } from './category-proposal-banner';
 import { WinLossChart } from './win-loss-chart';
 import { CalendarSection } from './_components/calendar-section';
 import { ScrollToTopOnMount } from './_components/scroll-to-top';
+import { UnfinishedEnrollmentBanner } from './_components/unfinished-enrollment-banner';
+import { getTenantId } from '@/shared/tenant/context';
+import { EnrollmentService } from '@/modules/organizations';
 
 function greeting(): string {
   // Server-rendered with Europe/Madrid timezone for consistent UX.
@@ -56,9 +59,20 @@ export default async function DashboardPage({
   // what `deriveLeagueStatus` shows as 'ACTIVE' on the league listing, even
   // when an admin forgot to flip the persisted status.
   const nowDate = new Date();
-  const [leagueCount, matchCount, userLeagues, recentCommentaries, pendingCategoryProposals] = await Promise.all([
+  // Tenant scope: on racc.mypadelleague.es the dashboard counts and league
+  // cards must only ever reflect RACC's own competitions.
+  const organizationId = await getTenantId();
+  const [
+    leagueCount,
+    matchCount,
+    userLeagues,
+    recentCommentaries,
+    pendingCategoryProposals,
+    unfinishedEnrollments,
+  ] = await Promise.all([
     prisma.league.count({
       where: {
+        organizationId,
         status: { in: ['DRAFT', 'ACTIVE'] },
         startDate: { lte: nowDate },
         endDate: { gt: nowDate },
@@ -67,6 +81,7 @@ export default async function DashboardPage({
     prisma.match.count({
       where: {
         status: 'PENDING_VALIDATION',
+        league: { organizationId },
         OR: [
           { teamA: { members: { some: { userId: user.id } } } },
           { teamB: { members: { some: { userId: user.id } } } },
@@ -75,6 +90,7 @@ export default async function DashboardPage({
     }),
     prisma.league.findMany({
       where: {
+        organizationId,
         status: 'ACTIVE',
         registrations: {
           some: {
@@ -101,6 +117,7 @@ export default async function DashboardPage({
     }),
     MatchCommentaryService.listForUser(user.id, 5),
     CategoryProposalService.listPendingForUser(user.id),
+    EnrollmentService.listUnfinishedForUser(user.id, organizationId),
   ]);
 
   // Compute standings + per-user-team progression for each league in parallel
@@ -175,6 +192,19 @@ export default async function DashboardPage({
         <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">Panel de control</p>
         <h1 className="text-2xl font-extrabold text-brand-navy">{greeting()}, {user.name}</h1>
       </div>
+
+      {/* An inscription the player started but never closed is the single most
+          important thing to surface: without this they could believe they are
+          signed up while the deadline passes. */}
+      <UnfinishedEnrollmentBanner
+        items={unfinishedEnrollments.map((e) => ({
+          leagueName: e.leagueName,
+          leagueSlug: e.leagueSlug,
+          status: e.status,
+          daysLeft: Math.ceil((e.registrationEnd.getTime() - nowDate.getTime()) / 86_400_000),
+          resumeToken: e.resumeToken,
+        }))}
+      />
 
       <CategoryProposalBanner
         proposals={pendingCategoryProposals.map((p) => ({

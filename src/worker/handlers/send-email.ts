@@ -21,6 +21,8 @@ import {
   indMatchUpdateSubject,
   renderFriendInvite,
   friendInviteSubject,
+  renderTournamentPartnerInvite,
+  tournamentPartnerInviteSubject,
 } from '../email-templates/render';
 import type { JobMap } from '@/shared/queue/jobs';
 
@@ -118,6 +120,25 @@ function renderTemplate(template: string, data: EmailData): { subject: string; h
           inviterName,
           registerUrl: str(data['registerUrl'], ''),
           code: str(data['code'], ''),
+        }),
+      };
+    }
+    case 'tournament-partner-invite': {
+      const inviterName = str(data['inviterName'], 'Un jugador');
+      const competitionName = str(data['competitionName'], 'una competición');
+      const brandLogoUrl = str(data['brandLogoUrl'], '');
+      const brandUrl = str(data['brandUrl'], '');
+      return {
+        subject: tournamentPartnerInviteSubject(inviterName, competitionName),
+        html: renderTournamentPartnerInvite({
+          appUrl,
+          inviterName,
+          competitionName,
+          partnerName: str(data['partnerName'], 'Hola'),
+          acceptUrl: str(data['acceptUrl'], ''),
+          brandName: str(data['brandName'], 'Padel League'),
+          ...(brandLogoUrl ? { brandLogoUrl } : {}),
+          ...(brandUrl ? { brandUrl } : {}),
         }),
       };
     }

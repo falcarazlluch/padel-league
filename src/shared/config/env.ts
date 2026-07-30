@@ -38,6 +38,10 @@ const optionalEmail = z.preprocess((v) => {
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']),
   APP_URL: z.string().url(),
+  // Apex domain the whitelabel tenants hang off: a tenant with slug `racc` is
+  // served at `racc.<ROOT_DOMAIN>`. Optional — when unset it is derived from
+  // APP_URL's hostname (see `@/shared/tenant/host`).
+  ROOT_DOMAIN: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
 
   DATABASE_URL: z.string().min(1),

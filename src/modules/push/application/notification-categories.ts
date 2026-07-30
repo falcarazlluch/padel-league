@@ -31,6 +31,13 @@ const CATEGORY_BY_TYPE: Record<NotificationType, PushCategory> = {
   INDEPENDENT_MATCH_JOIN_REQUEST: 'invitations',
   INDEPENDENT_MATCH_CONFIRMED: 'invitations',
   INDEPENDENT_MATCH_CANCELLED: 'invitations',
+  // Guided tournament enrolment. These ride the `invitations` channel because
+  // they are all time-critical asks aimed at one specific person — muting them
+  // would silently strand a half-finished inscription.
+  TOURNAMENT_PARTNER_INVITE: 'invitations',
+  TOURNAMENT_PARTNER_ACCEPTED: 'invitations',
+  TOURNAMENT_PARTNER_DECLINED: 'invitations',
+  TOURNAMENT_ENROLLMENT_COMPLETED: 'invitations',
 
   // Match scheduling
   MATCH_ASSIGNED: 'matchDates',

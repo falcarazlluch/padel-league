@@ -16,6 +16,8 @@ import {
   COMPETITION_TYPE_BADGE_CLASS,
 } from '@/modules/leagues/presentation/competition-type';
 import { LeagueCardActions } from './_components/league-card-actions';
+import { getTenant } from '@/shared/tenant/context';
+import { OrganizationService } from '@/modules/organizations';
 
 function readNow(): number {
   return Date.now();
@@ -85,11 +87,15 @@ export default async function LigasPage({
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   const currentUser = token ? await getValidatedSession(token).catch(() => null) : null;
-  const canCreateLeague = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'LEAGUE_ADMIN';
+  const tenant = await getTenant();
+  const canCreateLeague = currentUser
+    ? await OrganizationService.canAdminister(tenant?.id ?? null, currentUser.id)
+    : false;
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
-  // Build the where clause
-  const where: Prisma.LeagueWhereInput = {};
+  // Build the where clause. `organizationId` is pinned first and never derived
+  // from user input — it is the tenant isolation boundary.
+  const where: Prisma.LeagueWhereInput = { organizationId: tenant?.id ?? null };
   if (q.length > 0) {
     where.name = { contains: q, mode: 'insensitive' };
   }

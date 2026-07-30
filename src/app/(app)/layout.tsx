@@ -12,6 +12,9 @@ import { Footer } from './_components/footer';
 import { HelpChatWidget } from './_components/help-chat-widget';
 import { CronicasSidebar } from './_components/cronicas-sidebar';
 import { MatchCommentaryService } from '@/modules/match-commentary';
+import { getTenant } from '@/shared/tenant/context';
+import { OrganizationService } from '@/modules/organizations';
+import { TenantAccessDenied } from './_components/tenant-access-denied';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -29,6 +32,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     cookieStore.delete(SESSION_COOKIE);
     redirect('/login');
   }
+
+  // Tenant gate. Browsing racc.mypadelleague.es without belonging to RACC must
+  // not render the shell at all — every page below this layout assumes the
+  // viewer is inside the tenant.
+  const tenant = await getTenant();
+  const orgRole = tenant
+    ? await OrganizationService.getMembership(tenant.id, currentUser.id)
+    : null;
+  if (tenant && orgRole === null && currentUser.role !== 'SUPER_ADMIN') {
+    return <TenantAccessDenied organizationName={tenant.name} logoUrl={tenant.logoUrl} />;
+  }
+  const isOrgAdmin = orgRole === 'ORG_ADMIN' || currentUser.role === 'SUPER_ADMIN';
 
   const recentCronicas = await MatchCommentaryService.listForUser(currentUser.id, 10).catch(() => []);
   const sidebarItems = recentCronicas.map((c) => {
@@ -60,18 +75,44 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center shrink-0 -mb-3 sm:-mb-6">
-            <Image
-              src="/logo.png"
-              alt="Padel League"
-              width={220}
-              height={88}
-              className="h-16 sm:h-[5.5rem] w-auto object-contain drop-shadow-lg"
-              priority
-              unoptimized
-            />
+            {tenant ? (
+              // Tenant logos sit on arbitrary blob/CDN hosts, so `unoptimized`
+              // keeps them out of the image optimizer's allowlist. Falling back
+              // to the tenant name means a club without a logo still gets its
+              // own identity rather than the platform's.
+              tenant.logoUrl ? (
+                <Image
+                  src={tenant.logoUrl}
+                  alt={tenant.name}
+                  width={220}
+                  height={88}
+                  className="h-12 sm:h-16 w-auto max-w-[11rem] object-contain drop-shadow-lg my-2 sm:my-4"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <span className="text-white font-black text-lg sm:text-xl tracking-tight py-4 sm:py-6">
+                  {tenant.name}
+                </span>
+              )
+            ) : (
+              <Image
+                src="/logo.png"
+                alt="Padel League"
+                width={220}
+                height={88}
+                className="h-16 sm:h-[5.5rem] w-auto object-contain drop-shadow-lg"
+                priority
+                unoptimized
+              />
+            )}
           </Link>
           <div className="hidden md:block">
-            <NavLinks isSuperAdmin={currentUser.role === 'SUPER_ADMIN'} />
+            <NavLinks
+              isSuperAdmin={currentUser.role === 'SUPER_ADMIN'}
+              isOrgAdmin={isOrgAdmin}
+              inTenant={tenant !== null}
+            />
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
@@ -98,6 +139,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <NotificationsBadge />
           <MobileMenu
             isSuperAdmin={currentUser.role === 'SUPER_ADMIN'}
+            isOrgAdmin={isOrgAdmin}
+            inTenant={tenant !== null}
             userName={currentUser.name}
             userEmail={currentUser.email}
           />

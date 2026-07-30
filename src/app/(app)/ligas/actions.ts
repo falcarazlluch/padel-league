@@ -9,6 +9,8 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { LeagueService } from '@/modules/leagues';
 import { LeagueRegistrationService } from '@/modules/teams';
+import { InviteLinkService } from '@/modules/organizations';
+import { getTenantId } from '@/shared/tenant/context';
 import { isUserFacingError } from '@/shared/errors';
 
 async function getSession() {
@@ -94,9 +96,13 @@ export async function createLeagueAction(
     return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
   const data = parsed.data;
+  // The competition belongs to whichever tenant the admin created it from —
+  // never to a tenant chosen in the form, which would be a cross-tenant write.
+  const organizationId = await getTenantId();
   let slug: string;
   try {
     const league = await LeagueService.create({
+      organizationId,
       name: data.name,
       description: data.description,
       registrationStart: new Date(data.registrationStart),
@@ -263,6 +269,58 @@ export async function deleteLeagueAction(leagueId: string): Promise<{ error?: st
   revalidatePath('/ligas');
   revalidatePath('/dashboard');
   redirect('/ligas' as Route);
+}
+
+// ─── Enlaces de inscripción (whitelabel) ─────────────────────────────────
+
+const createInviteLinkSchema = z.object({
+  leagueId: z.string().cuid(),
+  label: z.string().trim().max(80).optional(),
+  maxUses: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(1).max(1000).optional(),
+  ),
+});
+
+export async function createInviteLinkAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const parsed = createInviteLinkSchema.safeParse({
+    leagueId: formData.get('leagueId'),
+    label: formData.get('label') || undefined,
+    maxUses: formData.get('maxUses'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await InviteLinkService.create(
+      {
+        leagueId: parsed.data.leagueId,
+        label: parsed.data.label ?? null,
+        maxUses: parsed.data.maxUses ?? null,
+      },
+      user.id,
+    );
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas', 'layout');
+  return { success: true };
+}
+
+export async function revokeInviteLinkAction(linkId: string): Promise<{ error?: string }> {
+  const user = await getSession();
+  try {
+    await InviteLinkService.revoke(linkId, user.id);
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/ligas', 'layout');
+  return {};
 }
 
 const registerIndividualSchema = z.object({

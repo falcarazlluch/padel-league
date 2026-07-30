@@ -7,6 +7,23 @@ import { useFormStatus } from 'react-dom';
 import { loginAction } from './actions';
 import { PasswordInput } from '../_components/password-input';
 
+/**
+ * `/inscripcion/<token>` and `/pareja/<token>` are the two entry points where a
+ * signup needs no registration code — the token in the path IS the invitation.
+ * Lift it out of `next` and hand it to /registro so switching from login to
+ * signup doesn't dead-end on "necesitas un código".
+ */
+function buildRegistroHref(next: string): Route {
+  const params = new URLSearchParams();
+  const inscripcion = /^\/inscripcion\/([^/?#]+)/.exec(next);
+  const pareja = /^\/pareja\/([^/?#]+)/.exec(next);
+  if (inscripcion?.[1]) params.set('inviteToken', decodeURIComponent(inscripcion[1]));
+  if (pareja?.[1]) params.set('partnerToken', decodeURIComponent(pareja[1]));
+  if (next && next !== '/dashboard') params.set('next', next);
+  const qs = params.toString();
+  return (qs ? `/registro?${qs}` : '/registro') as Route;
+}
+
 export function LoginForm({ next }: { next: string }) {
   const [state, formAction] = useActionState<{ error?: string }, FormData>(
     async (_prev, formData) => {
@@ -50,8 +67,11 @@ export function LoginForm({ next }: { next: string }) {
       >
         ¿Olvidaste tu contraseña?
       </Link>
+      {/* Carry `next` across the switch so someone who lands on login from an
+          inscription link and then picks "regístrate" still ends up back in the
+          wizard. The registro page derives the invite token from `next`. */}
       <Link
-        href={'/registro' as Route}
+        href={buildRegistroHref(next)}
         className="text-sm text-center text-brand-navy hover:underline"
       >
         ¿No tienes cuenta? Regístrate

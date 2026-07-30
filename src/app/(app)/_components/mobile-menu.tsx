@@ -13,11 +13,21 @@ function linkClass(active: boolean) {
 
 interface Props {
   isSuperAdmin: boolean;
+  /** ORG_ADMIN of the current tenant (or platform SUPER_ADMIN). */
+  isOrgAdmin?: boolean;
+  /** Rendering under a whitelabel subdomain. */
+  inTenant?: boolean;
   userName: string;
   userEmail: string;
 }
 
-export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
+export function MobileMenu({
+  isSuperAdmin,
+  isOrgAdmin = false,
+  inTenant = false,
+  userName,
+  userEmail,
+}: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const ref = useRef<HTMLDivElement>(null);
@@ -79,7 +89,17 @@ export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
           <Link href={'/reglamento' as Route} onClick={close} className={linkClass(pathname.startsWith('/reglamento'))}>
             Reglamento
           </Link>
-          {isSuperAdmin && (
+          {inTenant && isOrgAdmin && (
+            <Link href={'/admin/inscripciones' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/inscripciones'))}>
+              Inscripciones
+            </Link>
+          )}
+          {isSuperAdmin && !inTenant && (
+            <Link href={'/admin/organizaciones' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/organizaciones'))}>
+              Organizaciones
+            </Link>
+          )}
+          {isSuperAdmin && !inTenant && (
             <>
               <Link href={'/admin/disputas' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/disputas'))}>
                 Disputas
@@ -108,9 +128,11 @@ export function MobileMenu({ isSuperAdmin, userName, userEmail }: Props) {
           <Link href={'/como-funciona' as Route} onClick={close} className={linkClass(pathname.startsWith('/como-funciona'))}>
             Ayuda
           </Link>
-          <Link href={'/invitar' as Route} onClick={close} className={linkClass(pathname.startsWith('/invitar'))}>
-            Invitar a un amigo
-          </Link>
+          {!inTenant && (
+            <Link href={'/invitar' as Route} onClick={close} className={linkClass(pathname.startsWith('/invitar'))}>
+              Invitar a un amigo
+            </Link>
+          )}
         </div>
       )}
     </div>

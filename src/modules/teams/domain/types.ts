@@ -90,6 +90,8 @@ export type CreateTeamInput = {
   name: string;
   category: TeamCategory;
   createdByUserId: string;
+  /** Tenant propietario. `undefined`/`null` = plataforma pública. */
+  organizationId?: string | null;
 };
 
 export type InviteInput = {

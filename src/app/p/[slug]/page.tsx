@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/shared/db/client';
+import { getTenant } from '@/shared/tenant/context';
 import {
   calculateStandings,
   CATEGORY_LABEL,
@@ -52,13 +53,15 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const league = await prisma.league.findUnique({
-    where: { slug },
+  const tenant = await getTenant();
+  const brand = tenant?.name ?? 'Padel League';
+  const league = await prisma.league.findFirst({
+    where: { slug, organizationId: tenant?.id ?? null },
     select: { name: true, description: true, type: true, category: true },
   });
-  if (!league) return { title: 'Competición no encontrada · Padel League' };
+  if (!league) return { title: `Competición no encontrada · ${brand}` };
   return {
-    title: `${league.name} · Padel League`,
+    title: `${league.name} · ${brand}`,
     description:
       league.description ??
       `${COMPETITION_TYPE_LABEL[league.type]} de pádel categoría ${CATEGORY_LABEL[league.category]}.`,
@@ -82,8 +85,14 @@ export default async function CompetitionPublicPage({
   const { slug } = await params;
   const { tab } = await searchParams;
 
-  const league = await prisma.league.findUnique({
-    where: { slug },
+  const tenant = await getTenant();
+  const brand = tenant ? { name: tenant.name, logoUrl: tenant.logoUrl } : null;
+
+  // Slugs are globally unique, so scope the lookup to the host's tenant:
+  // mypadelleague.es/p/<slug> must not serve a RACC competition, and
+  // racc.mypadelleague.es/p/<slug> must not serve a public one.
+  const league = await prisma.league.findFirst({
+    where: { slug, organizationId: tenant?.id ?? null },
     select: {
       id: true,
       name: true,
@@ -107,7 +116,7 @@ export default async function CompetitionPublicPage({
   // error: tras activarse, el contenido aparece.
   if (league.status === 'DRAFT') {
     return (
-      <PublicShell>
+      <PublicShell brand={brand}>
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-8 text-center space-y-3">
           <h1 className="text-xl font-extrabold text-brand-navy">{league.name}</h1>
           <p className="text-sm text-slate-500">
@@ -409,7 +418,7 @@ export default async function CompetitionPublicPage({
   const activeTab = tab === 'partidos' ? 'partidos' : 'clasificacion';
 
   return (
-    <PublicShell>
+    <PublicShell brand={brand}>
       <div className="space-y-6">
         <div>
           <p className="text-xs font-semibold tracking-widest uppercase text-brand-blue mb-1">
@@ -617,7 +626,14 @@ export default async function CompetitionPublicPage({
   );
 }
 
-function PublicShell({ children }: { children: React.ReactNode }) {
+function PublicShell({
+  children,
+  brand,
+}: {
+  children: React.ReactNode;
+  /** Tenant identity when the page is served from a whitelabel subdomain. */
+  brand: { name: string; logoUrl: string | null } | null;
+}) {
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -628,15 +644,31 @@ function PublicShell({ children }: { children: React.ReactNode }) {
     >
       <header className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-4 sm:px-6 py-3 flex items-center justify-between shadow-md">
         <Link href={'/' as Route} className="flex items-center">
-          <Image
-            src="/logo.png"
-            alt="Padel League"
-            width={180}
-            height={72}
-            className="h-12 sm:h-14 w-auto object-contain drop-shadow-lg"
-            priority
-            unoptimized
-          />
+          {brand ? (
+            brand.logoUrl ? (
+              <Image
+                src={brand.logoUrl}
+                alt={brand.name}
+                width={180}
+                height={72}
+                className="h-10 sm:h-12 w-auto max-w-[10rem] object-contain drop-shadow-lg"
+                priority
+                unoptimized
+              />
+            ) : (
+              <span className="text-white font-black text-lg">{brand.name}</span>
+            )
+          ) : (
+            <Image
+              src="/logo.png"
+              alt="Padel League"
+              width={180}
+              height={72}
+              className="h-12 sm:h-14 w-auto object-contain drop-shadow-lg"
+              priority
+              unoptimized
+            />
+          )}
         </Link>
         <Link
           href={'/login' as Route}

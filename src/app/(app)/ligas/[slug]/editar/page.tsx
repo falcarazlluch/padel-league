@@ -6,6 +6,8 @@ import { getValidatedSession } from '@/shared/auth/session-cache';
 import { LeagueService } from '@/modules/leagues';
 import { isLeagueAdmin } from '@/shared/auth/rbac';
 import { EditLeagueForm } from './edit-form';
+import { getTenant } from '@/shared/tenant/context';
+import { OrganizationService } from '@/modules/organizations';
 
 export default async function EditarLigaPage({
   params,
@@ -18,10 +20,16 @@ export default async function EditarLigaPage({
   if (!token) redirect('/login' as Route);
   const currentUser = await getValidatedSession(token);
 
-  const league = await LeagueService.getBySlug(slug).catch(() => null);
+  const tenant = await getTenant();
+  const league = await LeagueService.getBySlug(slug, tenant?.id ?? null).catch(() => null);
   if (!league) notFound();
 
-  if (!isLeagueAdmin(currentUser, league.createdByUserId)) {
+  // Inside a tenant the gatekeeper is ORG_ADMIN, not the platform's
+  // creator-or-LEAGUE_ADMIN rule.
+  const canEdit = tenant
+    ? await OrganizationService.canAdminister(tenant.id, currentUser.id)
+    : isLeagueAdmin(currentUser, league.createdByUserId);
+  if (!canEdit) {
     redirect(`/ligas/${slug}` as Route);
   }
 

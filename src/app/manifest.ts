@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { getTenant } from '@/shared/tenant/context';
 
 // Web App Manifest. Next.js no tipa todavía `launch_handler` ni `capture_links`
 // pero el navegador (Chrome 102+, Edge, Samsung Internet, partes en Safari 17)
@@ -11,27 +12,36 @@ type ExtraManifestFields = {
   display_override?: Array<'standalone' | 'minimal-ui' | 'fullscreen' | 'browser' | 'window-controls-overlay'>;
 };
 
-export default function manifest(): MetadataRoute.Manifest {
+// Tenant-aware: each whitelabel subdomain is its own origin, so it gets its own
+// manifest and therefore installs as a separate PWA with the club's name, icon
+// and theme colour. A RACC member who installs from racc.mypadelleague.es must
+// end up with "RACC" on their home screen, not "Padel League".
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const tenant = await getTenant();
+  const icon = tenant?.logoUrl ?? '/logopwa.png';
+
   const base: MetadataRoute.Manifest = {
-    name: 'Padel League',
-    short_name: 'Padel League',
-    description: 'Gestión privada de ligas de pádel',
+    name: tenant?.name ?? 'Padel League',
+    short_name: tenant?.name ?? 'Padel League',
+    description: tenant
+      ? (tenant.tagline ?? `Competiciones de pádel de ${tenant.name}`)
+      : 'Gestión privada de ligas de pádel',
     start_url: '/',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#0D1E45',
-    theme_color: '#0D1E45',
+    background_color: tenant?.primaryColor ?? '#0D1E45',
+    theme_color: tenant?.primaryColor ?? '#0D1E45',
     lang: 'es',
     icons: [
       {
-        src: '/logopwa.png',
+        src: icon,
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/logopwa.png',
+        src: icon,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',

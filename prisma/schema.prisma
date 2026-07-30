@@ -19,6 +19,36 @@ enum UserRole {
   PLAYER
 }
 
+// Rol dentro de una Organización (tenant whitelabel, p. ej. RACC).
+// Es ORTOGONAL a `User.role`: un PLAYER global puede ser ORG_ADMIN de RACC y
+// gestionar solo las competiciones de RACC. Un SUPER_ADMIN global puede
+// administrar cualquier organización sin necesidad de una fila aquí.
+enum OrgMemberRole {
+  ORG_ADMIN
+  ORG_PLAYER
+}
+
+// Estado de la inscripción guiada (wizard) de un usuario a un torneo. Es el
+// registro durable que permite al usuario retomar el wizard y saber SIEMPRE
+// qué le falta — nunca se queda en duda de si terminó.
+enum TournamentEnrollmentStatus {
+  // El usuario entró al wizard pero aún no ha resuelto la pareja.
+  AWAITING_PARTNER
+  // Se envió invitación a la pareja y está pendiente de que la acepte.
+  AWAITING_PARTNER_ACCEPT
+  // Pareja confirmada y `LeagueRegistration` creada. Inscripción cerrada.
+  COMPLETED
+  // El usuario abandonó / el admin le dio de baja.
+  CANCELLED
+}
+
+enum PartnerInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 enum LeagueStatus {
   DRAFT
   ACTIVE
@@ -191,6 +221,10 @@ enum NotificationType {
   MATCH_PHOTO_UPLOADED
   MATCH_PHOTO_MENTION
   MATCH_PHOTO_COMMENT
+  TOURNAMENT_PARTNER_INVITE
+  TOURNAMENT_PARTNER_ACCEPTED
+  TOURNAMENT_PARTNER_DECLINED
+  TOURNAMENT_ENROLLMENT_COMPLETED
 }
 
 enum SignedTokenPurpose {
@@ -282,6 +316,11 @@ model User {
   notificationPreference        NotificationPreference?
   registrationsAsIndividual     LeagueRegistration[]          @relation("RegistrationUser")
   matchParticipations           MatchParticipant[]            @relation("MatchParticipantUser")
+  organizationMemberships       OrganizationMember[]
+  inviteLinksCreated            TournamentInviteLink[]        @relation("InviteLinkCreator")
+  tournamentEnrollments         TournamentEnrollment[]        @relation("EnrollmentUser")
+  partnerInvitesSent            TournamentPartnerInvite[]     @relation("PartnerInviteInviter")
+  partnerInvitesReceived        TournamentPartnerInvite[]     @relation("PartnerInviteInvitee")
 
   @@index([deletedAt, anonymizedAt])
   @@map("users")
@@ -353,6 +392,148 @@ model RegistrationCode {
   @@map("registration_codes")
 }
 
+// ─── ORGANIZACIONES (WHITELABEL) ──────────────────────────────────────────
+// Un tenant whitelabel servido en `<slug>.<ROOT_DOMAIN>` (p. ej.
+// racc.mypadelleague.es). Los datos de la plataforma pública viven con
+// `organizationId = NULL`; los de un tenant llevan su id. Esa columna
+// nullable es la frontera de aislamiento: TODA query de listado la filtra
+// via `@/shared/tenant/scope`.
+
+model Organization {
+  id      String  @id @default(cuid())
+  slug    String  @unique // subdominio: "racc" → racc.mypadelleague.es
+  name    String // "RACC"
+  logoUrl String? @map("logo_url")
+
+  // Tokens de branding. Sobreescriben las CSS custom properties
+  // --color-brand-* del layout cuando se sirve bajo el subdominio.
+  primaryColor   String @default("#0D1E45") @map("primary_color")
+  secondaryColor String @default("#5BB8D4") @map("secondary_color")
+  accentColor    String @default("#F9C920") @map("accent_color")
+
+  contactEmail String? @map("contact_email")
+  // Texto libre mostrado en la landing de inscripción del tenant.
+  tagline      String?
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members     OrganizationMember[]
+  leagues     League[]
+  teams       Team[]
+  inviteLinks TournamentInviteLink[]
+
+  @@index([isActive])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  userId         String        @map("user_id")
+  role           OrgMemberRole @default(ORG_PLAYER)
+  joinedAt       DateTime      @default(now()) @map("joined_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("organization_members")
+}
+
+// Enlace de inscripción compartible que genera el ORG_ADMIN para un torneo.
+// A diferencia de `SignedToken` (un uso, JWT), esto es multi-uso y revocable:
+// el admin lo pega en un email/WhatsApp y lo abren N jugadores.
+model TournamentInviteLink {
+  id             String  @id @default(cuid())
+  token          String  @unique // random urlsafe, viaja en la URL
+  leagueId       String  @map("league_id")
+  organizationId String  @map("organization_id")
+  label          String? // nota interna del admin ("Socios RACC 2026")
+
+  createdByUserId String    @map("created_by_user_id")
+  expiresAt       DateTime? @map("expires_at") // null = hasta cierre de inscripción
+  maxUses         Int?      @map("max_uses") // null = ilimitado
+  useCount        Int       @default(0) @map("use_count")
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  league       League                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                   @relation("InviteLinkCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  enrollments  TournamentEnrollment[]
+
+  @@index([leagueId, revokedAt])
+  @@index([organizationId])
+  @@map("tournament_invite_links")
+}
+
+// Estado durable del wizard de inscripción. Una fila por (torneo, usuario).
+// Es la fuente de verdad de "¿me falta algo?" que se muestra al usuario.
+model TournamentEnrollment {
+  id           String  @id @default(cuid())
+  leagueId     String  @map("league_id")
+  userId       String  @map("user_id")
+  inviteLinkId String? @map("invite_link_id")
+
+  // Equipo (pareja) con el que se inscribe. Se crea en el paso 3 del wizard
+  // aunque todavía tenga un solo miembro.
+  teamId String? @map("team_id")
+  // Inscripción efectiva. Solo se rellena cuando la pareja está completa.
+  registrationId String? @map("registration_id")
+
+  status      TournamentEnrollmentStatus @default(AWAITING_PARTNER)
+  completedAt DateTime?                  @map("completed_at")
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+
+  league     League                    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user       User                      @relation("EnrollmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  inviteLink TournamentInviteLink?      @relation(fields: [inviteLinkId], references: [id], onDelete: SetNull)
+  team       Team?                     @relation("EnrollmentTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  invites    TournamentPartnerInvite[]
+
+  @@unique([leagueId, userId])
+  @@index([userId, status])
+  @@index([leagueId, status])
+  @@map("tournament_enrollments")
+}
+
+// Invitación a la pareja: unirse al equipo Y quedar inscritos juntos al torneo.
+// Cubre los dos casos del wizard — pareja que ya tiene cuenta (`invitedUserId`)
+// y pareja que aún no existe en la plataforma (`invitedEmail`).
+model TournamentPartnerInvite {
+  id           String @id @default(cuid())
+  token        String @unique // enlace compartible para la pareja
+  enrollmentId String @map("enrollment_id")
+  leagueId     String @map("league_id")
+  teamId       String @map("team_id")
+
+  invitedByUserId String  @map("invited_by_user_id")
+  invitedUserId   String? @map("invited_user_id") // set si ya tenía cuenta
+  invitedEmail    String? @map("invited_email") @db.Citext
+  invitedName     String? @map("invited_name")
+
+  status      PartnerInviteStatus @default(PENDING)
+  expiresAt   DateTime            @map("expires_at")
+  respondedAt DateTime?           @map("responded_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  enrollment  TournamentEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  league      League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team        Team                 @relation("PartnerInviteTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  invitedBy   User                 @relation("PartnerInviteInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedUser User?                @relation("PartnerInviteInvitee", fields: [invitedUserId], references: [id], onDelete: SetNull)
+
+  @@index([enrollmentId, status])
+  @@index([invitedUserId, status])
+  @@index([invitedEmail, status])
+  @@map("tournament_partner_invites")
+}
+
 // ─── LIGAS ────────────────────────────────────────────────────────────────
 
 // El modelo se llama "League" por compatibilidad histórica, pero en la UX
@@ -360,7 +541,10 @@ model RegistrationCode {
 // tres formatos soportados; los campos `americana*` y los campos de torneo
 // solo se rellenan cuando el `type` lo requiere.
 model League {
-  id                String          @id @default(cuid())
+  id String @id @default(cuid())
+  // Tenant propietario. NULL = plataforma pública (mypadelleague.es). Toda
+  // consulta de listado filtra por esta columna — ver `@/shared/tenant/scope`.
+  organizationId    String?         @map("organization_id")
   name              String
   slug              String          @unique
   description       String?
@@ -401,26 +585,36 @@ model League {
   finalizedAt                DateTime? @map("finalized_at")
   registrationOpenNotifiedAt DateTime? @map("registration_open_notified_at")
 
+  organization       Organization?                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   registrations      LeagueRegistration[]
   matches            Match[]
   groups             CompetitionGroup[]
   independentMatches IndependentMatch[]           @relation("IndependentMatchLeague")
   categoryProposals  TeamCategoryChangeProposal[]
+  inviteLinks        TournamentInviteLink[]
+  enrollments        TournamentEnrollment[]
+  partnerInvites     TournamentPartnerInvite[]
 
   @@index([status])
   @@index([startDate, endDate])
   @@index([type, status])
+  @@index([organizationId, status])
   @@map("leagues")
 }
 
 model Team {
-  id              String       @id @default(cuid())
+  id String @id @default(cuid())
+  // Tenant propietario, mismo criterio que `League.organizationId`. Un equipo
+  // creado dentro del wizard de RACC pertenece a RACC y no aparece en la
+  // plataforma pública.
+  organizationId  String?      @map("organization_id")
   name            String
   category        TeamCategory @default(INTERMEDIATE)
   logoUrl         String?      @map("logo_url")
   createdByUserId String       @map("created_by_user_id")
   createdAt       DateTime     @default(now()) @map("created_at")
 
+  organization         Organization?                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy            User                         @relation("TeamCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   members              TeamMember[]
   invitations          TeamInvitation[]
@@ -432,8 +626,11 @@ model Team {
   hostedMatches        IndependentMatch[]           @relation("MatchHostTeam")
   matchTeamInvitations IndependentMatchInvitation[] @relation("MatchTeamInvitations")
   categoryProposals    TeamCategoryChangeProposal[]
+  enrollments          TournamentEnrollment[]       @relation("EnrollmentTeam")
+  partnerInvites       TournamentPartnerInvite[]    @relation("PartnerInviteTeam")
 
   @@unique([createdByUserId, name])
+  @@index([organizationId])
   @@map("teams")
 }
 

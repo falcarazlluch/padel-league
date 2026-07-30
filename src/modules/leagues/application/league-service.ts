@@ -42,15 +42,38 @@ function validateLeagueDates(input: {
 
 export const LeagueService = {
   async create(input: CreateLeagueInput): Promise<LeagueRow> {
-    const creator = await prisma.user.findUnique({
-      where: { id: input.createdByUserId },
-      select: { role: true },
-    });
-    if (creator?.role !== 'SUPER_ADMIN' && creator?.role !== 'LEAGUE_ADMIN') {
-      throw new AuthorizationError(
-        'NOT_LEAGUE_ADMIN',
-        'Solo los administradores de liga pueden crear competiciones.',
-      );
+    // Two distinct permission models depending on the tenant:
+    //  - public platform (`organizationId` null) → global SUPER_ADMIN / LEAGUE_ADMIN
+    //  - whitelabel tenant → ORG_ADMIN of *that* org (or a platform SUPER_ADMIN)
+    // A global LEAGUE_ADMIN has no say inside somebody else's tenant.
+    const organizationId = input.organizationId ?? null;
+    if (organizationId === null) {
+      const creator = await prisma.user.findUnique({
+        where: { id: input.createdByUserId },
+        select: { role: true },
+      });
+      if (creator?.role !== 'SUPER_ADMIN' && creator?.role !== 'LEAGUE_ADMIN') {
+        throw new AuthorizationError(
+          'NOT_LEAGUE_ADMIN',
+          'Solo los administradores de liga pueden crear competiciones.',
+        );
+      }
+    } else {
+      const [creator, membership] = await Promise.all([
+        prisma.user.findUnique({ where: { id: input.createdByUserId }, select: { role: true } }),
+        prisma.organizationMember.findUnique({
+          where: {
+            organizationId_userId: { organizationId, userId: input.createdByUserId },
+          },
+          select: { role: true },
+        }),
+      ]);
+      if (creator?.role !== 'SUPER_ADMIN' && membership?.role !== 'ORG_ADMIN') {
+        throw new AuthorizationError(
+          'NOT_ORG_ADMIN',
+          'Solo los administradores de la organización pueden crear competiciones aquí.',
+        );
+      }
     }
 
     validateLeagueDates({
@@ -114,6 +137,7 @@ export const LeagueService = {
       data: {
         name: input.name,
         slug,
+        organizationId,
         description: input.description ?? null,
         registrationStart: input.registrationStart,
         registrationEnd: input.registrationEnd,
@@ -149,15 +173,29 @@ export const LeagueService = {
     return league;
   },
 
-  async list(): Promise<LeagueRow[]> {
+  /**
+   * `organizationId` is a REQUIRED tenant scope, not an optional filter: pass
+   * `null` for the public platform and the tenant id under a whitelabel
+   * subdomain. Making it mandatory means a new call site cannot silently list
+   * every tenant's competitions.
+   */
+  async list(organizationId: string | null): Promise<LeagueRow[]> {
     return prisma.league.findMany({
+      where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async getBySlug(slug: string): Promise<LeagueRow> {
+  /**
+   * Slugs are globally unique, so a tenant competition would otherwise be
+   * reachable from the public host by guessing its slug. The scope check turns
+   * that into a 404 rather than a leak.
+   */
+  async getBySlug(slug: string, organizationId: string | null): Promise<LeagueRow> {
     const league = await prisma.league.findUnique({ where: { slug } });
-    if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
+    if (!league || league.organizationId !== organizationId) {
+      throw new NotFoundError('LEAGUE_NOT_FOUND', 'Liga no encontrada.');
+    }
     return league;
   },
 

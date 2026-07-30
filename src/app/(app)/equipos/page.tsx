@@ -9,6 +9,7 @@ import { TeamLogo } from '@/modules/teams/presentation/team-logo';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { IncomingInvitationsList } from './incoming-invitations-list';
+import { getTenantId } from '@/shared/tenant/context';
 
 export default async function MisEquiposPage() {
   const cookieStore = await cookies();
@@ -16,8 +17,9 @@ export default async function MisEquiposPage() {
   if (!token) redirect('/login' as Route);
   const user = await getValidatedSession(token);
 
+  const organizationId = await getTenantId();
   const [teams, incoming] = await Promise.all([
-    TeamService.listForUser(user.id),
+    TeamService.listForUser(user.id, organizationId),
     TeamService.listIncomingInvitations(user.id),
   ]);
 

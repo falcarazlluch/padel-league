@@ -41,17 +41,34 @@ interface WrapArgs {
   content: string;
   preheader?: string;
   appUrl: string;
+  /**
+   * Whitelabel override. When a tenant (e.g. RACC) sends the mail, the header
+   * carries the club's logo and name and every link points at the tenant's own
+   * subdomain — a player invited to a RACC tournament should never see a
+   * Padel League header they don't recognise.
+   */
+  brand?: {
+    name: string;
+    logoUrl?: string;
+    /** Tenant origin used for the header link and the footer. */
+    url?: string;
+  };
 }
 
-function wrapEmail({ content, preheader, appUrl }: WrapArgs): string {
-  const logoUrl = `${appUrl.replace(/\/+$/, '')}/logo.png`;
+function wrapEmail({ content, preheader, appUrl, brand }: WrapArgs): string {
+  const brandName = brand?.name ?? 'Padel League';
+  const brandUrl = brand?.url?.trim() || appUrl;
+  const logoUrl = brand?.logoUrl?.trim() || `${appUrl.replace(/\/+$/, '')}/logo.png`;
+  const footerTagline = brand
+    ? 'Competiciones de pádel'
+    : 'Tu plataforma de ligas y partidos de pádel';
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="x-apple-disable-message-reformatting">
-  <title>Padel League</title>
+  <title>${escapeHtml(brandName)}</title>
   <!--[if mso]><style>*{font-family:Arial,sans-serif !important;}</style><![endif]-->
 </head>
 <body style="margin:0;padding:0;background-color:${COLORS.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
@@ -62,8 +79,8 @@ function wrapEmail({ content, preheader, appUrl }: WrapArgs): string {
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;width:100%;background-color:${COLORS.cardBg};border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(13,30,69,0.08);">
           <tr>
             <td style="background:linear-gradient(135deg,${COLORS.navy} 0%,${COLORS.navyLight} 100%);padding:28px 24px;text-align:center;">
-              <a href="${attr(appUrl)}" style="text-decoration:none;display:inline-block;">
-                <img src="${attr(logoUrl)}" alt="Padel League" width="160" style="display:inline-block;max-width:160px;height:auto;border:0;" />
+              <a href="${attr(brandUrl)}" style="text-decoration:none;display:inline-block;">
+                <img src="${attr(logoUrl)}" alt="${attr(brandName)}" width="160" style="display:inline-block;max-width:160px;height:auto;border:0;" />
               </a>
             </td>
           </tr>
@@ -75,8 +92,8 @@ function wrapEmail({ content, preheader, appUrl }: WrapArgs): string {
           <tr>
             <td style="padding:20px 32px;background-color:${COLORS.footerBg};border-top:1px solid ${COLORS.border};text-align:center;">
               <p style="margin:0;font-size:12px;color:${COLORS.mutedLight};line-height:1.5;">
-                <a href="${attr(appUrl)}" style="color:${COLORS.muted};text-decoration:none;font-weight:600;">Padel League</a>
-                · Tu plataforma de ligas y partidos de pádel
+                <a href="${attr(brandUrl)}" style="color:${COLORS.muted};text-decoration:none;font-weight:600;">${escapeHtml(brandName)}</a>
+                · ${escapeHtml(footerTagline)}
               </p>
             </td>
           </tr>
@@ -304,6 +321,37 @@ export function renderFriendInvite({
       ${paragraph('Si el botón no funciona, ve a la app y usa este código de invitación:')}
       ${codeBlock(code)}
       ${smallNote('La invitación es válida durante 14 días.')}
+    `,
+  });
+}
+
+interface TournamentPartnerInviteProps extends CommonProps {
+  inviterName: string;
+  partnerName: string;
+  competitionName: string;
+  acceptUrl: string;
+  brandName: string;
+  brandLogoUrl?: string;
+  brandUrl?: string;
+}
+export const tournamentPartnerInviteSubject = (inviterName: string, competitionName: string): string =>
+  `${inviterName} te quiere como pareja en ${competitionName}`;
+export function renderTournamentPartnerInvite({
+  inviterName, partnerName, competitionName, acceptUrl,
+  brandName, brandLogoUrl, brandUrl, appUrl,
+}: TournamentPartnerInviteProps): string {
+  return wrapEmail({
+    appUrl,
+    brand: { name: brandName, logoUrl: brandLogoUrl, url: brandUrl },
+    preheader: `${inviterName} quiere jugar ${competitionName} contigo. Confirma para quedar inscritos.`,
+    content: `
+      ${heading(`${partnerName}, te quieren como pareja`)}
+      ${paragraph(`<strong>${escapeHtml(inviterName)}</strong> se está apuntando a <strong>${escapeHtml(competitionName)}</strong> y quiere jugar contigo.`)}
+      ${infoBox([['Competición', competitionName], ['Te invita', inviterName], ['Organiza', brandName]])}
+      ${paragraph('Confirma y quedaréis inscritos como pareja automáticamente. <strong>Hasta que aceptes, la inscripción no está cerrada.</strong>')}
+      ${cta(acceptUrl, 'Confirmar y apuntarme', 'green')}
+      ${secondaryLink(acceptUrl, 'Ver los detalles antes de decidir')}
+      ${smallNote('Si no conoces a esta persona, ignora este email: no se te apuntará a nada.')}
     `,
   });
 }
