@@ -12,6 +12,10 @@ build/
 .env
 .env.local
 .env.*.local
+# Backups of env files: these carry every production secret, not just the one
+# being rotated, and the .local patterns above do not match a .bak suffix.
+.env*.bak*
+.env*.backup*
 !.env.example
 
 # testing
