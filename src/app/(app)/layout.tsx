@@ -41,7 +41,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ? await OrganizationService.getMembership(tenant.id, currentUser.id)
     : null;
   if (tenant && orgRole === null && currentUser.role !== 'SUPER_ADMIN') {
-    return <TenantAccessDenied organizationName={tenant.name} logoUrl={tenant.logoUrl} />;
+    return (
+      <TenantAccessDenied
+        organizationName={tenant.name}
+        logoUrl={tenant.logoUrl}
+        userEmail={currentUser.email}
+      />
+    );
   }
   const isOrgAdmin = orgRole === 'ORG_ADMIN' || currentUser.role === 'SUPER_ADMIN';
 
