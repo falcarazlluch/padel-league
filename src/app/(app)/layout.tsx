@@ -84,11 +84,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex items-center gap-8">
           {/* Co-branded: the club never replaces Padel League, it sits beside it. */}
-          <Link href="/dashboard" className="flex items-center shrink-0 py-1">
+          <Link href="/dashboard" className="flex items-center shrink-0">
             <CoBrandedLogo
               tenant={tenant ? { name: tenant.name, logoUrl: tenant.logoUrl } : null}
               tone="dark"
-              size="lg"
+              size="nav"
               priority
             />
           </Link>

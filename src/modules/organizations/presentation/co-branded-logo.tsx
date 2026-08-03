@@ -19,7 +19,13 @@ export function CoBrandedLogo({
 }: {
   tenant: { name: string; logoUrl: string | null } | null;
   tone: 'dark' | 'light';
-  size?: 'sm' | 'md' | 'lg';
+  /**
+   * `nav` reproduces the app bar's original treatment: the platform mark is
+   * deliberately taller than the bar and hangs over its bottom edge. The
+   * negative margin lives on that image alone, so the club logo beside it stays
+   * vertically centred inside the bar instead of hanging low too.
+   */
+  size?: 'sm' | 'md' | 'lg' | 'nav';
   priority?: boolean;
 }) {
   const platform = PLATFORM_CLASS[size];
@@ -35,7 +41,7 @@ export function CoBrandedLogo({
         alt="Padel League"
         width={220}
         height={127}
-        className={`${platform} w-auto object-contain shrink-0`}
+        className={`${platform} w-auto object-contain shrink-0 drop-shadow-lg`}
         priority={priority}
         unoptimized
       />
@@ -50,8 +56,8 @@ export function CoBrandedLogo({
               src={tenant.logoUrl}
               alt={tenant.name}
               width={220}
-              height={120}
-              className={`${tenantBox} w-auto object-contain shrink-0`}
+              height={220}
+              className={`${tenantBox} w-auto object-contain shrink-0 drop-shadow-lg`}
               priority={priority}
               unoptimized
             />
@@ -72,22 +78,27 @@ const PLATFORM_CLASS = {
   sm: 'h-8',
   md: 'h-10 sm:h-12',
   lg: 'h-12 sm:h-16',
+  // Same height and overhang as before the lockup existed.
+  nav: 'h-16 sm:h-[5.5rem] -mb-3 sm:-mb-6',
 } as const;
 
 const TENANT_CLASS = {
   sm: 'h-6 max-w-[5rem]',
   md: 'h-8 sm:h-9 max-w-[7rem]',
   lg: 'h-10 sm:h-12 max-w-[9rem]',
+  nav: 'h-10 sm:h-12 max-w-[8rem]',
 } as const;
 
 const DIVIDER_CLASS = {
   sm: 'h-5',
   md: 'h-7',
   lg: 'h-9',
+  nav: 'h-8 sm:h-10',
 } as const;
 
 const NAME_CLASS = {
   sm: 'text-xs',
   md: 'text-sm',
   lg: 'text-base',
+  nav: 'text-lg sm:text-xl tracking-tight',
 } as const;
