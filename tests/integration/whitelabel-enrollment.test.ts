@@ -812,3 +812,72 @@ describe('organization-level invite link', () => {
     ).rejects.toThrow(/permisos de administración/i);
   });
 });
+
+describe('organization branding — who may change it', () => {
+  beforeEach(async () => {
+    await truncateAll(prisma);
+  });
+
+  it('lets the org admin change name, logo, colours, tagline and contact', async () => {
+    const { org, orgAdmin } = await seedTenantTournament();
+
+    await OrganizationService.update(org.id, orgAdmin.id, {
+      name: 'RACC Pádel',
+      logoUrl: 'https://cdn.example.com/racc.png',
+      tagline: 'Competiciones para socios',
+      contactEmail: 'padel@racc.es',
+      primaryColor: '#000000',
+      secondaryColor: '#1F4E9C',
+      accentColor: '#FFCF00',
+    });
+
+    const row = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } });
+    expect(row.name).toBe('RACC Pádel');
+    expect(row.logoUrl).toBe('https://cdn.example.com/racc.png');
+    expect(row.accentColor).toBe('#FFCF00');
+    // The subdomain is untouched: renaming it would break every link handed out.
+    expect(row.slug).toBe('racc');
+  });
+
+  it('refuses a non-admin of the org, and an admin of a different org', async () => {
+    const { org, superAdmin } = await seedTenantTournament();
+
+    const player = await makeUser('player@x.es', 'Jugador');
+    await OrganizationService.ensureMember(org.id, player.id);
+    await expect(
+      OrganizationService.update(org.id, player.id, { name: 'Secuestrado' }),
+    ).rejects.toThrow(/permisos de administración/i);
+
+    // Admin of another club must not be able to repaint this one.
+    const other = await OrganizationService.create({ slug: 'otro', name: 'Otro Club' }, superAdmin.id);
+    const otherAdmin = await makeUser('admin@otro.es', 'Admin Otro');
+    await OrganizationService.setMemberRole(other.id, otherAdmin.id, 'ORG_ADMIN', superAdmin.id);
+    await expect(
+      OrganizationService.update(org.id, otherAdmin.id, { name: 'Secuestrado' }),
+    ).rejects.toThrow(/permisos de administración/i);
+
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).name).toBe('RACC');
+  });
+
+  it('rejects colours that are not 6-digit hex, since they end up inside a <style>', async () => {
+    const { org, orgAdmin } = await seedTenantTournament();
+    for (const bad of ['red', '#FFF', 'url(evil)', '#12345g']) {
+      await expect(
+        OrganizationService.update(org.id, orgAdmin.id, { primaryColor: bad }),
+      ).rejects.toThrow(/color hex/i);
+    }
+  });
+
+  it('keeps activation as a platform decision, not the org admin’s', async () => {
+    const { org, orgAdmin, superAdmin } = await seedTenantTournament();
+
+    await expect(
+      OrganizationService.update(org.id, orgAdmin.id, { isActive: false }),
+    ).rejects.toThrow(/super admin/i);
+
+    await OrganizationService.update(org.id, superAdmin.id, { isActive: false });
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).isActive).toBe(
+      false,
+    );
+  });
+});

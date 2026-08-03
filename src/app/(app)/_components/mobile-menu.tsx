@@ -90,9 +90,14 @@ export function MobileMenu({
             Reglamento
           </Link>
           {inTenant && isOrgAdmin && (
-            <Link href={'/admin/inscripciones' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/inscripciones'))}>
-              Inscripciones
-            </Link>
+            <>
+              <Link href={'/admin/inscripciones' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/inscripciones'))}>
+                Inscripciones
+              </Link>
+              <Link href={'/admin/organizacion' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/organizacion'))}>
+                Identidad
+              </Link>
+            </>
           )}
           {isSuperAdmin && !inTenant && (
             <Link href={'/admin/organizaciones' as Route} onClick={close} className={linkClass(pathname.startsWith('/admin/organizaciones'))}>

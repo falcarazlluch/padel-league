@@ -51,13 +51,22 @@ export function NavLinks({
         </Link>
       )}
       {inTenant && isOrgAdmin && (
-        <Link
-          href={'/admin/inscripciones' as Route}
-          className={linkClass(pathname.startsWith('/admin/inscripciones'))}
-          aria-current={pathname.startsWith('/admin/inscripciones') ? 'page' : undefined}
-        >
-          Inscripciones
-        </Link>
+        <>
+          <Link
+            href={'/admin/inscripciones' as Route}
+            className={linkClass(pathname.startsWith('/admin/inscripciones'))}
+            aria-current={pathname.startsWith('/admin/inscripciones') ? 'page' : undefined}
+          >
+            Inscripciones
+          </Link>
+          <Link
+            href={'/admin/organizacion' as Route}
+            className={linkClass(pathname.startsWith('/admin/organizacion'))}
+            aria-current={pathname.startsWith('/admin/organizacion') ? 'page' : undefined}
+          >
+            Identidad
+          </Link>
+        </>
       )}
       {isSuperAdmin && !inTenant && (
         <Link
