@@ -1,11 +1,12 @@
-import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { AuthBackgroundVideo } from './_components/auth-background-video';
 import { getTenant } from '@/shared/tenant/context';
+import { CoBrandedLogo } from '@/modules/organizations';
 
 export default async function AuthLayout({ children }: { children: ReactNode }) {
-  // Under a whitelabel subdomain the auth card wears the club's mark: a player
-  // sent to log in from a RACC link must not suddenly see another brand.
+  // Under a whitelabel subdomain the auth card carries both marks, so a player
+  // arriving from a club link recognises the club without losing sight of the
+  // platform they are signing in to.
   const tenant = await getTenant();
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4 py-12 overflow-hidden bg-brand-navy">
@@ -21,31 +22,14 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
       <div className="relative w-full max-w-sm">
         <div className="bg-white rounded-2xl shadow-xl border-t-4 border-brand-yellow p-8">
           <div className="flex justify-center mb-6">
-            {tenant ? (
-              tenant.logoUrl ? (
-                <Image
-                  src={tenant.logoUrl}
-                  alt={tenant.name}
-                  width={240}
-                  height={96}
-                  className="max-h-20 w-auto max-w-[80%] object-contain"
-                  priority
-                  unoptimized
-                />
-              ) : (
-                <p className="text-2xl font-black text-brand-navy text-center">{tenant.name}</p>
-              )
-            ) : (
-              <Image
-                src="/logo.png"
-                alt="Padel League"
-                width={240}
-                height={96}
-                className="w-4/5 h-auto object-contain"
-                priority
-                unoptimized
-              />
-            )}
+            {/* Both marks: a player sent here from a club link should see the
+                club, but also recognise the platform they are signing in to. */}
+            <CoBrandedLogo
+              tenant={tenant ? { name: tenant.name, logoUrl: tenant.logoUrl } : null}
+              tone="light"
+              size="md"
+              priority
+            />
           </div>
           {children}
         </div>

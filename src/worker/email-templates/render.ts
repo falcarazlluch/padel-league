@@ -42,10 +42,11 @@ interface WrapArgs {
   preheader?: string;
   appUrl: string;
   /**
-   * Whitelabel override. When a tenant (e.g. RACC) sends the mail, the header
-   * carries the club's logo and name and every link points at the tenant's own
-   * subdomain — a player invited to a RACC tournament should never see a
-   * Padel League header they don't recognise.
+   * Whitelabel co-branding. When a tenant (e.g. RACC) sends the mail, the header
+   * shows Padel League on the left and the club on the right, and every link
+   * points at the tenant's own subdomain. The club never replaces the platform
+   * mark — a player invited to a RACC tournament should recognise the club, and
+   * still see who runs the platform.
    */
   brand?: {
     name: string;
@@ -58,9 +59,12 @@ interface WrapArgs {
 function wrapEmail({ content, preheader, appUrl, brand }: WrapArgs): string {
   const brandName = brand?.name ?? 'Padel League';
   const brandUrl = brand?.url?.trim() || appUrl;
-  const logoUrl = brand?.logoUrl?.trim() || `${appUrl.replace(/\/+$/, '')}/logo.png`;
+  const platformLogo = `${appUrl.replace(/\/+$/, '')}/logo.png`;
+  // The club logo never replaces the platform one: both ride in the header,
+  // Padel League on the left. Same rule as the app shell.
+  const tenantLogo = brand?.logoUrl?.trim() || '';
   const footerTagline = brand
-    ? 'Competiciones de pádel'
+    ? `Competiciones de pádel · en Padel League`
     : 'Tu plataforma de ligas y partidos de pádel';
   return `<!DOCTYPE html>
 <html lang="es">
@@ -80,8 +84,18 @@ function wrapEmail({ content, preheader, appUrl, brand }: WrapArgs): string {
           <tr>
             <td style="background:linear-gradient(135deg,${COLORS.navy} 0%,${COLORS.navyLight} 100%);padding:28px 24px;text-align:center;">
               <a href="${attr(brandUrl)}" style="text-decoration:none;display:inline-block;">
-                <img src="${attr(logoUrl)}" alt="${attr(brandName)}" width="160" style="display:inline-block;max-width:160px;height:auto;border:0;" />
-              </a>
+                <img src="${attr(platformLogo)}" alt="Padel League" width="140" style="display:inline-block;max-width:140px;height:auto;border:0;vertical-align:middle;" />
+              </a>${
+                tenantLogo
+                  ? `<span style="display:inline-block;width:1px;height:28px;background-color:rgba(255,255,255,0.28);margin:0 14px;vertical-align:middle;"></span>
+              <a href="${attr(brandUrl)}" style="text-decoration:none;display:inline-block;">
+                <img src="${attr(tenantLogo)}" alt="${attr(brandName)}" height="30" style="display:inline-block;max-height:30px;width:auto;border:0;vertical-align:middle;" />
+              </a>`
+                  : brand
+                    ? `<span style="display:inline-block;width:1px;height:28px;background-color:rgba(255,255,255,0.28);margin:0 14px;vertical-align:middle;"></span>
+              <span style="display:inline-block;color:#FFFFFF;font-size:16px;font-weight:700;vertical-align:middle;">${escapeHtml(brandName)}</span>`
+                    : ''
+              }
             </td>
           </tr>
           <tr>

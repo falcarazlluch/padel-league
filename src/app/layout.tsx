@@ -24,10 +24,9 @@ export async function generateMetadata(): Promise<Metadata> {
     description: tenant.tagline ?? `Competiciones de pádel de ${tenant.name}`,
     applicationName: tenant.name,
     appleWebApp: { capable: true, title: tenant.name, statusBarStyle: 'black-translucent' },
-    icons: {
-      icon: tenant.logoUrl ?? '/logo.png',
-      apple: tenant.logoUrl ?? '/logopwa.png',
-    },
+    // Single-slot like the manifest: the platform mark stays, since the tenant
+    // is already named in the title.
+    icons: { icon: '/logo.png', apple: '/logopwa.png' },
   };
 }
 

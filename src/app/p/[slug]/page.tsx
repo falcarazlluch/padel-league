@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/shared/db/client';
 import { getTenant } from '@/shared/tenant/context';
+import { CoBrandedLogo } from '@/modules/organizations';
 import {
   calculateStandings,
   CATEGORY_LABEL,
@@ -644,31 +644,7 @@ function PublicShell({
     >
       <header className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-4 sm:px-6 py-3 flex items-center justify-between shadow-md">
         <Link href={'/' as Route} className="flex items-center">
-          {brand ? (
-            brand.logoUrl ? (
-              <Image
-                src={brand.logoUrl}
-                alt={brand.name}
-                width={180}
-                height={72}
-                className="h-10 sm:h-12 w-auto max-w-[10rem] object-contain drop-shadow-lg"
-                priority
-                unoptimized
-              />
-            ) : (
-              <span className="text-white font-black text-lg">{brand.name}</span>
-            )
-          ) : (
-            <Image
-              src="/logo.png"
-              alt="Padel League"
-              width={180}
-              height={72}
-              className="h-12 sm:h-14 w-auto object-contain drop-shadow-lg"
-              priority
-              unoptimized
-            />
-          )}
+          <CoBrandedLogo tenant={brand} tone="dark" size="md" priority />
         </Link>
         <Link
           href={'/login' as Route}

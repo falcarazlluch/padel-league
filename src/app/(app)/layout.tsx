@@ -1,7 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
@@ -13,7 +12,7 @@ import { HelpChatWidget } from './_components/help-chat-widget';
 import { CronicasSidebar } from './_components/cronicas-sidebar';
 import { MatchCommentaryService } from '@/modules/match-commentary';
 import { getTenant } from '@/shared/tenant/context';
-import { OrganizationService } from '@/modules/organizations';
+import { CoBrandedLogo, OrganizationService } from '@/modules/organizations';
 import { TenantAccessDenied } from './_components/tenant-access-denied';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -84,38 +83,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.25rem)' }}
       >
         <div className="flex items-center gap-8">
-          <Link href="/dashboard" className="flex items-center shrink-0 -mb-3 sm:-mb-6">
-            {tenant ? (
-              // Tenant logos sit on arbitrary blob/CDN hosts, so `unoptimized`
-              // keeps them out of the image optimizer's allowlist. Falling back
-              // to the tenant name means a club without a logo still gets its
-              // own identity rather than the platform's.
-              tenant.logoUrl ? (
-                <Image
-                  src={tenant.logoUrl}
-                  alt={tenant.name}
-                  width={220}
-                  height={88}
-                  className="h-12 sm:h-16 w-auto max-w-[11rem] object-contain drop-shadow-lg my-2 sm:my-4"
-                  priority
-                  unoptimized
-                />
-              ) : (
-                <span className="text-white font-black text-lg sm:text-xl tracking-tight py-4 sm:py-6">
-                  {tenant.name}
-                </span>
-              )
-            ) : (
-              <Image
-                src="/logo.png"
-                alt="Padel League"
-                width={220}
-                height={88}
-                className="h-16 sm:h-[5.5rem] w-auto object-contain drop-shadow-lg"
-                priority
-                unoptimized
-              />
-            )}
+          {/* Co-branded: the club never replaces Padel League, it sits beside it. */}
+          <Link href="/dashboard" className="flex items-center shrink-0 py-1">
+            <CoBrandedLogo
+              tenant={tenant ? { name: tenant.name, logoUrl: tenant.logoUrl } : null}
+              tone="dark"
+              size="lg"
+              priority
+            />
           </Link>
           <div className="hidden md:block">
             <NavLinks

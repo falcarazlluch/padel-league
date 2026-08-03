@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { getTenant } from '@/shared/tenant/context';
-import { OrgBrandHeader } from '@/modules/organizations';
+import { CoBrandedLogo } from '@/modules/organizations';
 
 /**
  * Shell for the guided-enrolment surfaces (`/inscripcion/**`, `/pareja/**`).
@@ -21,16 +21,16 @@ export default async function InscripcionLayout({ children }: { children: ReactN
           className="max-w-3xl mx-auto px-4 py-3"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
         >
-          {tenant ? (
-            <OrgBrandHeader
-              name={tenant.name}
-              logoUrl={tenant.logoUrl}
-              tagline={tenant.tagline}
+          <div className="space-y-1">
+            <CoBrandedLogo
+              tenant={tenant ? { name: tenant.name, logoUrl: tenant.logoUrl } : null}
+              tone="light"
               size="sm"
             />
-          ) : (
-            <p className="font-black text-brand-navy">Padel League</p>
-          )}
+            {tenant?.tagline && (
+              <p className="text-xs text-slate-500 leading-tight">{tenant.tagline}</p>
+            )}
+          </div>
         </div>
       </header>
 

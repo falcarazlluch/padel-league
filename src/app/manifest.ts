@@ -13,12 +13,15 @@ type ExtraManifestFields = {
 };
 
 // Tenant-aware: each whitelabel subdomain is its own origin, so it gets its own
-// manifest and therefore installs as a separate PWA with the club's name, icon
-// and theme colour. A RACC member who installs from racc.mypadelleague.es must
-// end up with "RACC" on their home screen, not "Padel League".
+// manifest and therefore installs as a separate PWA with the club's name and
+// theme colour. A RACC member who installs from racc.mypadelleague.es ends up
+// with "RACC" on their home screen. The icon stays the platform's — see below.
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const tenant = await getTenant();
-  const icon = tenant?.logoUrl ?? '/logopwa.png';
+  // A manifest icon is a single slot, so the two marks cannot sit side by side
+  // here. The platform icon wins: the club is already named in `name`, and the
+  // rule is that the tenant logo never *replaces* the Padel League one.
+  const icon = '/logopwa.png';
 
   const base: MetadataRoute.Manifest = {
     name: tenant?.name ?? 'Padel League',

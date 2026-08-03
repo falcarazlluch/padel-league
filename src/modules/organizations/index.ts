@@ -19,5 +19,6 @@ export type {
 } from './domain/types';
 export { OrgBrandStyle } from './presentation/org-brand-style';
 export { OrgBrandHeader } from './presentation/org-brand-header';
+export { CoBrandedLogo } from './presentation/co-branded-logo';
 export { EnrollmentChecklist } from './presentation/enrollment-checklist';
 export { ENROLLMENT_STATUS_LABEL, ENROLLMENT_STATUS_CLASS } from './presentation/labels';
