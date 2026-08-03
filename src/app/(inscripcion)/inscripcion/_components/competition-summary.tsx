@@ -10,13 +10,19 @@ function fmt(d: Date): string {
 }
 
 /** What the player is being invited to, stated before anything is asked of them. */
-export function CompetitionSummary({ preview }: { preview: InviteLinkPreview }) {
-  const c = preview.competition;
+export function CompetitionSummary({
+  organizationName,
+  competition,
+}: {
+  organizationName: string;
+  competition: NonNullable<InviteLinkPreview['competition']>;
+}) {
+  const c = competition;
   return (
     <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
       <div className="bg-gradient-to-r from-brand-navy to-brand-navy-light px-5 py-4">
         <p className="text-[0.7rem] font-bold uppercase tracking-widest text-white/60">
-          {preview.organization.name} te invita
+          {organizationName} te invita
         </p>
         <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5">{c.name}</h1>
       </div>

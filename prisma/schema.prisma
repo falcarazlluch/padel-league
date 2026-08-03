@@ -450,9 +450,12 @@ model OrganizationMember {
 // A diferencia de `SignedToken` (un uso, JWT), esto es multi-uso y revocable:
 // el admin lo pega en un email/WhatsApp y lo abren N jugadores.
 model TournamentInviteLink {
-  id             String  @id @default(cuid())
-  token          String  @unique // random urlsafe, viaja en la URL
-  leagueId       String  @map("league_id")
+  id    String @id @default(cuid())
+  token String @unique // random urlsafe, viaja en la URL
+  // NULL = enlace de la ORGANIZACIÓN: da de alta en el tenant y luego el
+  // jugador elige entre sus competiciones abiertas. Con valor = enlace directo
+  // a esa competición.
+  leagueId       String? @map("league_id")
   organizationId String  @map("organization_id")
   label          String? // nota interna del admin ("Socios RACC 2026")
 
@@ -463,13 +466,14 @@ model TournamentInviteLink {
   revokedAt       DateTime? @map("revoked_at")
   createdAt       DateTime  @default(now()) @map("created_at")
 
-  league       League                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league       League?                @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy    User                   @relation("InviteLinkCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   enrollments  TournamentEnrollment[]
 
   @@index([leagueId, revokedAt])
   @@index([organizationId])
+  @@index([organizationId, revokedAt])
   @@map("tournament_invite_links")
 }
 

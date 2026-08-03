@@ -704,3 +704,111 @@ describe('interoperability with the classic registration path', () => {
     expect(team.organizationId).toBe(org.id);
   });
 });
+
+describe('organization-level invite link', () => {
+  beforeEach(async () => {
+    await truncateAll(prisma);
+  });
+
+  it('joins the tenant and then enrols into a competition the player chooses', async () => {
+    const { org, orgAdmin, league } = await seedTenantTournament();
+    const juan = await makeUser('juan@x.es', 'Juan García');
+    const marta = await makeUser('marta@x.es', 'Marta Ruiz');
+
+    // The organisation link carries no competition.
+    const orgLink = await InviteLinkService.create({ organizationId: org.id }, orgAdmin.id);
+    const preview = await InviteLinkService.preview(orgLink.token);
+    expect(preview?.kind).toBe('ORGANIZATION');
+    expect(preview?.competition).toBeNull();
+    expect(preview?.openCompetitions.map((c) => c.id)).toEqual([league.id]);
+    expect(preview?.blockedReason).toBeNull();
+
+    // It has no window of its own, so it does not inherit the competition's.
+    expect(orgLink.expiresAt).toBeNull();
+
+    // Joining is idempotent and only counts the first alta.
+    await InviteLinkService.joinOrganization(orgLink.token, juan.id);
+    await InviteLinkService.joinOrganization(orgLink.token, juan.id);
+    expect(await OrganizationService.getMembership(org.id, juan.id)).toBe('ORG_PLAYER');
+    expect(
+      (await prisma.tournamentInviteLink.findUniqueOrThrow({ where: { id: orgLink.id } })).useCount,
+    ).toBe(1);
+
+    // The same token now enrols into the chosen competition.
+    const started = await EnrollmentService.start(orgLink.token, juan.id, league.id);
+    expect(started.leagueId).toBe(league.id);
+
+    await EnrollmentService.saveProfile(juan.id, {
+      name: 'Juan García',
+      phone: '600111222',
+      category: 'INTERMEDIATE',
+    });
+    await EnrollmentService.invitePartner({
+      leagueId: league.id,
+      userId: juan.id,
+      partnerUserId: marta.id,
+    });
+    await EnrollmentService.acceptPartnerInvite(
+      (await prisma.tournamentPartnerInvite.findFirstOrThrow({ where: { invitedUserId: marta.id } }))
+        .token,
+      marta.id,
+    );
+    expect((await EnrollmentService.getView(league.id, juan.id)).status).toBe('COMPLETED');
+  });
+
+  it('refuses to enrol without naming a competition', async () => {
+    const { org, orgAdmin } = await seedTenantTournament();
+    const juan = await makeUser('juan@x.es', 'Juan García');
+    const orgLink = await InviteLinkService.create({ organizationId: org.id }, orgAdmin.id);
+
+    await expect(EnrollmentService.start(orgLink.token, juan.id)).rejects.toThrow(
+      /elige la competición/i,
+    );
+  });
+
+  it('refuses a competition that belongs to another environment', async () => {
+    const { org, orgAdmin, superAdmin } = await seedTenantTournament();
+    const juan = await makeUser('juan@x.es', 'Juan García');
+    const orgLink = await InviteLinkService.create({ organizationId: org.id }, orgAdmin.id);
+
+    // A public-platform competition: not reachable through RACC's link even if
+    // its id is hand-edited into the URL.
+    const outsider = await LeagueService.create({
+      name: 'Liga Pública',
+      createdByUserId: superAdmin.id,
+      ...competitionDates(),
+    });
+
+    await expect(
+      EnrollmentService.start(orgLink.token, juan.id, outsider.id),
+    ).rejects.toThrow(/no encontrada/i);
+  });
+
+  it('a competition link still pins its own competition, ignoring any choice', async () => {
+    const { league, link } = await seedTenantTournament();
+    const juan = await makeUser('juan@x.es', 'Juan García');
+
+    // Passing a different id must not override a competition-scoped link.
+    const started = await EnrollmentService.start(link.token, juan.id, 'some-other-id');
+    expect(started.leagueId).toBe(league.id);
+  });
+
+  it('lists organization links separately from competition links', async () => {
+    const { org, orgAdmin, league } = await seedTenantTournament();
+    const orgLink = await InviteLinkService.create({ organizationId: org.id }, orgAdmin.id);
+
+    const orgOnly = await InviteLinkService.listForOrganization(org.id, orgAdmin.id);
+    expect(orgOnly.map((l) => l.id)).toEqual([orgLink.id]);
+
+    const perLeague = await InviteLinkService.listForLeague(league.id, orgAdmin.id);
+    expect(perLeague.map((l) => l.id)).not.toContain(orgLink.id);
+  });
+
+  it('cannot be created by someone who does not administer the org', async () => {
+    const { org } = await seedTenantTournament();
+    const outsider = await makeUser('out@x.es', 'Fuera');
+    await expect(
+      InviteLinkService.create({ organizationId: org.id }, outsider.id),
+    ).rejects.toThrow(/permisos de administración/i);
+  });
+});

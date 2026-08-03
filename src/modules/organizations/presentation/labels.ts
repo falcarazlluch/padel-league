@@ -3,7 +3,12 @@ import type { TournamentEnrollmentStatus } from '../domain/types';
 // Re-exported so client components in the app layer can type their props
 // without reaching into the domain layer (which the boundaries rule forbids)
 // or through the module facade (which drags prisma into the client bundle).
-export type { ChecklistItem, TournamentEnrollmentStatus } from '../domain/types';
+export type {
+  ChecklistItem,
+  TournamentEnrollmentStatus,
+  InviteLinkOrganization,
+  OpenCompetitionSummary,
+} from '../domain/types';
 
 export const ENROLLMENT_STATUS_LABEL: Record<TournamentEnrollmentStatus | 'NOT_STARTED', string> = {
   NOT_STARTED: 'Sin empezar',

@@ -20,12 +20,18 @@ const CATEGORY_HINT: Record<TeamCategory, string> = {
  */
 export function ProfileStep({
   token,
+  leagueId,
+  leagueSlug,
+  nextStep,
   defaultName,
   defaultPhone,
   defaultCategory,
   email,
 }: {
   token: string;
+  leagueId: string;
+  leagueSlug: string;
+  nextStep: number;
   defaultName: string;
   defaultPhone: string;
   defaultCategory: TeamCategory;
@@ -39,6 +45,9 @@ export function ProfileStep({
       className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-5"
     >
       <input type="hidden" name="inviteToken" value={token} />
+      <input type="hidden" name="leagueId" value={leagueId} />
+      <input type="hidden" name="leagueSlug" value={leagueSlug} />
+      <input type="hidden" name="nextStep" value={nextStep} />
 
       <div>
         <h2 className="text-base font-bold text-brand-navy">Tus datos</h2>

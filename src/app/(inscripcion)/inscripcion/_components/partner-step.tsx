@@ -20,6 +20,8 @@ type Mode = 'existing' | 'invite' | 'none';
 export function PartnerStep({
   token,
   leagueId,
+  leagueSlug,
+  nextStep,
   competitionName,
   myName,
   eligibleTeams,
@@ -27,15 +29,26 @@ export function PartnerStep({
 }: {
   token: string;
   leagueId: string;
+  leagueSlug: string;
+  /** Step index of the status screen, so every branch can land on it. */
+  nextStep: number;
   competitionName: string;
   myName: string;
   eligibleTeams: EligibleTeam[];
   pendingInvite: { invitedName: string; shareUrl: string; expiresAt: string } | null;
 }) {
   const [mode, setMode] = useState<Mode>(eligibleTeams.length > 0 ? 'existing' : 'invite');
+  const doneHref = `/inscripcion/${token}?paso=${nextStep}&liga=${encodeURIComponent(leagueSlug)}`;
 
   if (pendingInvite) {
-    return <PendingInviteBlock token={token} leagueId={leagueId} invite={pendingInvite} />;
+    return (
+      <PendingInviteBlock
+        token={token}
+        leagueId={leagueId}
+        doneHref={doneHref}
+        invite={pendingInvite}
+      />
+    );
   }
 
   return (
@@ -71,12 +84,24 @@ export function PartnerStep({
       </div>
 
       {mode === 'existing' && eligibleTeams.length > 0 && (
-        <ExistingTeamForm token={token} leagueId={leagueId} teams={eligibleTeams} />
+        <ExistingTeamForm
+          token={token}
+          leagueId={leagueId}
+          leagueSlug={leagueSlug}
+          nextStep={nextStep}
+          teams={eligibleTeams}
+        />
       )}
       {mode === 'invite' && (
-        <InvitePartnerForm token={token} leagueId={leagueId} myName={myName} />
+        <InvitePartnerForm
+          token={token}
+          leagueId={leagueId}
+          leagueSlug={leagueSlug}
+          nextStep={nextStep}
+          myName={myName}
+        />
       )}
-      {mode === 'none' && <NoPartnerBlock token={token} />}
+      {mode === 'none' && <NoPartnerBlock doneHref={doneHref} />}
     </section>
   );
 }
@@ -116,10 +141,14 @@ function ModeOption({
 function ExistingTeamForm({
   token,
   leagueId,
+  leagueSlug,
+  nextStep,
   teams,
 }: {
   token: string;
   leagueId: string;
+  leagueSlug: string;
+  nextStep: number;
   teams: EligibleTeam[];
 }) {
   const [state, formAction, pending] = useActionState(registerExistingTeamAction, null);
@@ -127,6 +156,8 @@ function ExistingTeamForm({
     <form action={formAction} className="space-y-3 pt-2 border-t border-slate-100">
       <input type="hidden" name="inviteToken" value={token} />
       <input type="hidden" name="leagueId" value={leagueId} />
+      <input type="hidden" name="leagueSlug" value={leagueSlug} />
+      <input type="hidden" name="nextStep" value={nextStep} />
       <div>
         <label htmlFor="teamId" className="block text-sm font-medium text-slate-700 mb-1">
           Elige la pareja con la que te apuntas
@@ -163,10 +194,14 @@ function ExistingTeamForm({
 function InvitePartnerForm({
   token,
   leagueId,
+  leagueSlug,
+  nextStep,
   myName,
 }: {
   token: string;
   leagueId: string;
+  leagueSlug: string;
+  nextStep: number;
   myName: string;
 }) {
   const [state, formAction, pending] = useActionState(invitePartnerAction, null);
@@ -208,6 +243,8 @@ function InvitePartnerForm({
     <form action={formAction} className="space-y-4 pt-2 border-t border-slate-100">
       <input type="hidden" name="inviteToken" value={token} />
       <input type="hidden" name="leagueId" value={leagueId} />
+      <input type="hidden" name="leagueSlug" value={leagueSlug} />
+      <input type="hidden" name="nextStep" value={nextStep} />
       {picked && <input type="hidden" name="partnerUserId" value={picked.id} />}
 
       {!useEmail && !picked && (
@@ -356,10 +393,12 @@ function InvitePartnerForm({
 function PendingInviteBlock({
   token,
   leagueId,
+  doneHref,
   invite,
 }: {
   token: string;
   leagueId: string;
+  doneHref: string;
   invite: { invitedName: string; shareUrl: string; expiresAt: string };
 }) {
   const [pendingCancel, startCancel] = useTransition();
@@ -397,7 +436,7 @@ function PendingInviteBlock({
       </div>
       <div className="flex flex-wrap gap-2">
         <Link
-          href={`/inscripcion/${token}?paso=4` as Route}
+          href={doneHref as Route}
           className="flex-1 min-w-[10rem] text-center px-4 py-3 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 transition-opacity"
         >
           Ver estado de mi inscripción
@@ -416,7 +455,7 @@ function PendingInviteBlock({
   );
 }
 
-function NoPartnerBlock({ token }: { token: string }) {
+function NoPartnerBlock({ doneHref }: { doneHref: string }) {
   return (
     <div className="space-y-3 pt-2 border-t border-slate-100">
       <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
@@ -428,7 +467,7 @@ function NoPartnerBlock({ token }: { token: string }) {
         </p>
       </div>
       <Link
-        href={`/inscripcion/${token}?paso=4` as Route}
+        href={doneHref as Route}
         className="block text-center px-4 py-3 bg-white border border-slate-200 text-brand-navy text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors"
       >
         Entendido, ver qué me falta

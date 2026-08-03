@@ -14,6 +14,7 @@ import {
   ENROLLMENT_STATUS_LABEL,
 } from '@/modules/organizations';
 import { CopyableLink } from './copyable-link';
+import { OrgInvitePanel } from './org-invite-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,10 @@ export default async function InscripcionesAdminPage() {
   const tenant = await getTenant();
   if (!tenant) notFound();
   if (!(await OrganizationService.canAdminister(tenant.id, currentUser.id))) notFound();
+
+  const orgLinks = await InviteLinkService.listForOrganization(tenant.id, currentUser.id).catch(
+    () => [],
+  );
 
   const competitions = await prisma.league.findMany({
     where: { organizationId: tenant.id },
@@ -74,6 +79,18 @@ export default async function InscripcionesAdminPage() {
           Estado real de cada competición. Las inscripciones sin cerrar no ocupan plaza.
         </p>
       </div>
+
+      <OrgInvitePanel
+        organizationName={tenant.name}
+        links={orgLinks.map((l) => ({
+          id: l.id,
+          label: l.label,
+          shareUrl: l.shareUrl,
+          useCount: l.useCount,
+          maxUses: l.maxUses,
+          revoked: l.revokedAt !== null,
+        }))}
+      />
 
       {detail.length === 0 && (
         <p className="text-sm text-slate-500">

@@ -31,6 +31,7 @@ export default tseslint.config(
             'tests/unit/shared/auth/*.ts',
             'tests/unit/*.ts',
             'tests/unit/modules/leagues/*.ts',
+            'tests/unit/modules/organizations/*.ts',
             'tests/integration/*.ts',
             'tests/integration/helpers/*.ts',
             'prisma/seed.ts',

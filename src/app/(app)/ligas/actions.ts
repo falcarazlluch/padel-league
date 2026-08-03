@@ -161,6 +161,7 @@ export async function materializeTournamentBracketAction(
     throw err;
   }
   revalidatePath('/ligas', 'layout');
+  revalidatePath('/admin/inscripciones');
   return {};
 }
 
@@ -308,6 +309,51 @@ export async function createInviteLinkAction(
     throw err;
   }
   revalidatePath('/ligas', 'layout');
+  return { success: true };
+}
+
+const createOrgInviteLinkSchema = z.object({
+  label: z.string().trim().max(80).optional(),
+  maxUses: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(1).max(5000).optional(),
+  ),
+});
+
+/**
+ * Organization-wide inscription link: the one an admin hands out once and
+ * reuses all season. The tenant comes from the host, never from the form, so
+ * this cannot mint a link for someone else's organization.
+ */
+export async function createOrgInviteLinkAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string; success?: true }> {
+  const user = await getSession();
+  const organizationId = await getTenantId();
+  if (!organizationId) {
+    return { error: 'Los enlaces de organización solo se generan dentro del entorno de la organización.' };
+  }
+  const parsed = createOrgInviteLinkSchema.safeParse({
+    label: formData.get('label') || undefined,
+    maxUses: formData.get('maxUses'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+
+  try {
+    await InviteLinkService.create(
+      {
+        organizationId,
+        label: parsed.data.label ?? null,
+        maxUses: parsed.data.maxUses ?? null,
+      },
+      user.id,
+    );
+  } catch (err) {
+    if (isUserFacingError(err)) return { error: (err as Error).message };
+    throw err;
+  }
+  revalidatePath('/admin/inscripciones');
   return { success: true };
 }
 

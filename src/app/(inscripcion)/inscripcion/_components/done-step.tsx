@@ -24,12 +24,15 @@ export function DoneStep({
   checklist,
   status,
   teamName,
+  partnerStepHref,
   pendingInvite,
 }: {
   token: string;
   leagueId: string;
   competitionName: string;
   competitionSlug: string;
+  /** Where "elegir pareja" goes — the step index differs per link kind. */
+  partnerStepHref: string;
   checklist: ChecklistItem[];
   status: TournamentEnrollmentStatus | 'NOT_STARTED';
   teamName: string | null;
@@ -95,7 +98,7 @@ export function DoneStep({
       <div className="flex flex-wrap gap-2">
         {!done && (
           <Link
-            href={`/inscripcion/${token}?paso=3` as Route}
+            href={partnerStepHref as Route}
             className="flex-1 min-w-[12rem] text-center px-4 py-3 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 transition-opacity"
           >
             {waiting ? 'Cambiar de pareja' : 'Elegir pareja ahora'}

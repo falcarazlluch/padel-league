@@ -1,72 +1,73 @@
-'use client';
-
-import { useState, useTransition } from 'react';
-import { startEnrollmentAction } from '../[token]/actions';
+import Link from 'next/link';
+import type { Route } from 'next';
 
 /**
- * Step 1's single action. The enrolment row is created here rather than on page
- * load so opening the link is a pure read — a forwarded link never signs
- * anybody up by accident.
+ * Step 1 is pure navigation — no mutation. Opening an invite link stays a read,
+ * so a link forwarded round a WhatsApp group never signs anybody up by
+ * accident. The tenant membership and the enrolment row are both created later,
+ * when the player submits their details.
  */
 export function StartStep({
-  token,
-  resuming,
+  nextHref,
   disabled,
+  kind,
   playerName,
+  resuming,
 }: {
-  token: string;
+  nextHref: string;
+  disabled: boolean;
+  kind: 'ORGANIZATION' | 'COMPETITION';
+  /** Null when nobody is signed in yet. */
+  playerName: string | null;
   /** An enrolment already exists — the button continues instead of starting. */
   resuming: boolean;
-  disabled: boolean;
-  playerName: string;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  const onClick = () => {
-    setError(null);
-    startTransition(async () => {
-      // On success the action redirects, so anything returned here is an error.
-      const res = await startEnrollmentAction(token);
-      if (res?.error) setError(res.error);
-    });
-  };
+  const greeting = playerName ? `Hola ${playerName.split(' ')[0]}, vamos allá` : 'Vamos allá';
 
   return (
     <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
       <div>
         <h2 className="text-base font-bold text-brand-navy">
-          {resuming ? 'Continúa donde lo dejaste' : `Hola ${playerName.split(' ')[0]}, vamos allá`}
+          {resuming ? 'Continúa donde lo dejaste' : greeting}
         </h2>
         <p className="text-sm text-slate-600 mt-1">
           {resuming
             ? 'Ya habías empezado esta inscripción. Retomamos en el punto exacto en el que la dejaste.'
-            : 'Te haremos dos preguntas: tus datos de contacto y con quién juegas. Nada más.'}
+            : 'Son cuatro pasos cortos y te decimos en todo momento qué falta.'}
         </p>
       </div>
 
       <ol className="text-sm text-slate-600 space-y-1.5">
         <li className="flex gap-2">
-          <span className="text-brand-blue font-bold">1.</span> Confirmas tus datos y tu nivel.
+          <span className="text-brand-blue font-bold">1.</span> Te identificas (o creas tu cuenta).
+        </li>
+        {kind === 'ORGANIZATION' && (
+          <li className="flex gap-2">
+            <span className="text-brand-blue font-bold">2.</span> Eliges la competición.
+          </li>
+        )}
+        <li className="flex gap-2">
+          <span className="text-brand-blue font-bold">{kind === 'ORGANIZATION' ? '3.' : '2.'}</span>{' '}
+          Confirmas tus datos y tu nivel.
         </li>
         <li className="flex gap-2">
-          <span className="text-brand-blue font-bold">2.</span> Eliges o invitas a tu pareja.
-        </li>
-        <li className="flex gap-2">
-          <span className="text-brand-blue font-bold">3.</span> Te confirmamos por escrito que
-          estás dentro.
+          <span className="text-brand-blue font-bold">{kind === 'ORGANIZATION' ? '4.' : '3.'}</span>{' '}
+          Eliges o invitas a tu pareja.
         </li>
       </ol>
 
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={pending || disabled}
-        className="w-full px-4 py-3 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
-      >
-        {pending ? 'Un momento...' : resuming ? 'Continuar inscripción' : 'Empezar inscripción'}
-      </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {disabled ? (
+        <p className="text-sm text-slate-500">
+          No se puede continuar por el motivo indicado arriba.
+        </p>
+      ) : (
+        <Link
+          href={nextHref as Route}
+          className="block text-center w-full px-4 py-3 bg-gradient-to-br from-brand-navy to-brand-navy-light text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 transition-opacity"
+        >
+          {resuming ? 'Continuar inscripción' : 'Empezar'}
+        </Link>
+      )}
     </section>
   );
 }

@@ -8,16 +8,18 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { EnrollmentService } from '@/modules/organizations';
-import { CATEGORY_VALUES } from '@/modules/leagues';
+import { CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
 import { isUserFacingError } from '@/shared/errors';
 
-type ActionState = { error?: string; success?: true; info?: string };
+type ActionState = { error?: string; success?: true };
 
 async function requireSession(token: string) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE)?.value;
   if (!sessionToken) {
-    redirect(`/login?next=${encodeURIComponent(`/inscripcion/${token}`)}` as Route);
+    // Back to the wizard's own auth step, not /login — the invite context
+    // (and the org membership it grants) would be lost otherwise.
+    redirect(`/inscripcion/${token}?paso=2` as Route);
   }
   return getValidatedSession(sessionToken);
 }
@@ -27,47 +29,44 @@ function fail(err: unknown): ActionState {
   throw err;
 }
 
-/** Step 1 → 2. Creates or resumes the enrollment and moves the wizard on. */
-export async function startEnrollmentAction(inviteToken: string): Promise<ActionState> {
-  const user = await requireSession(inviteToken);
-  let nextStep: number;
-  try {
-    const started = await EnrollmentService.start(inviteToken, user.id);
-    // Where to land is derived server-side from the freshly-written row, so a
-    // resumed enrolment reopens exactly where the player left it.
-    const view = await EnrollmentService.getView(started.leagueId, user.id);
-    nextStep = view.currentStep;
-  } catch (err) {
-    return fail(err);
-  }
-  redirect(`/inscripcion/${inviteToken}?paso=${nextStep}` as Route);
+function wizardHref(token: string, step: number, slug: string): string {
+  return `/inscripcion/${token}?paso=${step}&liga=${encodeURIComponent(slug)}`;
 }
 
 const profileSchema = z.object({
   inviteToken: z.string().min(1),
+  leagueId: z.string().cuid(),
+  leagueSlug: z.string().min(1),
+  nextStep: z.coerce.number().int().min(1).max(6),
   name: z.string().trim().min(3, 'Escribe tu nombre y apellido.').max(80),
   phone: z.string().trim().min(6, 'Escribe un teléfono de contacto.').max(30),
   category: z.enum(CATEGORY_VALUES),
 });
 
-/** Step 2 → 3. */
+/**
+ * The profile step is where the enrolment actually begins: it joins the tenant
+ * and creates the `TournamentEnrollment` before saving the details. Doing it
+ * here rather than on page load keeps opening a link side-effect-free, and it is
+ * the first point at which the player has unambiguously committed.
+ */
 export async function saveProfileAction(
   _prev: ActionState | null,
   formData: FormData,
 ): Promise<ActionState> {
-  const rawToken = formData.get('inviteToken');
-  const inviteToken = typeof rawToken === 'string' ? rawToken : '';
-  const user = await requireSession(inviteToken);
-
   const parsed = profileSchema.safeParse({
-    inviteToken,
+    inviteToken: formData.get('inviteToken'),
+    leagueId: formData.get('leagueId'),
+    leagueSlug: formData.get('leagueSlug'),
+    nextStep: formData.get('nextStep'),
     name: formData.get('name'),
     phone: formData.get('phone'),
     category: formData.get('category'),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  const user = await requireSession(parsed.data.inviteToken);
 
   try {
+    await EnrollmentService.start(parsed.data.inviteToken, user.id, parsed.data.leagueId);
     await EnrollmentService.saveProfile(user.id, {
       name: parsed.data.name,
       phone: parsed.data.phone,
@@ -76,16 +75,19 @@ export async function saveProfileAction(
   } catch (err) {
     return fail(err);
   }
-  redirect(`/inscripcion/${parsed.data.inviteToken}?paso=3` as Route);
+  revalidatePath('/dashboard');
+  redirect(wizardHref(parsed.data.inviteToken, parsed.data.nextStep, parsed.data.leagueSlug) as Route);
 }
 
 const existingTeamSchema = z.object({
   inviteToken: z.string().min(1),
   leagueId: z.string().cuid(),
+  leagueSlug: z.string().min(1),
+  nextStep: z.coerce.number().int().min(1).max(6),
   teamId: z.string().cuid('Elige una de tus parejas.'),
 });
 
-/** Step 3, branch A — the pair already exists and is complete. */
+/** Partner branch A — the pair already exists and is complete. */
 export async function registerExistingTeamAction(
   _prev: ActionState | null,
   formData: FormData,
@@ -93,6 +95,8 @@ export async function registerExistingTeamAction(
   const parsed = existingTeamSchema.safeParse({
     inviteToken: formData.get('inviteToken'),
     leagueId: formData.get('leagueId'),
+    leagueSlug: formData.get('leagueSlug'),
+    nextStep: formData.get('nextStep'),
     teamId: formData.get('teamId'),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
@@ -109,13 +113,15 @@ export async function registerExistingTeamAction(
   }
   revalidatePath('/dashboard');
   revalidatePath('/ligas');
-  redirect(`/inscripcion/${parsed.data.inviteToken}?paso=4` as Route);
+  redirect(wizardHref(parsed.data.inviteToken, parsed.data.nextStep, parsed.data.leagueSlug) as Route);
 }
 
 const invitePartnerSchema = z
   .object({
     inviteToken: z.string().min(1),
     leagueId: z.string().cuid(),
+    leagueSlug: z.string().min(1),
+    nextStep: z.coerce.number().int().min(1).max(6),
     teamName: z.string().trim().max(60).optional(),
     partnerUserId: z.string().cuid().optional(),
     partnerEmail: z.string().trim().toLowerCase().email('Escribe un email válido.').optional(),
@@ -125,7 +131,7 @@ const invitePartnerSchema = z
     message: 'Elige a tu pareja de la lista o escribe su email.',
   });
 
-/** Step 3, branch B — invite the partner (existing account or plain email). */
+/** Partner branch B — invite the partner (existing account or plain email). */
 export async function invitePartnerAction(
   _prev: ActionState | null,
   formData: FormData,
@@ -133,6 +139,8 @@ export async function invitePartnerAction(
   const parsed = invitePartnerSchema.safeParse({
     inviteToken: formData.get('inviteToken'),
     leagueId: formData.get('leagueId'),
+    leagueSlug: formData.get('leagueSlug'),
+    nextStep: formData.get('nextStep'),
     teamName: formData.get('teamName') || undefined,
     partnerUserId: formData.get('partnerUserId') || undefined,
     partnerEmail: formData.get('partnerEmail') || undefined,
@@ -154,7 +162,7 @@ export async function invitePartnerAction(
     return fail(err);
   }
   revalidatePath('/dashboard');
-  redirect(`/inscripcion/${parsed.data.inviteToken}?paso=4` as Route);
+  redirect(wizardHref(parsed.data.inviteToken, parsed.data.nextStep, parsed.data.leagueSlug) as Route);
 }
 
 const leagueRefSchema = z.object({

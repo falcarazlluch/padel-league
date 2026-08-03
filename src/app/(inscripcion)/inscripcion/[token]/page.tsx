@@ -11,13 +11,15 @@ import {
   EnrollmentService,
   InviteLinkService,
 } from '@/modules/organizations';
-import { WizardSteps } from '../_components/wizard-steps';
+import { WizardSteps, stepsFor, type StepKey } from '../_components/wizard-steps';
 import { CompetitionSummary } from '../_components/competition-summary';
+import { OrganizationSummary } from '../_components/organization-summary';
 import { StartStep } from '../_components/start-step';
+import { AuthStep } from '../_components/auth-step';
+import { PickCompetitionStep } from '../_components/pick-competition-step';
 import { ProfileStep } from '../_components/profile-step';
 import { PartnerStep } from '../_components/partner-step';
 import { DoneStep } from '../_components/done-step';
-import { AuthGateStep } from '../_components/auth-gate-step';
 import { BlockedNotice } from '../_components/blocked-notice';
 
 // The wizard reads and writes live enrolment state on every request; caching it
@@ -32,9 +34,12 @@ export async function generateMetadata({
   const { token } = await params;
   const preview = await InviteLinkService.preview(token);
   if (!preview) return { title: 'Inscripción no disponible' };
+  const title =
+    preview.kind === 'COMPETITION' && preview.competition
+      ? `Inscripción · ${preview.competition.name}`
+      : `Inscripción · ${preview.organization.name}`;
   return {
-    title: `Inscripción · ${preview.competition.name}`,
-    description: `Apúntate a ${preview.competition.name} — ${preview.organization.name}.`,
+    title,
     // An inscription link is private: keep it out of search indexes even if
     // someone posts it publicly.
     robots: { index: false, follow: false },
@@ -46,13 +51,10 @@ export default async function InscripcionWizardPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ paso?: string }>;
+  searchParams: Promise<{ paso?: string; liga?: string }>;
 }) {
   const { token } = await params;
-  const { paso } = await searchParams;
-
-  const preview = await InviteLinkService.preview(token);
-  if (!preview) notFound();
+  const { paso, liga } = await searchParams;
 
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE)?.value;
@@ -60,128 +62,146 @@ export default async function InscripcionWizardPage({
     ? await getValidatedSession(sessionToken).catch(() => null)
     : null;
 
-  // Not logged in → show what they're joining, then send them to register or
-  // sign in. The invite token travels along so registro needs no separate code
-  // and login comes straight back here.
-  if (!currentUser) {
-    return (
-      <div className="space-y-6">
-        <CompetitionSummary preview={preview} />
-        {preview.blockedReason ? (
-          <BlockedNotice message={BLOCKED_MESSAGE[preview.blockedReason]} />
-        ) : (
-          <AuthGateStep token={token} organizationName={preview.organization.name} />
-        )}
-      </div>
-    );
-  }
+  const preview = await InviteLinkService.preview(token, new Date(), currentUser?.id);
+  if (!preview) notFound();
 
-  const view = await EnrollmentService.getView(preview.competition.id, currentUser.id);
-  const started = view.status !== 'NOT_STARTED' && view.status !== 'CANCELLED';
+  const steps = stepsFor(preview.kind);
+  const idx = (key: StepKey) => steps.indexOf(key) + 1;
+  const hrefFor = (step: number, slug?: string | null) => {
+    const q = new URLSearchParams({ paso: String(step) });
+    if (slug) q.set('liga', slug);
+    return `/inscripcion/${token}?${q.toString()}`;
+  };
 
-  // Step 4 is the status screen, not a reward: it is reachable as soon as the
-  // enrolment exists so an unfinished player can always see what is missing.
-  // Step 3 is the only one with a hard prerequisite (the profile), and a player
-  // already fully in is never pushed back by a stale `?paso=` in their history.
-  const requested = clampStep(paso);
-  const step: 1 | 2 | 3 | 4 = !started
-    ? 1
-    : view.status === 'COMPLETED'
-      ? 4
-      : resolveStep(requested ?? view.currentStep, view.profileComplete);
+  // ── Which competition are we enrolling into? ──────────────────────────────
+  // A competition link fixes it. An organization link takes it from `?liga=`,
+  // and only accepts a slug that is actually in its open list — otherwise a
+  // hand-edited URL could point at another club's competition.
+  const selected =
+    preview.kind === 'COMPETITION'
+      ? preview.competition
+        ? { id: preview.competition.id, slug: preview.competition.slug, name: preview.competition.name }
+        : null
+      : (preview.openCompetitions.find((c) => c.slug === liga) ?? null);
 
-  const [userProfile, userTeams] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: currentUser.id },
-      select: { name: true, phone: true, category: true, email: true },
-    }),
-    // Only pairs of this tenant, already complete, and not yet in this
-    // competition — anything else would be a dead end in step 3.
-    prisma.team.findMany({
-      where: {
-        organizationId: preview.organization.id,
-        members: { some: { userId: currentUser.id } },
-      },
-      select: {
-        id: true,
-        name: true,
-        members: { select: { user: { select: { id: true, name: true } } } },
-        registrations: { where: { leagueId: preview.competition.id }, select: { withdrawnAt: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-  ]);
+  // ── Enrolment state, once we know the user and the competition ────────────
+  const view =
+    currentUser && selected
+      ? await EnrollmentService.getView(selected.id, currentUser.id)
+      : null;
+  const started = view !== null && view.status !== 'NOT_STARTED' && view.status !== 'CANCELLED';
 
-  const eligibleTeams = userTeams
-    .filter((t) => t.members.length === 2)
-    .filter((t) => !t.registrations.some((r) => r.withdrawnAt === null))
-    .map((t) => ({
-      id: t.id,
-      name: t.name,
-      partnerName:
-        t.members.find((m) => m.user.id !== currentUser.id)?.user.name ?? 'Tu compañero/a',
-    }));
+  // ── Furthest reachable step ───────────────────────────────────────────────
+  let reachable: number;
+  if (!currentUser) reachable = idx('auth');
+  else if (!selected) reachable = idx(preview.kind === 'ORGANIZATION' ? 'pick' : 'auth');
+  else if (!started) reachable = idx('profile');
+  else if (!view.profileComplete) reachable = idx('profile');
+  else reachable = idx('done');
+
+  const requested = paso ? Number.parseInt(paso, 10) : NaN;
+  let current = Number.isFinite(requested)
+    ? Math.min(Math.max(requested, 1), reachable)
+    : Math.min(reachable, idx('intro'));
+
+  // A completed enrolment always lands on the status screen rather than being
+  // walked back through the steps by a stale `?paso=`.
+  if (view?.status === 'COMPLETED') current = idx('done');
+
+  const stepKey = steps[current - 1]!;
+  const introLabel = preview.kind === 'ORGANIZATION' ? 'El club' : 'El torneo';
+
+  // The blocking reason still matters mid-wizard: a window can close while the
+  // tab is open. Completed enrolments are unaffected.
+  const showBlocked = preview.blockedReason !== null && view?.status !== 'COMPLETED';
 
   return (
     <div className="space-y-6">
-      <WizardSteps current={step} reachable={started ? 4 : 1} token={token} />
+      <WizardSteps
+        steps={steps}
+        current={current}
+        reachable={reachable}
+        hrefFor={(n) => hrefFor(n, selected?.slug)}
+        introLabel={introLabel}
+      />
 
-      {/* The blocking reason still matters mid-wizard: the window can close
-          while a player has the tab open. Completed enrolments are unaffected. */}
-      {preview.blockedReason && view.status !== 'COMPLETED' && (
-        <BlockedNotice message={BLOCKED_MESSAGE[preview.blockedReason]} />
-      )}
+      {showBlocked && <BlockedNotice message={BLOCKED_MESSAGE[preview.blockedReason!]} />}
 
-      {step === 1 && (
+      {stepKey === 'intro' && (
         <div className="space-y-6">
-          <CompetitionSummary preview={preview} />
+          {preview.kind === 'ORGANIZATION' ? (
+            <OrganizationSummary
+              organization={preview.organization}
+              openCompetitions={preview.openCompetitions}
+            />
+          ) : (
+            <CompetitionSummary
+              organizationName={preview.organization.name}
+              competition={preview.competition!}
+            />
+          )}
           <StartStep
-            token={token}
-            resuming={started}
+            nextHref={hrefFor(idx('auth'), selected?.slug)}
             disabled={preview.blockedReason !== null}
-            playerName={currentUser.name}
+            kind={preview.kind}
+            playerName={currentUser?.name ?? null}
+            resuming={started}
           />
         </div>
       )}
 
-      {step === 2 && (
-        <ProfileStep
+      {stepKey === 'auth' && (
+        <AuthStep
           token={token}
-          defaultName={userProfile?.name ?? ''}
-          defaultPhone={userProfile?.phone ?? ''}
-          defaultCategory={userProfile?.category ?? 'INTERMEDIATE'}
-          email={userProfile?.email ?? ''}
+          nextHref={hrefFor(
+            idx(preview.kind === 'ORGANIZATION' ? 'pick' : 'profile'),
+            selected?.slug,
+          )}
+          currentUser={currentUser ? { name: currentUser.name, email: currentUser.email } : null}
+          organizationName={preview.organization.name}
         />
       )}
 
-      {step === 3 && (
-        <PartnerStep
+      {stepKey === 'pick' && (
+        <PickCompetitionStep
           token={token}
-          leagueId={preview.competition.id}
-          competitionName={preview.competition.name}
-          myName={userProfile?.name ?? currentUser.name}
-          eligibleTeams={eligibleTeams}
-          pendingInvite={
-            view.pendingInvite
-              ? {
-                  invitedName: view.pendingInvite.invitedName,
-                  shareUrl: view.pendingInvite.shareUrl,
-                  expiresAt: view.pendingInvite.expiresAt.toISOString(),
-                }
-              : null
-          }
+          competitions={preview.openCompetitions}
+          organizationName={preview.organization.name}
         />
       )}
 
-      {step === 4 && (
+      {stepKey === 'profile' && currentUser && selected && (
+        <ProfileStepLoader
+          token={token}
+          userId={currentUser.id}
+          leagueId={selected.id}
+          leagueSlug={selected.slug}
+          nextStep={idx('partner')}
+        />
+      )}
+
+      {stepKey === 'partner' && currentUser && selected && view && (
+        <PartnerStepLoader
+          token={token}
+          userId={currentUser.id}
+          organizationId={preview.organization.id}
+          league={selected}
+          nextStep={idx('done')}
+          pendingInvite={view.pendingInvite}
+          myName={currentUser.name}
+        />
+      )}
+
+      {stepKey === 'done' && selected && view && (
         <DoneStep
           token={token}
-          leagueId={preview.competition.id}
-          competitionName={preview.competition.name}
-          competitionSlug={preview.competition.slug}
+          leagueId={selected.id}
+          competitionName={selected.name}
+          competitionSlug={selected.slug}
           checklist={view.checklist}
           status={view.status}
           teamName={view.team?.name ?? null}
+          partnerStepHref={hrefFor(idx('partner'), selected.slug)}
           pendingInvite={
             view.pendingInvite
               ? {
@@ -195,30 +215,111 @@ export default async function InscripcionWizardPage({
         />
       )}
 
-      <p className="text-center text-xs text-slate-400">
-        Puedes cerrar esta página y volver cuando quieras:{' '}
-        <Link
-          href={`/inscripcion/estado/${preview.competition.slug}` as Route}
-          className="underline hover:text-slate-600"
-        >
-          consulta el estado de tu inscripción
-        </Link>
-        .
-      </p>
+      {selected && (
+        <p className="text-center text-xs text-slate-400">
+          Puedes cerrar esta página y volver cuando quieras:{' '}
+          <Link
+            href={`/inscripcion/estado/${selected.slug}` as Route}
+            className="underline hover:text-slate-600"
+          >
+            consulta el estado de tu inscripción
+          </Link>
+          .
+        </p>
+      )}
     </div>
   );
 }
 
-function clampStep(raw: string | undefined): 1 | 2 | 3 | 4 | null {
-  if (raw === '1') return 1;
-  if (raw === '2') return 2;
-  if (raw === '3') return 3;
-  if (raw === '4') return 4;
-  return null;
+/** Loads the profile defaults for step "profile". */
+async function ProfileStepLoader({
+  token,
+  userId,
+  leagueId,
+  leagueSlug,
+  nextStep,
+}: {
+  token: string;
+  userId: string;
+  leagueId: string;
+  leagueSlug: string;
+  nextStep: number;
+}) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, phone: true, category: true, email: true },
+  });
+  return (
+    <ProfileStep
+      token={token}
+      leagueId={leagueId}
+      leagueSlug={leagueSlug}
+      nextStep={nextStep}
+      defaultName={user?.name ?? ''}
+      defaultPhone={user?.phone ?? ''}
+      defaultCategory={user?.category ?? 'INTERMEDIATE'}
+      email={user?.email ?? ''}
+    />
+  );
 }
 
-/** Choosing a partner needs the profile done first; nothing else is gated. */
-function resolveStep(want: 1 | 2 | 3 | 4, profileComplete: boolean): 1 | 2 | 3 | 4 {
-  if (want === 3 && !profileComplete) return 2;
-  return want;
+/** Loads the eligible pairs for step "partner". */
+async function PartnerStepLoader({
+  token,
+  userId,
+  organizationId,
+  league,
+  nextStep,
+  pendingInvite,
+  myName,
+}: {
+  token: string;
+  userId: string;
+  organizationId: string;
+  league: { id: string; slug: string; name: string };
+  nextStep: number;
+  pendingInvite: NonNullable<Awaited<ReturnType<typeof EnrollmentService.getView>>>['pendingInvite'];
+  myName: string;
+}) {
+  // Only pairs of this tenant, already complete, and not yet in this
+  // competition — anything else would be a dead end in the partner step.
+  const teams = await prisma.team.findMany({
+    where: { organizationId, members: { some: { userId } } },
+    select: {
+      id: true,
+      name: true,
+      members: { select: { user: { select: { id: true, name: true } } } },
+      registrations: { where: { leagueId: league.id }, select: { withdrawnAt: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const eligibleTeams = teams
+    .filter((t) => t.members.length === 2)
+    .filter((t) => !t.registrations.some((r) => r.withdrawnAt === null))
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      partnerName: t.members.find((m) => m.user.id !== userId)?.user.name ?? 'Tu compañero/a',
+    }));
+
+  return (
+    <PartnerStep
+      token={token}
+      leagueId={league.id}
+      leagueSlug={league.slug}
+      nextStep={nextStep}
+      competitionName={league.name}
+      myName={myName}
+      eligibleTeams={eligibleTeams}
+      pendingInvite={
+        pendingInvite
+          ? {
+              invitedName: pendingInvite.invitedName,
+              shareUrl: pendingInvite.shareUrl,
+              expiresAt: pendingInvite.expiresAt.toISOString(),
+            }
+          : null
+      }
+    />
+  );
 }

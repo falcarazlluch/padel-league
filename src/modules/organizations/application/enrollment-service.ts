@@ -43,8 +43,32 @@ export const EnrollmentService = {
   async start(
     token: string,
     userId: string,
+    /** Required when the token is an ORGANIZATION link: which competition. */
+    chosenLeagueId?: string,
   ): Promise<{ enrollmentId: string; leagueId: string; organizationId: string; resumed: boolean }> {
-    const { linkId, leagueId, organizationId } = await InviteLinkService.resolveForEnrollment(token);
+    const link = await InviteLinkService.resolveForEnrollment(token);
+    const { linkId, organizationId } = link;
+
+    // An organization link carries no competition, so the caller names one. It
+    // must belong to this tenant and still be taking entries — otherwise a
+    // crafted `?liga=` could enrol someone into another club's competition.
+    const leagueId = link.leagueId ?? chosenLeagueId;
+    if (!leagueId) {
+      throw new DomainError(
+        'COMPETITION_REQUIRED',
+        'Elige la competición a la que quieres apuntarte.',
+      );
+    }
+    if (!link.leagueId) {
+      const chosen = await prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { organizationId: true, status: true, registrationStart: true, registrationEnd: true },
+      });
+      if (!chosen || chosen.organizationId !== organizationId) {
+        throw new NotFoundError('LEAGUE_NOT_FOUND', 'Competición no encontrada.');
+      }
+      assertRegistrationOpen(chosen);
+    }
 
     const existing = await prisma.tournamentEnrollment.findUnique({
       where: { leagueId_userId: { leagueId, userId } },

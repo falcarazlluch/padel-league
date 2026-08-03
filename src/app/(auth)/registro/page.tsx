@@ -29,7 +29,11 @@ export default async function RegistroPage({
   const codeless = inviteUsable || partnerUsable;
 
   const contextLine = inviteUsable
-    ? `Te apuntas a ${invitePreview.competition.name} · ${invitePreview.organization.name}.`
+    ? invitePreview.competition
+      // Competition link: name the tournament. Organization link: name the club,
+      // because the player has not chosen a competition yet.
+      ? `Te apuntas a ${invitePreview.competition.name} · ${invitePreview.organization.name}.`
+      : `Te unes al entorno de ${invitePreview.organization.name}.`
     : partnerUsable
       ? `${partnerInvite.inviter.name} te invita como pareja en ${partnerInvite.competition.name}.`
       : null;
