@@ -69,7 +69,7 @@ export const SchedulingService = {
         body: `${proposerTeamName} propone jugar el ${dateStr}`,
         metadata: { matchId },
       })),
-      { excludeActorId: proposingUserId },
+      { excludeActorId: proposingUserId, scope: { matchId } },
     ).catch(() => undefined);
   },
 
@@ -139,7 +139,7 @@ export const SchedulingService = {
         body: `${acceptorTeamName} ha aceptado jugar el ${dateStr}`,
         metadata: { matchId },
       })),
-      { excludeActorId: acceptingUserId },
+      { excludeActorId: acceptingUserId, scope: { matchId } },
     ).catch(() => undefined);
   },
 
@@ -235,7 +235,7 @@ export const SchedulingService = {
           body: `Te proponen extender el plazo de un partido hasta el ${newDeadlineAt.toLocaleDateString('es-ES')}.`,
           metadata: { matchId },
         })),
-        { excludeActorId: userId },
+        { excludeActorId: userId, scope: { matchId } },
       ).catch(() => undefined);
     }
   },
@@ -297,7 +297,7 @@ export const SchedulingService = {
         body: `El nuevo plazo es el ${proposal.proposedDeadlineAt.toLocaleDateString('es-ES')}.`,
         metadata: { matchId: proposal.matchId },
       },
-      { excludeActorId: userId },
+      { excludeActorId: userId, scope: { matchId: proposal.matchId } },
     ).catch(() => undefined);
   },
 
@@ -344,7 +344,7 @@ export const SchedulingService = {
         body: 'El equipo rival no ha aceptado la nueva fecha.',
         metadata: { matchId: proposal.matchId },
       },
-      { excludeActorId: userId },
+      { excludeActorId: userId, scope: { matchId: proposal.matchId } },
     ).catch(() => undefined);
   },
 } as const;

@@ -1,4 +1,5 @@
 import { CalendarService } from '@/modules/calendar';
+import { getTenantId } from '@/shared/tenant/context';
 import { CalendarGrid } from './calendar-grid';
 import { CalendarList } from './calendar-list';
 import { CalendarNav } from './calendar-nav';
@@ -31,7 +32,12 @@ function todayMadridIso(): string {
 }
 
 export async function CalendarSection({ userId, year, month, view, filter }: Props) {
-  const allMatches = await CalendarService.listMatchesForUserMonth(userId, year, month);
+  const allMatches = await CalendarService.listMatchesForUserMonth(
+    userId,
+    year,
+    month,
+    await getTenantId(),
+  );
   const matches =
     filter === 'mios'
       ? allMatches.filter((m) => m.category !== 'OTHER_LEAGUE_MINE')

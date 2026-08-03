@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
+import { getTenantId } from '@/shared/tenant/context';
 import { UserStatsService } from '@/modules/users';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues/presentation/category';
@@ -20,8 +21,16 @@ export default async function JugadorPerfilPublicoPage({
   if (!token) redirect('/login' as Route);
   const viewer = await getValidatedSession(token);
 
-  const player = await prisma.user.findUnique({
-    where: { id },
+  // Inside a tenant only its own members have a profile page; otherwise the
+  // subdomain would expose the whole platform's player directory by id.
+  const organizationId = await getTenantId();
+  const player = await prisma.user.findFirst({
+    where: {
+      id,
+      ...(organizationId
+        ? { organizationMemberships: { some: { organizationId } } }
+        : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -34,7 +43,7 @@ export default async function JugadorPerfilPublicoPage({
   });
   if (!player || player.deletedAt || player.anonymizedAt) notFound();
 
-  const stats = await UserStatsService.getStats(id);
+  const stats = await UserStatsService.getStats(id, organizationId);
   const winPct = Math.round(stats.overall.winRate * 100);
   const isSelf = viewer.id === player.id;
 

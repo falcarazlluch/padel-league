@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { getTenantId } from '@/shared/tenant/context';
+import { redirect, notFound } from 'next/navigation';
 import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
@@ -51,6 +52,10 @@ function formatDate(date: Date): string {
 }
 
 export default async function ColaPage() {
+  // Platform-wide administration: these pages show data across every tenant, so
+  // they only exist on the apex host. Inside a tenant subdomain they 404 — an
+  // ORG_ADMIN has no business enumerating other organizations' users or teams.
+  if (await getTenantId()) notFound();
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);

@@ -13,7 +13,13 @@ function leagueMatchStatusToCalendar(status: string): CalendarItemStatus {
 }
 
 export const CalendarService = {
-  async listMatchesForUserMonth(userId: string, year: number, month: number): Promise<CalendarMatch[]> {
+  /** `organizationId` is a REQUIRED tenant scope (`null` = public platform). */
+  async listMatchesForUserMonth(
+    userId: string,
+    year: number,
+    month: number,
+    organizationId: string | null,
+  ): Promise<CalendarMatch[]> {
     const { start, end } = monthRangeUtc(year, month);
 
     const teamMembers = await prisma.teamMember.findMany({
@@ -28,6 +34,7 @@ export const CalendarService = {
         where: {
           scheduledAt: { gte: start, lt: end },
           status: { not: 'CANCELLED' },
+          league: { organizationId },
           OR: [
             { teamA: { members: { some: { userId } } } },
             { teamB: { members: { some: { userId } } } },
@@ -45,6 +52,7 @@ export const CalendarService = {
           scheduledAt: { gte: start, lt: end },
           status: { not: 'CANCELLED' },
           league: {
+            organizationId,
             registrations: {
               some: { withdrawnAt: null, team: { members: { some: { userId } } } },
             },
@@ -65,6 +73,7 @@ export const CalendarService = {
       // C — independent matches
       prisma.independentMatch.findMany({
         where: {
+          organizationId,
           scheduledAt: { gte: start, lt: end },
           status: { not: 'CANCELLED' },
           OR: [

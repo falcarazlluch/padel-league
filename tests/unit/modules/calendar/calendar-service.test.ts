@@ -52,7 +52,7 @@ describe('CalendarService.listMatchesForUserMonth', () => {
     ]).mockResolvedValueOnce([]); // category B query empty
     prisma.independentMatch.findMany.mockResolvedValue([]);
 
-    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4, null);
     expect(result).toHaveLength(1);
     expect(result[0]!.category).toBe('OWN_LEAGUE');
     expect(result[0]!.status).toBe('CONFIRMED');
@@ -75,7 +75,7 @@ describe('CalendarService.listMatchesForUserMonth', () => {
     ]).mockResolvedValueOnce([]);
     prisma.independentMatch.findMany.mockResolvedValue([]);
 
-    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4, null);
     expect(result[0]!.status).toBe('TENTATIVE');
   });
 
@@ -96,7 +96,7 @@ describe('CalendarService.listMatchesForUserMonth', () => {
       ]);
     prisma.independentMatch.findMany.mockResolvedValue([]);
 
-    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4, null);
     expect(result[0]!.category).toBe('OTHER_LEAGUE_MINE');
   });
 
@@ -113,7 +113,7 @@ describe('CalendarService.listMatchesForUserMonth', () => {
       },
     ]);
 
-    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4, null);
     expect(result).toHaveLength(1);
     expect(result[0]!.category).toBe('INDEPENDENT');
     expect(result[0]!.title).toBe('Sábado por la tarde');
@@ -144,7 +144,7 @@ describe('CalendarService.listMatchesForUserMonth', () => {
       },
     ]);
 
-    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth('u1', 2026, 4, null);
     expect(result.map((m) => m.id)).toEqual(['im-early', 'lm-late']);
   });
 });

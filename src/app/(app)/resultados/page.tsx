@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { prisma } from '@/shared/db/client';
+import { getTenantId } from '@/shared/tenant/context';
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { MatchResultRow } from '../_components/match-result-row';
 import { PlayerStack } from '../_components/player-stack';
@@ -36,10 +37,12 @@ export default async function ResultadosPage() {
 
   const now = new Date();
 
+  const organizationId = await getTenantId();
   const [leagueMatches, pendingValidationMatches, independentMatches] = await Promise.all([
     prisma.match.findMany({
       where: {
         status: { in: [...FINAL_STATUSES] },
+        league: { organizationId },
         OR: [
           { teamA: { members: { some: { userId: user.id } } } },
           { teamB: { members: { some: { userId: user.id } } } },
@@ -74,6 +77,7 @@ export default async function ResultadosPage() {
     prisma.match.findMany({
       where: {
         status: 'PENDING_VALIDATION',
+        league: { organizationId },
         OR: [
           { teamA: { members: { some: { userId: user.id } } } },
           { teamB: { members: { some: { userId: user.id } } } },
@@ -94,6 +98,7 @@ export default async function ResultadosPage() {
     }),
     prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: { not: 'CANCELLED' },
         scheduledAt: { lt: now },
         OR: [

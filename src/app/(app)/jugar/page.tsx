@@ -10,6 +10,7 @@ import { PendingInvitationActions } from './_components/pending-invitation-actio
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { PlayerStack } from '../_components/player-stack';
 import { prisma } from '@/shared/db/client';
+import { getTenantId } from '@/shared/tenant/context';
 
 export const metadata = { title: 'Jugar — Padel League' };
 
@@ -25,9 +26,13 @@ export default async function JugarPage({
   const user = await getValidatedSession(token).catch(() => redirect('/login' as Route));
 
   const now = new Date();
+  // Tenant boundary: the board and "mis partidos" must only ever show pick-up
+  // matches of the environment being browsed.
+  const organizationId = await getTenantId();
   const [openMatches, myMatches, pendingInvitations] = await Promise.all([
     prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: 'OPEN',
         visibility: 'PUBLIC',
         OR: [{ scheduledAt: null }, { scheduledAt: { gt: now } }],
@@ -43,6 +48,7 @@ export default async function JugarPage({
     }),
     prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: { notIn: ['CANCELLED', 'REJECTED'] },
         OR: [
           { organizerId: user.id },
@@ -57,7 +63,7 @@ export default async function JugarPage({
       },
       orderBy: { createdAt: 'desc' },
     }),
-    IndependentMatchService.getPendingInvitationsForUser(user.id),
+    IndependentMatchService.getPendingInvitationsForUser(user.id, organizationId),
   ]);
 
   const isTablon = tab !== 'mis';

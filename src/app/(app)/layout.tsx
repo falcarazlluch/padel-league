@@ -51,7 +51,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
   const isOrgAdmin = orgRole === 'ORG_ADMIN' || currentUser.role === 'SUPER_ADMIN';
 
-  const recentCronicas = await MatchCommentaryService.listForUser(currentUser.id, 10).catch(() => []);
+  const recentCronicas = await MatchCommentaryService.listForUser(
+    currentUser.id,
+    tenant?.id ?? null,
+    10,
+  ).catch(() => []);
   const sidebarItems = recentCronicas.map((c) => {
     const setsA = c.match.confirmedResult?.sets.filter((s) => s.gamesA > s.gamesB).length ?? null;
     const setsB = c.match.confirmedResult?.sets.filter((s) => s.gamesB > s.gamesA).length ?? null;

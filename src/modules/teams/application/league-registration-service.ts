@@ -165,6 +165,7 @@ export const LeagueRegistrationService = {
           .filter((m) => m.userId !== input.userId)
           .map((m) => ({
             userId: m.userId,
+            organizationId: league.organizationId,
             type: 'LEAGUE_REGISTRATION_ADDED' as const,
             title: 'Equipo apuntado a liga',
             body: `${actor?.name ?? 'Un compañero'} ha apuntado al equipo "${team.name}" a la liga "${league.name}".`,
@@ -220,6 +221,7 @@ export const LeagueRegistrationService = {
           .filter((m) => m.userId !== input.userId)
           .map((m) => ({
             userId: m.userId,
+            organizationId: league.organizationId,
             type: 'LEAGUE_REGISTRATION_REMOVED' as const,
             title: 'Equipo dado de baja',
             body: `${actor?.name ?? 'Un compañero'} ha dado de baja al equipo "${team.name}" de la liga "${league.name}".`,

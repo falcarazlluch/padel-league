@@ -121,6 +121,7 @@ export async function runDayBeforeRemindersSweep(): Promise<{ sent: number; matc
           body,
           metadata: { matchId: m.id, leagueSlug: m.league.slug, kind: 'day-before' },
         })),
+        { scope: { matchId: m.id } },
       );
       await prisma.match.update({
         where: { id: m.id },
@@ -157,6 +158,7 @@ export async function runDayBeforeRemindersSweep(): Promise<{ sent: number; matc
           // a `/jugar/{id}` en lugar de la URL de competición.
           metadata: { matchId: im.id, matchKind: 'independent', kind: 'day-before' },
         })),
+        { scope: { independentMatchId: im.id } },
       );
       await prisma.independentMatch.update({
         where: { id: im.id },

@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import { getTenantId } from '@/shared/tenant/context';
 import type { Route } from 'next';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { UserAdminService } from '@/modules/users';
@@ -23,6 +24,10 @@ export default async function AdminUsuariosPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  // Platform-wide administration: these pages show data across every tenant, so
+  // they only exist on the apex host. Inside a tenant subdomain they 404 — an
+  // ORG_ADMIN has no business enumerating other organizations' users or teams.
+  if (await getTenantId()) notFound();
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login' as Route);

@@ -10,6 +10,7 @@ import { MatchCardMisPartidos } from './_components/match-card-mis-partidos';
 import { PartidosSubnav } from '../_components/partidos-subnav';
 import { PendingInvitationActions } from '../jugar/_components/pending-invitation-actions';
 import { PlayerStack } from '../_components/player-stack';
+import { getTenantId } from '@/shared/tenant/context';
 
 export const metadata = { title: 'Mis partidos — Padel League' };
 
@@ -31,12 +32,14 @@ export default async function MisPartidosPage({
   // Para el filtro "todos" mostramos todos los partidos de las competiciones a
   // las que el usuario está inscrito (vía equipo o como individual en Americana
   // ROTATING_INDIVIDUAL). No es "todos los partidos de la app" — sería ruido.
+  const organizationId = await getTenantId();
   const userLeagueIds =
     filtro === 'todos'
       ? (
           await prisma.leagueRegistration.findMany({
             where: {
               withdrawnAt: null,
+              league: { organizationId },
               OR: [
                 { team: { members: { some: { userId: user.id } } } },
                 { userId: user.id },
@@ -62,6 +65,7 @@ export default async function MisPartidosPage({
             }
           : {
               status: { notIn: ['CANCELLED'] },
+              league: { organizationId },
               OR: [
                 { teamA: { members: { some: { userId: user.id } } } },
                 { teamB: { members: { some: { userId: user.id } } } },
@@ -93,6 +97,7 @@ export default async function MisPartidosPage({
     }),
     prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: { notIn: ['CANCELLED', 'REJECTED'] },
         OR: [
           { organizerId: user.id },
@@ -107,7 +112,7 @@ export default async function MisPartidosPage({
       },
       orderBy: [{ scheduledAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
     }),
-    IndependentMatchService.getPendingInvitationsForUser(user.id),
+    IndependentMatchService.getPendingInvitationsForUser(user.id, organizationId),
   ]);
 
   const activeIndependent = independentMatches.filter((m) =>

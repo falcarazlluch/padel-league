@@ -8,6 +8,7 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService } from '@/modules/independent-matches';
+import { getTenantId } from '@/shared/tenant/context';
 import { isUserFacingError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 import { parseMadridLocal } from '@/shared/datetime/madrid-local';
@@ -67,6 +68,8 @@ export async function createOpenMatch(
     const match = await IndependentMatchService.createOpen({
       ...rest,
       organizerId: user.id,
+      // The match belongs to whichever environment it was created from.
+      organizationId: await getTenantId(),
       maxPlayers: 4,
       hostTeamId: hostKind === 'TEAM' ? hostTeamId : undefined,
     });

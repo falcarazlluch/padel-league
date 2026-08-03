@@ -591,7 +591,7 @@ export const MatchService = {
         body: `El admin ha decidido el partido sin jugar. Ganador: ${winningTeam?.name ?? '?'}${losingTeam ? ` (sobre ${losingTeam.name})` : ''}.`,
         metadata: { matchId, reason },
       })),
-      { excludeActorId: requestingUserId },
+      { excludeActorId: requestingUserId, scope: { matchId } },
     ).catch(() => undefined);
 
     // Si es match de bracket, propagar al siguiente. El admin que ejecutó
@@ -901,6 +901,6 @@ async function maybeNotifyBracketMatchReady(
       body: `${m.teamA!.name} vs ${m.teamB!.name} en ${m.league.name}. ¡Proponed fecha cuando podáis!`,
       metadata: { matchId: m.id, leagueId: m.leagueId, leagueSlug: m.league.slug },
     })),
-    actorUserId ? { excludeActorId: actorUserId } : undefined,
+    { ...(actorUserId ? { excludeActorId: actorUserId } : {}), scope: { leagueId: m.leagueId } },
   ).catch(() => undefined);
 }

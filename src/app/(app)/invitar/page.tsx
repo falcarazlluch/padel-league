@@ -1,8 +1,15 @@
+import { notFound } from 'next/navigation';
+import { getTenantId } from '@/shared/tenant/context';
 import { InviteForm } from './invite-form';
 
 export const metadata = { title: 'Invitar a un amigo — Padel League' };
 
-export default function InvitarPage() {
+export default async function InvitarPage() {
+  // The friend-invite flow mints a platform registration code. Inside a tenant
+  // the door is the organiser's inscription link, so this page does not exist
+  // there — the nav already hides it; this closes the direct URL.
+  if (await getTenantId()) notFound();
+
   return (
     <div className="max-w-lg space-y-6">
       <div>

@@ -30,6 +30,7 @@ export const CategoryProposalService = {
         id: true,
         name: true,
         pointsWin: true,
+        organizationId: true,
         registrations: {
           where: { withdrawnAt: null },
           select: {
@@ -120,6 +121,7 @@ export const CategoryProposalService = {
 
       const memberPayloads: Array<{
         userId: string;
+        organizationId: string | null;
         type: 'CATEGORY_CHANGE_PROPOSED';
         title: string;
         body: string;
@@ -138,6 +140,7 @@ export const CategoryProposalService = {
         for (const m of team.members) {
           memberPayloads.push({
             userId: m.userId,
+            organizationId: league.organizationId,
             type: 'CATEGORY_CHANGE_PROPOSED',
             title,
             body,

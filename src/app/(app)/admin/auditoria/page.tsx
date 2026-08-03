@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { getTenantId } from '@/shared/tenant/context';
+import { redirect, notFound } from 'next/navigation';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { SESSION_COOKIE } from '@/shared/auth/session';
@@ -34,6 +35,10 @@ export default async function AuditoriaPage({
 }: {
   searchParams: Promise<{ action?: string; offset?: string }>;
 }) {
+  // Platform-wide administration: these pages show data across every tenant, so
+  // they only exist on the apex host. Inside a tenant subdomain they 404 — an
+  // ORG_ADMIN has no business enumerating other organizations' users or teams.
+  if (await getTenantId()) notFound();
   const params = await searchParams;
   const action = parseAction(params.action);
   const offset = Math.max(0, parseInt(params.offset ?? '0', 10) || 0);

@@ -36,6 +36,8 @@ export type IndependentMatchDetail = IndependentMatchRow & {
 
 export type CreateOpenMatchInput = {
   organizerId: string;
+  /** Tenant propietario. `undefined`/`null` = plataforma pública. */
+  organizationId?: string | null;
   name: string;
   visibility: MatchVisibility;
   hostTeamId?: string;

@@ -158,11 +158,22 @@ export const MatchCommentaryService = {
     }) as unknown as Promise<CommentaryFeedItem[]>;
   },
 
-  async listForUser(userId: string, limit = 5): Promise<CommentaryFeedItem[]> {
+  /**
+   * `organizationId` is a REQUIRED tenant scope (pass `null` for the public
+   * platform). Without it the crónicas sidebar leaks match narratives from the
+   * public platform into a club's private environment — the feed is rendered in
+   * the shared app layout, so it shows up on every tenant page at once.
+   */
+  async listForUser(
+    userId: string,
+    organizationId: string | null,
+    limit = 5,
+  ): Promise<CommentaryFeedItem[]> {
     return prisma.matchCommentary.findMany({
       where: {
         match: {
           league: {
+            organizationId,
             registrations: {
               some: {
                 withdrawnAt: null,

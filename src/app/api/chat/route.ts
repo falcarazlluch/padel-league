@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { HelpChatService, PromptInjectionDetectedError } from '@/modules/help-chat';
+import { getTenantId } from '@/shared/tenant/context';
 import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
 import { RateLimitError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
@@ -47,7 +48,7 @@ export async function POST(request: Request): Promise<Response> {
     // use, restrictive enough to cap any abuse of the OpenAI bill.
     await checkRateLimit(buildRateLimitKey('ai-chat', 'user', user.id), { limit: 20 });
 
-    const result = await HelpChatService.answer(user.id, parsed.data.question, parsed.data.history);
+    const result = await HelpChatService.answer(user.id, parsed.data.question, parsed.data.history, await getTenantId());
     return NextResponse.json({ content: result.content });
   } catch (err) {
     if (err instanceof RateLimitError) {

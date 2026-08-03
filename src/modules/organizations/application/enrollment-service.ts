@@ -183,6 +183,7 @@ export const EnrollmentService = {
         await tx.notification.create({
           data: {
             userId: partner.userId,
+            organizationId: league.organizationId,
             type: 'TOURNAMENT_ENROLLMENT_COMPLETED',
             title: 'Estáis apuntados',
             body: `${actor?.name ?? 'Tu compañero/a'} os ha apuntado como pareja "${team.name}" a ${league.name}.`,
@@ -365,6 +366,7 @@ export const EnrollmentService = {
         await tx.notification.create({
           data: {
             userId: partnerUser.id,
+            organizationId: league.organizationId,
             type: 'TOURNAMENT_PARTNER_INVITE',
             title: 'Te invitan como pareja',
             body: `${me.name} quiere apuntarse contigo a ${league.name}. Acepta para completar la inscripción.`,
@@ -440,10 +442,14 @@ export const EnrollmentService = {
     const enrollment = await requireEnrollment(input.leagueId, input.userId);
     const league = await prisma.league.findUnique({
       where: { id: input.leagueId },
-      select: { id: true, name: true, status: true, registrationStart: true, registrationEnd: true },
+      select: {
+        id: true, name: true, status: true, organizationId: true,
+        registrationStart: true, registrationEnd: true,
+      },
     });
     if (!league) throw new NotFoundError('LEAGUE_NOT_FOUND', 'Competición no encontrada.');
     assertRegistrationOpen(league);
+    const leagueOrganizationId = league.organizationId;
 
     const actor = await prisma.user.findUnique({
       where: { id: input.userId },
@@ -469,6 +475,7 @@ export const EnrollmentService = {
             await tx.notification.createMany({
               data: others.map((m) => ({
                 userId: m.userId,
+                organizationId: leagueOrganizationId,
                 type: 'LEAGUE_REGISTRATION_REMOVED' as const,
                 title: 'Inscripción anulada',
                 body: `${actor?.name ?? 'Tu compañero/a'} ha anulado vuestra inscripción a ${league.name}.`,
@@ -671,6 +678,7 @@ export const EnrollmentService = {
       await tx.notification.create({
         data: {
           userId: invite.invitedByUserId,
+          organizationId: invite.league.organizationId,
           type: 'TOURNAMENT_PARTNER_ACCEPTED',
           title: '¡Inscripción completada!',
           body: `${accepter?.name ?? 'Tu pareja'} ha aceptado. Ya estáis apuntados a ${invite.league.name}.`,
@@ -700,7 +708,7 @@ export const EnrollmentService = {
       select: {
         id: true, status: true, enrollmentId: true, leagueId: true,
         invitedByUserId: true, invitedUserId: true,
-        league: { select: { name: true, slug: true } },
+        league: { select: { name: true, slug: true, organizationId: true } },
       },
     });
     if (!invite) throw new NotFoundError('INVITE_NOT_FOUND', 'Esta invitación no existe.');
@@ -728,6 +736,7 @@ export const EnrollmentService = {
       await tx.notification.create({
         data: {
           userId: invite.invitedByUserId,
+          organizationId: invite.league.organizationId,
           type: 'TOURNAMENT_PARTNER_DECLINED',
           title: 'Tu pareja ha rechazado la invitación',
           body: `${decliner?.name ?? 'La persona invitada'} no jugará contigo en ${invite.league.name}. Puedes invitar a otra pareja.`,

@@ -93,7 +93,7 @@ describe('CalendarService.listMatchesForUserMonth — integration', () => {
       },
     });
 
-    const result = await CalendarService.listMatchesForUserMonth(me.id, 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth(me.id, 2026, 4, null);
     expect(result).toHaveLength(2);
 
     const own = result.find((r) => r.id === myMatch.id);
@@ -120,7 +120,7 @@ describe('CalendarService.listMatchesForUserMonth — integration', () => {
       },
     });
 
-    const result = await CalendarService.listMatchesForUserMonth(me.id, 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth(me.id, 2026, 4, null);
     expect(result).toHaveLength(1);
     expect(result[0]!.id).toBe(im.id);
     expect(result[0]!.category).toBe('INDEPENDENT');
@@ -161,7 +161,7 @@ describe('CalendarService.listMatchesForUserMonth — integration', () => {
       },
     });
 
-    const result = await CalendarService.listMatchesForUserMonth(me.id, 2026, 4);
+    const result = await CalendarService.listMatchesForUserMonth(me.id, 2026, 4, null);
     expect(result.map((r) => r.title)).toEqual(['April match']);
   });
 });

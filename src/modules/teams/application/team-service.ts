@@ -168,9 +168,13 @@ export const TeamService = {
    * (member emails, pending invitations) for non-members; only members see
    * the management surface from the page.
    */
-  async getPublicProfile(teamId: string, viewerUserId: string): Promise<TeamPublicProfile> {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
+  async getPublicProfile(
+    teamId: string,
+    viewerUserId: string,
+    organizationId: string | null,
+  ): Promise<TeamPublicProfile> {
+    const team = await prisma.team.findFirst({
+      where: { id: teamId, organizationId },
       include: {
         members: {
           select: {
@@ -337,6 +341,7 @@ export const TeamService = {
       await tx.notification.create({
         data: {
           userId: invitee.id,
+          organizationId: team.organizationId,
           type: 'TEAM_INVITATION',
           title: 'Invitación a un equipo',
           body: `${inviter?.name ?? 'Alguien'} te ha invitado a unirte al equipo "${team.name}".`,
@@ -420,6 +425,7 @@ export const TeamService = {
       await tx.notification.create({
         data: {
           userId: invitation.invitedByUserId,
+          organizationId: invitation.team.organizationId,
           type: 'TEAM_INVITATION_ACCEPTED',
           title: 'Invitación aceptada',
           body: `${accepter?.name ?? 'El jugador'} ha aceptado unirse al equipo.`,
@@ -440,6 +446,7 @@ export const TeamService = {
       where: { id: teamId },
       select: {
         name: true,
+        organizationId: true,
         members: {
           where: { userId },
           select: { user: { select: { name: true } } },
@@ -449,6 +456,7 @@ export const TeamService = {
     if (!teamPreview) throw new NotFoundError('TEAM_NOT_FOUND', 'Equipo no encontrado.');
     const leaverName = teamPreview.members[0]?.user.name ?? 'Tu compañero';
     const teamName = teamPreview.name;
+    const teamOrganizationId = teamPreview.organizationId;
 
     type RemainingMember = { userId: string };
     const remainingMembers = await prisma.$transaction<RemainingMember[]>(async (tx) => {
@@ -496,6 +504,7 @@ export const TeamService = {
       await prisma.notification.createMany({
         data: remainingMembers.map((m) => ({
           userId: m.userId,
+          organizationId: teamOrganizationId,
           type: 'TEAM_MEMBER_LEFT' as const,
           title: 'Tu compañero ha salido del equipo',
           body: `${leaverName} ha salido del equipo "${teamName}".`,
@@ -510,6 +519,7 @@ export const TeamService = {
       where: { id: invitationId },
       select: {
         id: true, teamId: true, invitedUserId: true, invitedByUserId: true, status: true,
+        team: { select: { organizationId: true } },
       },
     });
     if (!invitation) throw new NotFoundError('INVITATION_NOT_FOUND', 'Invitación no encontrada.');
@@ -532,6 +542,7 @@ export const TeamService = {
       await tx.notification.create({
         data: {
           userId: invitation.invitedByUserId,
+          organizationId: invitation.team.organizationId,
           type: 'TEAM_INVITATION_REJECTED',
           title: 'Invitación rechazada',
           body: `${rejecter?.name ?? 'El jugador'} ha rechazado tu invitación.`,

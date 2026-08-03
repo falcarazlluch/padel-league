@@ -72,6 +72,7 @@ export const IndependentMatchService = {
       const m = await tx.independentMatch.create({
         data: {
           organizerId: input.organizerId,
+          organizationId: input.organizationId ?? null,
           name: input.name,
           visibility: input.visibility,
           hostTeamId: input.hostTeamId ?? null,
@@ -100,10 +101,14 @@ export const IndependentMatchService = {
     return match;
   },
 
-  async listOpen(): Promise<(IndependentMatchRow & { confirmedCount: number })[]> {
+  /** `organizationId` is a REQUIRED tenant scope (`null` = public platform). */
+  async listOpen(
+    organizationId: string | null,
+  ): Promise<(IndependentMatchRow & { confirmedCount: number })[]> {
     const now = new Date();
     const matches = await prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: 'OPEN',
         visibility: 'PUBLIC',
         // Hide matches whose scheduled time has passed. Matches without a date
@@ -119,9 +124,10 @@ export const IndependentMatchService = {
     }));
   },
 
-  async getForUser(userId: string): Promise<IndependentMatchRow[]> {
+  async getForUser(userId: string, organizationId: string | null): Promise<IndependentMatchRow[]> {
     return prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: { notIn: ['CANCELLED', 'REJECTED'] },
         OR: [
           { organizerId: userId },
@@ -132,7 +138,10 @@ export const IndependentMatchService = {
     });
   },
 
-  async getPendingInvitationsForUser(userId: string): Promise<IndependentMatchRow[]> {
+  async getPendingInvitationsForUser(
+    userId: string,
+    organizationId: string | null,
+  ): Promise<IndependentMatchRow[]> {
     const memberRows = await prisma.teamMember.findMany({
       where: { userId },
       select: { teamId: true },
@@ -141,6 +150,7 @@ export const IndependentMatchService = {
 
     const matches = await prisma.independentMatch.findMany({
       where: {
+        organizationId,
         status: 'OPEN',
         invitations: {
           some: {
@@ -164,12 +174,19 @@ export const IndependentMatchService = {
     return matches;
   },
 
-  async getById(id: string): Promise<IndependentMatchDetail> {
+  /**
+   * `organizationId` is a REQUIRED tenant scope (`null` = public platform).
+   * A match id is guessable-ish and appears in shared links, so a cross-tenant
+   * read has to 404 rather than render.
+   */
+  async getById(id: string, organizationId: string | null): Promise<IndependentMatchDetail> {
     const match = await prisma.independentMatch.findUnique({
       where: { id },
       include: MATCH_DETAIL_INCLUDE,
     });
-    if (!match) throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    if (!match || match.organizationId !== organizationId) {
+      throw new NotFoundError('MATCH_NOT_FOUND', 'Partido no encontrado.');
+    }
     return match as IndependentMatchDetail;
   },
 
@@ -431,7 +448,7 @@ export const IndependentMatchService = {
           body: `${invitation.invitedTeam.name} se unió a "${match.name}".`,
           metadata: { matchId: match.id },
         },
-        { excludeActorId: userId },
+        { excludeActorId: userId, scope: { independentMatchId: match.id } },
       ).catch(() => undefined);
 
       return match.id;
@@ -485,7 +502,7 @@ export const IndependentMatchService = {
         body: `Un jugador se unió a "${match.name}".`,
         metadata: { matchId: match.id },
       },
-      { excludeActorId: userId },
+      { excludeActorId: userId, scope: { independentMatchId: match.id } },
     ).catch(() => undefined);
 
     return match.id;
@@ -532,7 +549,7 @@ export const IndependentMatchService = {
         body: `Un jugador se unió a "${match.name}".`,
         metadata: { matchId: match.id },
       },
-      { excludeActorId: userId },
+      { excludeActorId: userId, scope: { independentMatchId: match.id } },
     ).catch(() => undefined);
   },
 
@@ -573,7 +590,7 @@ export const IndependentMatchService = {
         body: `${match.organizer.name} ha cancelado el partido "${match.name}".`,
         metadata: { matchId },
       })),
-      { excludeActorId: organizerId },
+      { excludeActorId: organizerId, scope: { independentMatchId: matchId } },
     ).catch(() => undefined);
 
     void notifyParticipantsByEmail(others, {
@@ -660,7 +677,7 @@ export const IndependentMatchService = {
         body: preview,
         metadata: { matchId },
       })),
-      { excludeActorId: userId },
+      { excludeActorId: userId, scope: { independentMatchId: matchId } },
     ).catch(() => undefined);
   },
 
@@ -725,7 +742,7 @@ export const IndependentMatchService = {
         body,
         metadata: { matchId },
       })),
-      { excludeActorId: organizerId },
+      { excludeActorId: organizerId, scope: { independentMatchId: matchId } },
     ).catch(() => undefined);
 
     void notifyParticipantsByEmail(others, {
@@ -789,7 +806,7 @@ export const IndependentMatchService = {
         body,
         metadata: { matchId },
       })),
-      { excludeActorId: userId },
+      { excludeActorId: userId, scope: { independentMatchId: matchId } },
     ).catch(() => undefined);
 
     void notifyParticipantsByEmail(others, {

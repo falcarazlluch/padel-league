@@ -57,11 +57,17 @@ const MIN_MATCHES_FOR_PARTNER = 3;
 const TOP_N = 5;
 
 export const UserStatsService = {
-  async getStats(userId: string): Promise<PlayerStats> {
+  /**
+   * `organizationId` is a REQUIRED tenant scope (`null` = public platform).
+   * Aggregating across tenants would let a RACC profile expose how somebody
+   * performs in another club's competitions.
+   */
+  async getStats(userId: string, organizationId: string | null): Promise<PlayerStats> {
     // 1. Matches basados en Team (Liga / Torneo / Americana FIXED_PAIRS).
     const teamMatches = await prisma.match.findMany({
       where: {
         status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] },
+        league: { organizationId },
         teamAId: { not: null },
         teamBId: { not: null },
         OR: [
@@ -105,7 +111,7 @@ export const UserStatsService = {
     const americanaParticipations = await prisma.matchParticipant.findMany({
       where: {
         userId,
-        match: { status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] } },
+        match: { status: { in: ['CONFIRMED', 'ADMIN_RESOLVED'] }, league: { organizationId } },
       },
       select: {
         matchId: true,
@@ -242,6 +248,7 @@ export const UserStatsService = {
     const proposals = await prisma.teamCategoryChangeProposal.findMany({
       where: {
         teamId: { in: userTeamIds.map((t) => t.teamId) },
+        league: { organizationId },
         status: 'ACCEPTED',
       },
       select: {

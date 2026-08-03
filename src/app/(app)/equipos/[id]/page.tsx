@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { TeamService } from '@/modules/teams';
+import { getTenantId } from '@/shared/tenant/context';
 import { CATEGORY_LABEL, categoryBadgeClass } from '@/modules/leagues';
 import { isUserFacingError } from '@/shared/errors';
 import { TeamLogo } from '@/modules/teams/presentation/team-logo';
@@ -32,7 +33,7 @@ export default async function EquipoDetailPage({
   // viewer is a member.
   let team;
   try {
-    team = await TeamService.getPublicProfile(id, user.id);
+    team = await TeamService.getPublicProfile(id, user.id, await getTenantId());
   } catch (err) {
     if (isUserFacingError(err)) notFound();
     throw err;

@@ -10,6 +10,7 @@ import { MatchCommentaryService } from '@/modules/match-commentary';
 import { MatchPhotoService } from '@/modules/match-photos';
 import { PhotosSection } from '@/app/(app)/_components/match-photos/photos-section';
 import { prisma } from '@/shared/db/client';
+import { getTenant } from '@/shared/tenant/context';
 import { SubmitResultForm } from './submit-result-form';
 import { ConfirmRejectPanel } from './confirm-reject-panel';
 import { ScheduleSection } from './schedule-section';
@@ -59,6 +60,7 @@ export default async function MatchDetailPage({
   // Probe the shape of the match: if it's Americana ROTATING_INDIVIDUAL
   // (teamA/B null, americanaRound set, MatchParticipant rows) we render a
   // dedicated view that doesn't depend on the classic two-team flow.
+  const tenant = await getTenant();
   const probe = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -69,10 +71,14 @@ export default async function MatchDetailPage({
       americanaRound: true,
       americanaCourt: true,
       status: true,
-      league: { select: { slug: true, name: true, type: true } },
+      // organizationId is the tenant guard: a match id from another
+      // environment must 404 here rather than render.
+      league: { select: { slug: true, name: true, type: true, organizationId: true } },
     },
   });
-  if (!probe || probe.league.slug !== slug) notFound();
+  if (!probe || probe.league.slug !== slug || probe.league.organizationId !== (tenant?.id ?? null)) {
+    notFound();
+  }
 
   if (probe.league.type === 'AMERICANA' && probe.teamAId == null && probe.teamBId == null) {
     return renderAmericanaIndividualMatch(matchId, currentUser.id, probe.league.name, probe.league.slug);

@@ -84,7 +84,7 @@ describe('listOpen visibility filter', () => {
     const org = await user('Org', `org-${Date.now()}`);
     await IndependentMatchService.createOpen({ organizerId: org.id, name: 'Pub', visibility: 'PUBLIC', maxPlayers: 4 });
     await IndependentMatchService.createOpen({ organizerId: org.id, name: 'Priv', visibility: 'PRIVATE', maxPlayers: 4 });
-    const list = await IndependentMatchService.listOpen();
+    const list = await IndependentMatchService.listOpen(null);
     expect(list.map((m) => m.name)).toEqual(['Pub']);
   });
 });

@@ -16,6 +16,7 @@ export const LeagueNotificationService = {
         name: true,
         slug: true,
         category: true,
+        organizationId: true,
         registrationOpenNotifiedAt: true,
       },
     });
@@ -23,8 +24,16 @@ export const LeagueNotificationService = {
       return { recipients: 0 };
     }
 
+    // Inside a tenant only its members hear about a new competition; on the
+    // public platform, everyone of that level as before.
     const recipients = await prisma.user.findMany({
-      where: { category: league.category, deletedAt: null },
+      where: {
+        category: league.category,
+        deletedAt: null,
+        ...(league.organizationId
+          ? { organizationMemberships: { some: { organizationId: league.organizationId } } }
+          : {}),
+      },
       select: { id: true },
     });
 
@@ -33,6 +42,7 @@ export const LeagueNotificationService = {
         await tx.notification.createMany({
           data: recipients.map((r) => ({
             userId: r.id,
+            organizationId: league.organizationId,
             type: 'LEAGUE_REGISTRATION_OPEN' as const,
             title: 'Nueva liga abierta',
             body: `Se ha abierto la inscripción de "${league.name}" (${CATEGORY_LABEL[league.category]}).`,

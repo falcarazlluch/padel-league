@@ -115,7 +115,7 @@ export default async function DashboardPage({
       },
       orderBy: { createdAt: 'desc' },
     }),
-    MatchCommentaryService.listForUser(user.id, 5),
+    MatchCommentaryService.listForUser(user.id, organizationId, 5),
     CategoryProposalService.listPendingForUser(user.id),
     EnrollmentService.listUnfinishedForUser(user.id, organizationId),
   ]);

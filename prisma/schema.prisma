@@ -419,10 +419,12 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  members     OrganizationMember[]
-  leagues     League[]
-  teams       Team[]
-  inviteLinks TournamentInviteLink[]
+  members            OrganizationMember[]
+  leagues            League[]
+  teams              Team[]
+  inviteLinks        TournamentInviteLink[]
+  independentMatches IndependentMatch[]
+  notifications      Notification[]
 
   @@index([isActive])
   @@map("organizations")
@@ -969,7 +971,10 @@ model MatchCommentary {
 // ─── PARTIDOS INDEPENDIENTES ─────────────────────────────────────────────
 
 model IndependentMatch {
-  id          String                 @id @default(cuid())
+  id String @id @default(cuid())
+  // Tenant propietario, mismo criterio que `League.organizationId`. Un partido
+  // suelto creado dentro de RACC no aparece en la plataforma pública.
+  organizationId String? @map("organization_id")
   organizerId String                 @map("organizer_id")
   name        String
   visibility  MatchVisibility        @default(PUBLIC) @map("visibility")
@@ -985,6 +990,7 @@ model IndependentMatch {
   createdAt   DateTime               @default(now()) @map("created_at")
   updatedAt   DateTime               @updatedAt @map("updated_at")
 
+  organization Organization?                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizer    User                          @relation("IndependentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
   hostTeam     Team?                         @relation("MatchHostTeam", fields: [hostTeamId], references: [id], onDelete: SetNull)
   league       League?                       @relation("IndependentMatchLeague", fields: [leagueId], references: [id], onDelete: Restrict)
@@ -994,6 +1000,7 @@ model IndependentMatch {
   photos       MatchPhoto[]
 
   @@index([status, scheduledAt])
+  @@index([organizationId, status])
   @@map("independent_matches")
 }
 
@@ -1101,7 +1108,12 @@ model MatchPhotoLike {
 // ─── INFRA COMÚN ─────────────────────────────────────────────────────────
 
 model Notification {
-  id        String           @id @default(cuid())
+  id String @id @default(cuid())
+  // Contexto de tenant en el que se generó. NULL = plataforma pública. Se
+  // deriva de la entidad que la origina (liga / equipo / partido suelto) en el
+  // momento de crearla, no al leerla: el badge de no leídas es un COUNT y
+  // resolver el tenant por JSON+join en cada lectura lo haría carísimo.
+  organizationId String?    @map("organization_id")
   userId    String           @map("user_id")
   type      NotificationType
   title     String
@@ -1114,10 +1126,12 @@ model Notification {
   pushDispatchedAt DateTime?  @map("push_dispatched_at")
   createdAt DateTime         @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
   @@index([pushDispatchedAt, createdAt])
+  @@index([organizationId, userId, readAt])
   @@map("notifications")
 }
 

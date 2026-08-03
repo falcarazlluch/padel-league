@@ -3,7 +3,7 @@ import { TeamService } from '@/modules/teams';
 
 vi.mock('@/shared/db/client', () => ({
   prisma: {
-    team: { findUnique: vi.fn(), delete: vi.fn() },
+    team: { findUnique: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
     teamMember: { findFirst: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
     teamInvitation: { findMany: vi.fn() },
     user: { findUnique: vi.fn() },
@@ -18,7 +18,11 @@ vi.mock('@/shared/db/client', () => ({
 async function getPrisma() {
   const { prisma } = await import('@/shared/db/client');
   return prisma as unknown as {
-    team: { findUnique: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+    team: {
+      findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+    };
     teamMember: {
       findFirst: ReturnType<typeof vi.fn>;
       deleteMany: ReturnType<typeof vi.fn>;
@@ -324,7 +328,7 @@ describe('TeamService.getPublicProfile', () => {
 
   it('returns the team with stats + history; does NOT require membership', async () => {
     const prisma = await getPrisma();
-    prisma.team.findUnique.mockResolvedValue({
+    prisma.team.findFirst.mockResolvedValue({
       id: 't1',
       name: 'Halcones',
       category: 'INTERMEDIATE',
@@ -372,7 +376,7 @@ describe('TeamService.getPublicProfile', () => {
     ]);
 
     // Caller is a stranger — not member of team t1.
-    const profile = await TeamService.getPublicProfile('t1', 'u-stranger');
+    const profile = await TeamService.getPublicProfile('t1', 'u-stranger', null);
 
     expect(profile.viewerIsMember).toBe(false);
     expect(profile.stats).toEqual({ played: 3, won: 1, drawn: 1, lost: 1 });
@@ -392,7 +396,7 @@ describe('TeamService.getPublicProfile', () => {
 
   it('flags viewerIsMember=true when the caller is on the roster', async () => {
     const prisma = await getPrisma();
-    prisma.team.findUnique.mockResolvedValue({
+    prisma.team.findFirst.mockResolvedValue({
       id: 't1',
       name: 'Mi equipo',
       category: 'INTERMEDIATE',
@@ -403,15 +407,30 @@ describe('TeamService.getPublicProfile', () => {
     });
     prisma.match.findMany.mockResolvedValue([]);
 
-    const profile = await TeamService.getPublicProfile('t1', 'u-member');
+    const profile = await TeamService.getPublicProfile('t1', 'u-member', null);
     expect(profile.viewerIsMember).toBe(true);
     expect(profile.stats).toEqual({ played: 0, won: 0, drawn: 0, lost: 0 });
   });
 
   it('throws TEAM_NOT_FOUND when the team does not exist', async () => {
     const prisma = await getPrisma();
-    prisma.team.findUnique.mockResolvedValue(null);
+    prisma.team.findFirst.mockResolvedValue(null);
 
-    await expect(TeamService.getPublicProfile('t-missing', 'u1')).rejects.toThrow(/no encontrado/i);
+    await expect(TeamService.getPublicProfile('t-missing', 'u1', null)).rejects.toThrow(/no encontrado/i);
+  });
+
+  it('scopes the lookup to the tenant, so a cross-tenant team id is not found', async () => {
+    const prisma = await getPrisma();
+    // findFirst returns null because the where clause carries organizationId.
+    prisma.team.findFirst.mockResolvedValue(null);
+
+    await expect(TeamService.getPublicProfile('t-other-org', 'u1', 'org-racc')).rejects.toThrow(
+      /no encontrado/i,
+    );
+    expect(prisma.team.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 't-other-org', organizationId: 'org-racc' }),
+      }),
+    );
   });
 });

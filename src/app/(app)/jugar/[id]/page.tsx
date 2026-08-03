@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { IndependentMatchService, calculateAvailableSlots, isMatchPast } from '@/modules/independent-matches';
+import { getTenantId } from '@/shared/tenant/context';
 import { MatchPhotoService } from '@/modules/match-photos';
 import { prisma } from '@/shared/db/client';
 import { UserAvatar } from '@/modules/users/presentation/user-avatar';
@@ -46,7 +47,9 @@ export default async function JugarDetailPage({
   // (older emails still link with it) but ignored.
   void token;
 
-  const match = await IndependentMatchService.getById(id).catch(() => notFound());
+  const match = await IndependentMatchService.getById(id, await getTenantId()).catch(() =>
+    notFound(),
+  );
 
   const isOrganizer = match.organizerId === user.id;
   const isParticipant = match.participants.some((p) => p.userId === user.id);

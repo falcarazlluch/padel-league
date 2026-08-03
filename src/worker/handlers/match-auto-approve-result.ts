@@ -95,6 +95,7 @@ export async function matchAutoApproveResultHandler(
       body: `Resultado confirmado automáticamente${scoreFragment}. ${winnerTeamName ? `Ganador: ${winnerTeamName}.` : 'Partido empatado.'}`,
       metadata: { matchId: match.id, autoApproved: true },
     })),
+    { scope: { matchId: match.id } },
   );
 
   const matchUrl = `${env().APP_URL}/ligas/${match.league.slug}/partidos/${match.id}`;

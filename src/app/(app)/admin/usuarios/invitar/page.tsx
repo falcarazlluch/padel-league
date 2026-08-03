@@ -1,6 +1,13 @@
+import { notFound } from 'next/navigation';
+import { getTenantId } from '@/shared/tenant/context';
 import { inviteUserAction } from './actions';
 
-export default function InviteUserPage() {
+export default async function InviteUserPage() {
+  // Platform-wide administration: invites here mint a registration code for the
+  // public platform, which is meaningless inside a tenant (the way in there is
+  // the organiser's inscription link). 404 on a tenant subdomain.
+  if (await getTenantId()) notFound();
+
   // inviteUserAction returns { error?, success? }; cast to satisfy form action prop type.
   const formAction = inviteUserAction as unknown as (formData: FormData) => Promise<void>;
 

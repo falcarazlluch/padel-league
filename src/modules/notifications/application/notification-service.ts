@@ -126,6 +126,59 @@ function resolveHref(
   return null;
 }
 
+/**
+ * Resolves the tenant a notification belongs to from the entity that caused it.
+ *
+ * Callers pass whichever id they already have; we look up its organization. This
+ * keeps the tenant derivation in one place instead of threading an
+ * `organizationId` through every one of the ~11 services that emit
+ * notifications, each of which would have to remember to do it.
+ *
+ * Returns `null` for the public platform — which is also the safe default, since
+ * a mis-resolved notification then shows on the public app rather than leaking
+ * into somebody's private club.
+ */
+export type NotificationScope =
+  | { leagueId: string }
+  | { teamId: string }
+  | { matchId: string }
+  | { independentMatchId: string }
+  /** Already known — skips the lookup. */
+  | { organizationId: string | null };
+
+export async function resolveNotificationOrg(
+  ref: NotificationScope,
+  tx: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<string | null> {
+  if ('organizationId' in ref) return ref.organizationId;
+  if ('leagueId' in ref) {
+    const row = await tx.league.findUnique({
+      where: { id: ref.leagueId },
+      select: { organizationId: true },
+    });
+    return row?.organizationId ?? null;
+  }
+  if ('teamId' in ref) {
+    const row = await tx.team.findUnique({
+      where: { id: ref.teamId },
+      select: { organizationId: true },
+    });
+    return row?.organizationId ?? null;
+  }
+  if ('matchId' in ref) {
+    const row = await tx.match.findUnique({
+      where: { id: ref.matchId },
+      select: { league: { select: { organizationId: true } } },
+    });
+    return row?.league.organizationId ?? null;
+  }
+  const row = await tx.independentMatch.findUnique({
+    where: { id: ref.independentMatchId },
+    select: { organizationId: true },
+  });
+  return row?.organizationId ?? null;
+}
+
 export const NotificationService = {
   // `excludeActorId` filtra al usuario que dispara la acción para que no reciba
   // su propia notificación (ej: tú confirmas un resultado → solo se notifica al
@@ -138,12 +191,17 @@ export const NotificationService = {
       body: string;
       metadata?: Record<string, unknown>;
     },
-    options?: { excludeActorId?: string },
+    options?: { excludeActorId?: string; scope?: NotificationScope },
   ): Promise<void> {
     if (options?.excludeActorId && options.excludeActorId === input.userId) return;
+    // No scope → public platform. That is the safe default: a notification that
+    // should have been tenant-scoped is merely missing from the tenant's panel,
+    // never leaked into somebody else's private environment.
+    const organizationId = options?.scope ? await resolveNotificationOrg(options.scope) : null;
     await prisma.notification.create({
       data: {
         userId: input.userId,
+        organizationId,
         type: input.type,
         title: input.title,
         body: input.body,
@@ -160,15 +218,19 @@ export const NotificationService = {
       body: string;
       metadata?: Record<string, unknown>;
     }>,
-    options?: { excludeActorId?: string },
+    options?: { excludeActorId?: string; scope?: NotificationScope },
   ): Promise<void> {
     const filtered = options?.excludeActorId
       ? inputs.filter((n) => n.userId !== options.excludeActorId)
       : inputs;
     if (filtered.length === 0) return;
+    // Resolved once for the whole batch — every notification in a batch comes
+    // from the same event, so they share a tenant.
+    const organizationId = options?.scope ? await resolveNotificationOrg(options.scope) : null;
     await prisma.notification.createMany({
       data: filtered.map((n) => ({
         userId: n.userId,
+        organizationId,
         type: n.type,
         title: n.title,
         body: n.body,
@@ -177,15 +239,25 @@ export const NotificationService = {
     });
   },
 
-  async getUnread(userId: string): Promise<{ count: number; items: NotificationItem[] }> {
+  /**
+   * `organizationId` is a REQUIRED tenant scope (`null` = public platform).
+   * Both the list and the badge count are filtered, so a RACC member browsing
+   * racc.mypadelleague.es never sees a public-platform notification and the
+   * unread count matches what the panel actually shows.
+   */
+  async getUnread(
+    userId: string,
+    organizationId: string | null,
+  ): Promise<{ count: number; items: NotificationItem[] }> {
+    const where = { userId, readAt: null, organizationId };
     const [rawItems, count] = await prisma.$transaction([
       prisma.notification.findMany({
-        where: { userId, readAt: null },
+        where,
         orderBy: { createdAt: 'desc' },
         take: 20,
         select: { id: true, type: true, title: true, body: true, metadata: true, createdAt: true },
       }),
-      prisma.notification.count({ where: { userId, readAt: null } }),
+      prisma.notification.count({ where }),
     ]);
 
     const items = rawItems.map((n) => ({
@@ -241,9 +313,11 @@ export const NotificationService = {
     });
   },
 
-  async markAllRead(userId: string): Promise<void> {
+  /** Scoped too: "marcar todas como leídas" inside a tenant must not silently
+   *  clear the user's public-platform notifications. */
+  async markAllRead(userId: string, organizationId: string | null): Promise<void> {
     await prisma.notification.updateMany({
-      where: { userId, readAt: null },
+      where: { userId, readAt: null, organizationId },
       data: { readAt: new Date() },
     });
   },
