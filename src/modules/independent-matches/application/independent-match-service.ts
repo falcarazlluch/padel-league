@@ -8,6 +8,7 @@ import {
 import { NotificationService } from '@/modules/notifications';
 import { SignedTokenService, SignedTokenPurpose } from '@/shared/auth/signed-tokens';
 import { queue } from '@/shared/queue/client';
+import { scheduleEmailFlush } from '@/shared/queue/email';
 import { env } from '@/shared/config/env';
 import type {
   CreateOpenMatchInput,
@@ -860,6 +861,7 @@ async function notifyParticipantsByEmail(
         }),
       ),
   );
+  scheduleEmailFlush();
 }
 
 /**

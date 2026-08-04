@@ -8,6 +8,7 @@ import { prisma } from '@/shared/db/client';
 import { PasswordService } from '@/shared/auth/password';
 import { SessionService } from '@/shared/auth/session';
 import { RegistrationCodeService } from '@/modules/users';
+import { CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
 import { EnrollmentService, InviteLinkService, OrganizationService } from '@/modules/organizations';
 import { ConflictError, DomainError, isUserFacingError } from '@/shared/errors';
 import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
@@ -20,6 +21,10 @@ const schema = z.object({
     .min(10, 'La contraseña debe tener al menos 10 caracteres.')
     .refine((v) => /\d/.test(v) && /[a-zA-Z]/.test(v), 'La contraseña debe contener al menos un número y una letra.'),
   confirmPassword: z.string(),
+  // Level of play. Asked at sign-up (it used to be collected mid-wizard), and
+  // optional so the classic code-only signup keeps working if the field is
+  // absent — the schema default matches the column default.
+  category: z.enum(CATEGORY_VALUES).default('INTERMEDIATE'),
   // Exactly one of these three is required — see `resolveEntryPass` below.
   invitationCode: z.string().trim().optional(),
   inviteToken: z.string().trim().optional(),
@@ -93,6 +98,7 @@ export async function registerAction(
     name: formData.get('name'),
     password: formData.get('password'),
     confirmPassword: formData.get('confirmPassword'),
+    category: formData.get('category') || undefined,
     invitationCode: formData.get('invitationCode') || undefined,
     inviteToken: formData.get('inviteToken') || undefined,
     partnerToken: formData.get('partnerToken') || undefined,
@@ -101,7 +107,7 @@ export async function registerAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
-  const { email, name, password, invitationCode, inviteToken, partnerToken } = parsed.data;
+  const { email, name, password, category, invitationCode, inviteToken, partnerToken } = parsed.data;
 
   const headerStore = await headers();
   const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -136,6 +142,7 @@ export async function registerAction(
           passwordHash,
           emailVerifiedAt: new Date(),
           role: 'PLAYER',
+          category,
         },
       });
 

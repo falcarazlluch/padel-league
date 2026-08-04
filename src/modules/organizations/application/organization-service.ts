@@ -141,6 +141,38 @@ export const OrganizationService = {
     }));
   },
 
+  /** One tenant, same shape as `list()`. Backs the platform's org detail screen. */
+  async getSummary(
+    organizationId: string,
+    actorUserId: string,
+  ): Promise<OrganizationSummary | null> {
+    await assertPlatformSuperAdmin(actorUserId);
+    const o = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      include: {
+        _count: { select: { members: true, leagues: true } },
+        members: { where: { role: 'ORG_ADMIN' }, select: { id: true } },
+      },
+    });
+    if (!o) return null;
+    return {
+      id: o.id,
+      slug: o.slug,
+      name: o.name,
+      logoUrl: o.logoUrl,
+      primaryColor: o.primaryColor,
+      secondaryColor: o.secondaryColor,
+      accentColor: o.accentColor,
+      contactEmail: o.contactEmail,
+      tagline: o.tagline,
+      isActive: o.isActive,
+      createdAt: o.createdAt,
+      memberCount: o._count.members,
+      adminCount: o.members.length,
+      competitionCount: o._count.leagues,
+    };
+  },
+
   async findBySlug(slug: string) {
     return prisma.organization.findUnique({ where: { slug } });
   },
@@ -181,11 +213,39 @@ export const OrganizationService = {
     return row?.role ?? null;
   },
 
+  /**
+   * Who is in this tenant, with enough context to act on them: the platform role
+   * (so it is obvious a club admin is not a platform admin), the level, and the
+   * activity that would be affected by removing them. Counts are scoped to this
+   * organization — a member's pairs in another club are none of this club's
+   * business.
+   */
   async listMembers(organizationId: string, actorUserId: string): Promise<OrganizationMemberRow[]> {
     await OrganizationService.assertOrgAdmin(organizationId, actorUserId);
     const rows = await prisma.organizationMember.findMany({
       where: { organizationId },
-      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            role: true,
+            category: true,
+            anonymizedAt: true,
+            deletedAt: true,
+            _count: {
+              select: {
+                teamMemberships: { where: { team: { organizationId } } },
+                tournamentEnrollments: {
+                  where: { league: { organizationId }, status: { not: 'CANCELLED' } },
+                },
+              },
+            },
+          },
+        },
+      },
       orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
     });
     return rows.map((r) => ({
@@ -195,6 +255,11 @@ export const OrganizationService = {
       avatarUrl: r.user.avatarUrl,
       role: r.role,
       joinedAt: r.joinedAt,
+      platformRole: r.user.role,
+      category: r.user.category,
+      teamCount: r.user._count.teamMemberships,
+      enrollmentCount: r.user._count.tournamentEnrollments,
+      inactive: r.user.anonymizedAt !== null || r.user.deletedAt !== null,
     }));
   },
 

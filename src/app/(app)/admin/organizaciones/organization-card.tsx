@@ -1,7 +1,9 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
-import { setOrgActiveAction, setOrgMemberRoleAction } from './actions';
+import Link from 'next/link';
+import type { Route } from 'next';
+import { useState, useTransition } from 'react';
+import { setOrgActiveAction } from './actions';
 
 type OrgView = {
   id: string;
@@ -22,7 +24,6 @@ type OrgView = {
 };
 
 export function OrganizationCard({ org, domain }: { org: OrgView; domain: string }) {
-  const [state, formAction, pending] = useActionState(setOrgMemberRoleAction, null);
   const [togglePending, startToggle] = useTransition();
   const [toggleError, setToggleError] = useState<string | null>(null);
 
@@ -82,6 +83,12 @@ export function OrganizationCard({ org, domain }: { org: OrgView; domain: string
           >
             {org.isActive ? 'Activa' : 'Desactivada'}
           </span>
+          <Link
+            href={`/admin/organizaciones/${org.id}` as Route}
+            className="text-xs px-3 py-1.5 bg-brand-navy text-white font-semibold rounded-lg hover:opacity-90 transition-opacity"
+          >
+            Gestionar
+          </Link>
           <button
             type="button"
             onClick={toggle}
@@ -101,52 +108,16 @@ export function OrganizationCard({ org, domain }: { org: OrgView; domain: string
         {org.contactEmail && <span>{org.contactEmail}</span>}
       </div>
 
-      <form action={formAction} className="flex flex-col sm:flex-row sm:items-end gap-2 pt-3 border-t border-slate-100">
-        <input type="hidden" name="organizationId" value={org.id} />
-        <div className="flex-1">
-          <label
-            htmlFor={`email-${org.id}`}
-            className="block text-xs font-medium text-slate-500 mb-1"
-          >
-            Añadir miembro por email
-          </label>
-          <input
-            id={`email-${org.id}`}
-            name="email"
-            type="email"
-            required
-            placeholder="admin@club.es"
-            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
-          />
-        </div>
-        <div className="sm:w-44">
-          <label htmlFor={`role-${org.id}`} className="block text-xs font-medium text-slate-500 mb-1">
-            Rol
-          </label>
-          <select
-            id={`role-${org.id}`}
-            name="role"
-            defaultValue="ORG_ADMIN"
-            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all"
-          >
-            <option value="ORG_ADMIN">Administrador</option>
-            <option value="ORG_PLAYER">Jugador</option>
-          </select>
-        </div>
-        <button
-          type="submit"
-          disabled={pending}
-          className="px-4 py-2 bg-brand-navy text-white text-sm font-bold rounded-xl shadow-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
-        >
-          {pending ? 'Añadiendo...' : 'Añadir'}
-        </button>
-      </form>
-      {state?.error && <p className="text-xs text-red-600">{state.error}</p>}
-      {state?.success && <p className="text-xs text-emerald-700">{state.success}</p>}
-      <p className="text-xs text-slate-400">
-        La cuenta debe existir ya en la plataforma. Un administrador de organización puede crear
-        competiciones y generar enlaces de inscripción, pero solo dentro de {org.name}.
-      </p>
+      {org.adminCount === 0 && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          Nadie de {org.name} puede administrar su entorno todavía: sin un administrador, el club no
+          crea competiciones ni reparte enlaces de inscripción.{' '}
+          <Link href={`/admin/organizaciones/${org.id}` as Route} className="underline font-semibold">
+            Nombrar uno
+          </Link>
+          .
+        </p>
+      )}
     </article>
   );
 }

@@ -7,6 +7,7 @@ import { useFormStatus } from 'react-dom';
 import { loginAction } from '@/app/(auth)/login/actions';
 import { registerAction } from '@/app/(auth)/registro/actions';
 import { PasswordInput } from '@/app/(auth)/_components/password-input';
+import { CategoryPicker } from '@/app/(auth)/_components/category-picker';
 
 const FIELD =
   'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all';
@@ -117,6 +118,7 @@ export function AuthStep({
             autoComplete="name"
             placeholder="Ej: Juan García"
           />
+          <CategoryPicker idPrefix="wizard-category" />
           <div>
             <label htmlFor="reg-password" className="block text-sm font-medium text-slate-700 mb-1">
               Contraseña

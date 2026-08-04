@@ -12,6 +12,7 @@ import { SignedTokenService, SignedTokenPurpose } from '@/shared/auth/signed-tok
 import { isUserFacingError } from '@/shared/errors';
 import { parseMadridLocal } from '@/shared/datetime/madrid-local';
 import { queue } from '@/shared/queue/client';
+import { scheduleEmailFlush } from '@/app/_email/register-flush';
 import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
 import { NotificationService } from '@/modules/notifications';
@@ -108,6 +109,7 @@ export async function inviteByEmail(_prev: ActionResult | null, formData: FormDa
         },
         dedupKey: `ind-invite-${invitationId}`,
       });
+      scheduleEmailFlush();
 
       const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email } });
       if (existingUser) {
@@ -303,6 +305,7 @@ async function sendUserInviteEmail(matchId: string, invitedUserId: string, invit
     },
     dedupKey: `ind-invite-${invitationId}`,
   });
+  scheduleEmailFlush();
 }
 
 async function sendTeamInviteNotifications(
@@ -367,6 +370,7 @@ async function sendTeamInviteNotifications(
         }),
       ),
   );
+  scheduleEmailFlush();
 }
 
 export async function postChatMessageAction(

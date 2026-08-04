@@ -2,13 +2,12 @@ import Link from 'next/link';
 import type { Route } from 'next';
 
 /** Step identities, so callers don't juggle indices. */
-export type StepKey = 'intro' | 'auth' | 'pick' | 'profile' | 'partner' | 'done';
+export type StepKey = 'intro' | 'auth' | 'pick' | 'partner' | 'done';
 
 export const STEP_LABEL: Record<StepKey, string> = {
   intro: 'El torneo',
   auth: 'Identifícate',
   pick: 'Elige torneo',
-  profile: 'Tus datos',
   partner: 'Tu pareja',
   done: 'Listo',
 };
@@ -16,11 +15,15 @@ export const STEP_LABEL: Record<StepKey, string> = {
 /**
  * The step sequence depends on the link kind: an organization link inserts a
  * "choose a competition" step, because it is not tied to one.
+ *
+ * There is no "Tus datos" step: name and level are collected when the account is
+ * created, so by the time someone reaches the wizard there is nothing left to
+ * ask them.
  */
 export function stepsFor(kind: 'ORGANIZATION' | 'COMPETITION'): StepKey[] {
   return kind === 'ORGANIZATION'
-    ? ['intro', 'auth', 'pick', 'profile', 'partner', 'done']
-    : ['intro', 'auth', 'profile', 'partner', 'done'];
+    ? ['intro', 'auth', 'pick', 'partner', 'done']
+    : ['intro', 'auth', 'partner', 'done'];
 }
 
 /**

@@ -1,7 +1,9 @@
 import type {
   OrgMemberRole,
   PartnerInviteStatus,
+  TeamCategory,
   TournamentEnrollmentStatus,
+  UserRole,
 } from '@prisma/client';
 
 export type { OrgMemberRole, PartnerInviteStatus, TournamentEnrollmentStatus };
@@ -41,6 +43,14 @@ export interface OrganizationMemberRow {
   avatarUrl: string | null;
   role: OrgMemberRole;
   joinedAt: Date;
+  /** Platform-wide role. A club admin is usually just a PLAYER on the platform. */
+  platformRole: UserRole;
+  category: TeamCategory;
+  /** Pairs and enrolments *inside this tenant* — the club's own activity. */
+  teamCount: number;
+  enrollmentCount: number;
+  /** Set once the account has been anonymised or deleted (GDPR). */
+  inactive: boolean;
 }
 
 export interface InviteLinkOrganization {
@@ -116,10 +126,12 @@ export interface InviteLinkPreview {
 export interface EnrollmentView {
   enrollmentId: string | null;
   status: TournamentEnrollmentStatus | 'NOT_STARTED';
-  /** 1-based step the wizard should open on. */
-  currentStep: 1 | 2 | 3 | 4;
-  profileComplete: boolean;
-  missingProfileFields: string[];
+  /**
+   * 1-based step the wizard should open on. Only the partner (3) and done (4)
+   * positions remain: name and level are collected at sign-up, so there is no
+   * profile step left for an enrolment to be stuck on.
+   */
+  currentStep: 3 | 4;
   team: { id: string; name: string; memberCount: number } | null;
   partner: {
     userId: string | null;
@@ -141,7 +153,7 @@ export interface EnrollmentView {
 }
 
 export interface ChecklistItem {
-  key: 'profile' | 'partner' | 'registration';
+  key: 'partner' | 'registration';
   label: string;
   state: 'done' | 'pending' | 'blocked';
   detail: string;

@@ -6,6 +6,7 @@ import {
   COMPETITION_TYPE_BADGE_CLASS,
   COMPETITION_TYPE_LABEL,
 } from '@/modules/leagues/presentation/competition-type';
+import { SkipCompetitionForm } from './skip-competition-form';
 
 function fmt(d: Date): string {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
@@ -21,10 +22,13 @@ export function PickCompetitionStep({
   token,
   competitions,
   organizationName,
+  partnerStep,
 }: {
   token: string;
   competitions: OpenCompetitionSummary[];
   organizationName: string;
+  /** Step number to jump to once a competition is chosen. */
+  partnerStep: number;
 }) {
   const available = competitions.filter((c) => !c.alreadyEnrolled);
   const enrolled = competitions.filter((c) => c.alreadyEnrolled);
@@ -50,7 +54,9 @@ export function PickCompetitionStep({
           {available.map((c) => (
             <li key={c.id}>
               <Link
-                href={`/inscripcion/${token}?paso=4&liga=${encodeURIComponent(c.slug)}` as Route}
+                href={
+                  `/inscripcion/${token}?paso=${partnerStep}&liga=${encodeURIComponent(c.slug)}` as Route
+                }
                 className="block rounded-xl border border-slate-200 p-3 hover:border-brand-blue hover:bg-brand-blue/5 transition-colors"
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -94,6 +100,8 @@ export function PickCompetitionStep({
           </ul>
         </div>
       )}
+
+      <SkipCompetitionForm token={token} organizationName={organizationName} />
     </section>
   );
 }

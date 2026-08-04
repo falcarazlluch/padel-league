@@ -11,6 +11,7 @@ import { MatchService } from '@/modules/leagues';
 import { NotificationService } from '@/modules/notifications';
 import { isUserFacingError } from '@/shared/errors';
 import { queue } from '@/shared/queue/client';
+import { scheduleEmailFlush } from '@/app/_email/register-flush';
 import { env } from '@/shared/config/env';
 import { prisma } from '@/shared/db/client';
 import { logger } from '@/shared/logger';
@@ -154,6 +155,7 @@ export async function submitResultAction(
           dedupKey: `result-submitted-${matchId}-${member.userId}`,
         });
       }
+      scheduleEmailFlush();
     }
   } catch (err) {
     logger().warn({ err, matchId }, 'action.submit.side-effect.failed');
@@ -209,6 +211,7 @@ export async function confirmResultAction(matchId: string): Promise<{ error?: st
           dedupKey: `result-confirmed-${matchId}-${member.userId}`,
         });
       }
+      scheduleEmailFlush();
     }
   } catch (err) {
     logger().warn({ err, matchId }, 'action.confirm.side-effect.failed');

@@ -1,8 +1,12 @@
 import type { PgBoss } from 'pg-boss';
 import { logger } from '@/shared/logger';
-import { runWithContext } from '@/shared/logger/context';
-import { prisma } from '@/shared/db/client';
-import { type JobMap, type JobName } from '@/shared/queue/jobs';
+import { type JobName } from '@/shared/queue/jobs';
+import {
+  DEAD_LETTER_QUEUE,
+  DEFAULT_BATCH,
+  runQueueBatch,
+  type AnyHandler,
+} from './run-queue';
 import { noopHandler } from './handlers/noop';
 import { sendEmailHandler } from './handlers/send-email';
 import { sessionCleanupHandler } from './handlers/session-cleanup';
@@ -11,11 +15,6 @@ import { matchAutoApproveResultHandler } from './handlers/match-auto-approve-res
 import { generateMatchCommentaryHandler } from './handlers/generate-match-commentary';
 import { leagueFinalizeHandler } from './handlers/league-finalize';
 import { sendPushHandler } from './handlers/send-push';
-
-const DEAD_LETTER_QUEUE = 'dead-letter';
-const DEFAULT_BATCH = 5;
-
-type AnyHandler = (data: unknown) => Promise<void>;
 
 const HANDLERS: Partial<Record<JobName, AnyHandler>> = {
   noop: noopHandler as AnyHandler,
@@ -61,60 +60,11 @@ export async function drainPendingJobs(
       const handler = HANDLERS[name];
       if (!handler) continue;
 
-      // includeMetadata: true gives us retryCount / retryLimit so we can detect
-      // the final attempt and persist a JobDeadLetter row with the real error.
-      const jobs = await boss.fetch<JobMap[typeof name] & { __requestId?: string }>(name, {
-        batchSize,
-        includeMetadata: true,
-      });
-      if (jobs.length === 0) continue;
-      workDone = true;
-
-      for (const job of jobs) {
-        const { __requestId, ...payload } = job.data as Record<string, unknown> & {
-          __requestId?: string;
-        };
-        try {
-          await runWithContext({ requestId: __requestId }, async () => {
-            await handler(payload as unknown);
-          });
-          await boss.complete(name, job.id);
-          stats.processed++;
-        } catch (err) {
-          const errorMessage = String((err as Error)?.message ?? err).slice(0, 2000);
-          const retryCount = job.retryCount ?? 0;
-          const retryLimit = job.retryLimit ?? 0;
-          const willRetry = retryCount + 1 < retryLimit;
-
-          log.error(
-            { err, jobId: job.id, queue: name, retryCount, retryLimit, willRetry },
-            'drain.job.fail',
-          );
-
-          // Record EVERY failure to JobDeadLetter so we get fast feedback in
-          // /admin/cola without having to wait through 3 retries first. The
-          // error column distinguishes attempts via the prefix.
-          const attemptInfo = `[attempt ${retryCount + 1}/${retryLimit}${willRetry ? '' : ' final'}]`;
-          await prisma.jobDeadLetter
-            .create({
-              data: {
-                jobName: name,
-                jobId: job.id,
-                payload: payload as object,
-                error: `${attemptInfo} ${errorMessage}`,
-              },
-            })
-            .catch((dlErr) => log.error({ dlErr, jobId: job.id }, 'drain.dl.persist.fail'));
-          if (!willRetry) {
-            stats.deadLettered++;
-          }
-
-          await boss
-            .fail(name, job.id, { error: errorMessage })
-            .catch((failErr) => log.error({ failErr, jobId: job.id }, 'drain.job.fail.recordError'));
-          stats.failed++;
-        }
-      }
+      const batch = await runQueueBatch(boss, name, handler, { batchSize });
+      stats.processed += batch.processed;
+      stats.failed += batch.failed;
+      stats.deadLettered += batch.deadLettered;
+      if (batch.workDone) workDone = true;
     }
 
     // Drain pg-boss native dead-letter routing too, so the queue doesn't bloat

@@ -20,7 +20,6 @@ async function getPrisma() {
   };
 }
 
-const COMPLETE_PROFILE = { name: 'Juan García', phone: '600123456', category: 'INTERMEDIATE' };
 const ORG_LEAGUE = { organization: { slug: 'racc' } };
 
 function checklistOf(items: { key: string; state: string }[], key: string) {
@@ -32,45 +31,28 @@ describe('EnrollmentService.getView — the "¿me falta algo?" contract', () => 
     vi.clearAllMocks();
   });
 
-  it('reports NOT_STARTED and sends a complete profile straight to the partner step', async () => {
+  it('reports NOT_STARTED and points straight at the partner step', async () => {
     const prisma = await getPrisma();
     prisma.tournamentEnrollment.findUnique.mockResolvedValue(null);
-    prisma.user.findUnique.mockResolvedValue(COMPLETE_PROFILE);
     prisma.league.findUnique.mockResolvedValue(ORG_LEAGUE);
 
     const view = await EnrollmentService.getView('l1', 'u1');
     expect(view.status).toBe('NOT_STARTED');
     expect(view.currentStep).toBe(3);
-    expect(view.profileComplete).toBe(true);
     expect(checklistOf(view.checklist, 'partner')).toBe('blocked');
     expect(checklistOf(view.checklist, 'registration')).toBe('blocked');
   });
 
-  it('names the missing profile fields instead of a generic error', async () => {
+  it('never asks for profile data: the checklist is only partner + registration', async () => {
     const prisma = await getPrisma();
     prisma.tournamentEnrollment.findUnique.mockResolvedValue(null);
-    prisma.user.findUnique.mockResolvedValue({ name: 'Jo', phone: null, category: 'INTERMEDIATE' });
     prisma.league.findUnique.mockResolvedValue(ORG_LEAGUE);
 
     const view = await EnrollmentService.getView('l1', 'u1');
-    expect(view.profileComplete).toBe(false);
-    expect(view.currentStep).toBe(2);
-    expect(view.missingProfileFields).toEqual(['Nombre y apellido', 'Teléfono de contacto']);
-    expect(checklistOf(view.checklist, 'profile')).toBe('blocked');
-  });
-
-  it('treats a phone with too few digits as missing', async () => {
-    const prisma = await getPrisma();
-    prisma.tournamentEnrollment.findUnique.mockResolvedValue(null);
-    prisma.user.findUnique.mockResolvedValue({
-      name: 'Juan García',
-      phone: '12-34',
-      category: 'INTERMEDIATE',
-    });
-    prisma.league.findUnique.mockResolvedValue(ORG_LEAGUE);
-
-    const view = await EnrollmentService.getView('l1', 'u1');
-    expect(view.missingProfileFields).toEqual(['Teléfono de contacto']);
+    // Name and level are collected at sign-up, so an enrolment can never be
+    // blocked on "completa tu perfil" — and nothing reads the user row for it.
+    expect(view.checklist.map((i) => i.key)).toEqual(['partner', 'registration']);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
   it('marks the partner as pending — never as done — while an invite is unanswered', async () => {
@@ -94,7 +76,6 @@ describe('EnrollmentService.getView — the "¿me falta algo?" contract', () => 
         },
       ],
     });
-    prisma.user.findUnique.mockResolvedValue(COMPLETE_PROFILE);
     prisma.league.findUnique.mockResolvedValue(ORG_LEAGUE);
 
     const view = await EnrollmentService.getView('l1', 'u1');
@@ -131,7 +112,6 @@ describe('EnrollmentService.getView — the "¿me falta algo?" contract', () => 
       },
       invites: [],
     });
-    prisma.user.findUnique.mockResolvedValue(COMPLETE_PROFILE);
     prisma.league.findUnique.mockResolvedValue(ORG_LEAGUE);
 
     const view = await EnrollmentService.getView('l1', 'u1');
@@ -157,7 +137,6 @@ describe('EnrollmentService.getView — the "¿me falta algo?" contract', () => 
       team: { id: 't1', name: 'X', members: [] },
       invites: [],
     });
-    prisma.user.findUnique.mockResolvedValue(COMPLETE_PROFILE);
     prisma.league.findUnique.mockResolvedValue(ORG_LEAGUE);
 
     const view = await EnrollmentService.getView('l1', 'u1');

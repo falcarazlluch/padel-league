@@ -21,7 +21,6 @@ async function makeUser(email: string, name: string, role: 'SUPER_ADMIN' | 'PLAY
       passwordHash: 'x',
       emailVerifiedAt: new Date(),
       role,
-      phone: '600123456',
     },
   });
 }
@@ -166,12 +165,6 @@ describe('guided enrolment — invite existing partner', () => {
       where: { id: link.id },
     });
     expect(linkRow.useCount).toBe(1);
-
-    await EnrollmentService.saveProfile(juan.id, {
-      name: 'Juan García',
-      phone: '600 111 222',
-      category: 'INTERMEDIATE',
-    });
 
     const invite = await EnrollmentService.invitePartner({
       leagueId: league.id,
@@ -539,10 +532,17 @@ describe('guided enrolment — pair that already exists', () => {
     ).rejects.toThrow(/otro entorno/i);
   });
 
-  it('requires a complete profile before anything can be registered', async () => {
+  it('asks for no profile data: registering needs nothing beyond the account', async () => {
     const { org, league, link } = await seedTenantTournament();
+    // Name and level came from the sign-up form; there is deliberately no phone.
     const juan = await prisma.user.create({
-      data: { email: 'juan@x.es', name: 'Ju', passwordHash: 'x', emailVerifiedAt: new Date() },
+      data: {
+        email: 'juan@x.es',
+        name: 'Juan García',
+        passwordHash: 'x',
+        emailVerifiedAt: new Date(),
+        category: 'ADVANCED',
+      },
     });
     await EnrollmentService.start(link.token, juan.id);
 
@@ -561,20 +561,10 @@ describe('guided enrolment — pair that already exists', () => {
         teamId: team.id,
         userId: juan.id,
       }),
-    ).rejects.toThrow(/completa tu perfil/i);
-
-    await EnrollmentService.saveProfile(juan.id, {
-      name: 'Juan García',
-      phone: '600111222',
-      category: 'ADVANCED',
-    });
-    await expect(
-      EnrollmentService.registerWithExistingTeam({
-        leagueId: league.id,
-        teamId: team.id,
-        userId: juan.id,
-      }),
     ).resolves.toBeTruthy();
+
+    const stored = await prisma.user.findUniqueOrThrow({ where: { id: juan.id } });
+    expect(stored.phone).toBeNull();
   });
 });
 
@@ -738,11 +728,6 @@ describe('organization-level invite link', () => {
     const started = await EnrollmentService.start(orgLink.token, juan.id, league.id);
     expect(started.leagueId).toBe(league.id);
 
-    await EnrollmentService.saveProfile(juan.id, {
-      name: 'Juan García',
-      phone: '600111222',
-      category: 'INTERMEDIATE',
-    });
     await EnrollmentService.invitePartner({
       leagueId: league.id,
       userId: juan.id,

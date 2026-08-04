@@ -5,6 +5,7 @@ import { prisma } from '@/shared/db/client';
 import { SignedTokenService } from '@/shared/auth/signed-tokens';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { queue } from '@/shared/queue/client';
+import { scheduleEmailFlush } from '@/app/_email/register-flush';
 import { assertSuperAdmin } from '@/shared/auth/rbac';
 import { ConflictError } from '@/shared/errors';
 import { SignedTokenPurpose } from '@prisma/client';
@@ -55,6 +56,7 @@ export async function inviteUserAction(formData: FormData): Promise<{ error?: st
       data: { name: name || 'Jugador', inviteUrl },
       dedupKey: `invitation-${user.id}`,
     });
+    scheduleEmailFlush();
 
     await prisma.auditLog.create({
       data: { actorId: actor.id, action: 'user.invited', targetType: 'User', targetId: user.id },

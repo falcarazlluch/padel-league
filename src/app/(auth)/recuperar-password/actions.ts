@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { prisma } from '@/shared/db/client';
 import { SignedTokenService } from '@/shared/auth/signed-tokens';
 import { queue } from '@/shared/queue/client';
+import { scheduleEmailFlush } from '@/app/_email/register-flush';
 import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
 import { SignedTokenPurpose } from '@prisma/client';
 import { env } from '@/shared/config/env';
@@ -43,6 +44,7 @@ export async function requestPasswordResetAction(
         data: { name: user.name, resetUrl },
         dedupKey: `reset-${user.id}-${Math.floor(Date.now() / 60000)}`,
       });
+      scheduleEmailFlush();
 
       logger().info({ userId: user.id }, 'auth.password.reset.requested');
     }

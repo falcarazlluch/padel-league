@@ -17,7 +17,6 @@ import { OrganizationSummary } from '../_components/organization-summary';
 import { StartStep } from '../_components/start-step';
 import { AuthStep } from '../_components/auth-step';
 import { PickCompetitionStep } from '../_components/pick-competition-step';
-import { ProfileStep } from '../_components/profile-step';
 import { PartnerStep } from '../_components/partner-step';
 import { DoneStep } from '../_components/done-step';
 import { BlockedNotice } from '../_components/blocked-notice';
@@ -85,18 +84,19 @@ export default async function InscripcionWizardPage({
       : (preview.openCompetitions.find((c) => c.slug === liga) ?? null);
 
   // ── Enrolment state, once we know the user and the competition ────────────
-  const view =
+  let view =
     currentUser && selected
       ? await EnrollmentService.getView(selected.id, currentUser.id)
       : null;
   const started = view !== null && view.status !== 'NOT_STARTED' && view.status !== 'CANCELLED';
 
   // ── Furthest reachable step ───────────────────────────────────────────────
+  // With the profile step gone, choosing a competition is the last gate before
+  // the partner step — name and level already came from the sign-up form.
   let reachable: number;
   if (!currentUser) reachable = idx('auth');
   else if (!selected) reachable = idx(preview.kind === 'ORGANIZATION' ? 'pick' : 'auth');
-  else if (!started) reachable = idx('profile');
-  else if (!view.profileComplete) reachable = idx('profile');
+  else if (view?.status !== 'COMPLETED') reachable = idx('partner');
   else reachable = idx('done');
 
   const requested = paso ? Number.parseInt(paso, 10) : NaN;
@@ -109,6 +109,22 @@ export default async function InscripcionWizardPage({
   if (view?.status === 'COMPLETED') current = idx('done');
 
   const stepKey = steps[current - 1]!;
+
+  // The enrolment row is created on arrival at the partner step. That used to be
+  // the profile step's submit; with the profile step gone this is the earliest
+  // unambiguous commitment — the player is identified and has named a
+  // competition. Creating it here (rather than in the partner actions) is what
+  // keeps the dashboard's "te falta terminar una inscripción" banner and the
+  // status page honest for someone who walks away mid-way.
+  if (currentUser && selected && stepKey === 'partner' && !started) {
+    try {
+      await EnrollmentService.start(token, currentUser.id, selected.id);
+      view = await EnrollmentService.getView(selected.id, currentUser.id);
+    } catch {
+      // Registration window closed, link revoked… `showBlocked` below already
+      // explains it, and the partner step stays unusable without an enrolment.
+    }
+  }
   const introLabel = preview.kind === 'ORGANIZATION' ? 'El club' : 'El torneo';
 
   // The blocking reason still matters mid-wizard: a window can close while the
@@ -154,7 +170,7 @@ export default async function InscripcionWizardPage({
         <AuthStep
           token={token}
           nextHref={hrefFor(
-            idx(preview.kind === 'ORGANIZATION' ? 'pick' : 'profile'),
+            idx(preview.kind === 'ORGANIZATION' ? 'pick' : 'partner'),
             selected?.slug,
           )}
           currentUser={currentUser ? { name: currentUser.name, email: currentUser.email } : null}
@@ -167,16 +183,7 @@ export default async function InscripcionWizardPage({
           token={token}
           competitions={preview.openCompetitions}
           organizationName={preview.organization.name}
-        />
-      )}
-
-      {stepKey === 'profile' && currentUser && selected && (
-        <ProfileStepLoader
-          token={token}
-          userId={currentUser.id}
-          leagueId={selected.id}
-          leagueSlug={selected.slug}
-          nextStep={idx('partner')}
+          partnerStep={idx('partner')}
         />
       )}
 
@@ -228,38 +235,6 @@ export default async function InscripcionWizardPage({
         </p>
       )}
     </div>
-  );
-}
-
-/** Loads the profile defaults for step "profile". */
-async function ProfileStepLoader({
-  token,
-  userId,
-  leagueId,
-  leagueSlug,
-  nextStep,
-}: {
-  token: string;
-  userId: string;
-  leagueId: string;
-  leagueSlug: string;
-  nextStep: number;
-}) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true, phone: true, category: true, email: true },
-  });
-  return (
-    <ProfileStep
-      token={token}
-      leagueId={leagueId}
-      leagueSlug={leagueSlug}
-      nextStep={nextStep}
-      defaultName={user?.name ?? ''}
-      defaultPhone={user?.phone ?? ''}
-      defaultCategory={user?.category ?? 'INTERMEDIATE'}
-      email={user?.email ?? ''}
-    />
   );
 }
 

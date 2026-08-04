@@ -8,6 +8,7 @@ import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
 import { RegistrationCodeService } from '@/modules/users';
 import { queue } from '@/shared/queue/client';
+import { scheduleEmailFlush } from '@/app/_email/register-flush';
 import { env } from '@/shared/config/env';
 import { checkRateLimit, buildRateLimitKey } from '@/shared/auth/rate-limit';
 import { isUserFacingError } from '@/shared/errors';
@@ -82,6 +83,7 @@ export async function inviteFriendAction(
       },
       dedupKey: `friend-invite-${code}`,
     });
+    scheduleEmailFlush();
 
     return { success: true, email: parsed.data.email };
   } catch (err) {

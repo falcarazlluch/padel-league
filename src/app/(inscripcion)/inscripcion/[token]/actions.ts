@@ -7,9 +7,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/shared/auth/session';
 import { getValidatedSession } from '@/shared/auth/session-cache';
-import { EnrollmentService } from '@/modules/organizations';
-import { CATEGORY_VALUES } from '@/modules/leagues/presentation/category';
+import { EnrollmentService, InviteLinkService } from '@/modules/organizations';
 import { isUserFacingError } from '@/shared/errors';
+import { scheduleEmailFlush } from '@/app/_email/register-flush';
 
 type ActionState = { error?: string; success?: true };
 
@@ -33,50 +33,32 @@ function wizardHref(token: string, step: number, slug: string): string {
   return `/inscripcion/${token}?paso=${step}&liga=${encodeURIComponent(slug)}`;
 }
 
-const profileSchema = z.object({
-  inviteToken: z.string().min(1),
-  leagueId: z.string().cuid(),
-  leagueSlug: z.string().min(1),
-  nextStep: z.coerce.number().int().min(1).max(6),
-  name: z.string().trim().min(3, 'Escribe tu nombre y apellido.').max(80),
-  phone: z.string().trim().min(6, 'Escribe un teléfono de contacto.').max(30),
-  category: z.enum(CATEGORY_VALUES),
-});
+const skipSchema = z.object({ inviteToken: z.string().min(1) });
 
 /**
- * The profile step is where the enrolment actually begins: it joins the tenant
- * and creates the `TournamentEnrollment` before saving the details. Doing it
- * here rather than on page load keeps opening a link side-effect-free, and it is
- * the first point at which the player has unambiguously committed.
+ * "Elegir más tarde" on the competition picker.
+ *
+ * An organization link has two legitimate uses: enrol in a tournament now, or
+ * simply become a member of the club and decide later. Without this the second
+ * one was a dead end — the player had to pick something to get out of the
+ * wizard. Joining is all that happens here; no enrolment is created, so nothing
+ * later claims they signed up for a competition they did not choose.
  */
-export async function saveProfileAction(
+export async function skipCompetitionAction(
   _prev: ActionState | null,
   formData: FormData,
 ): Promise<ActionState> {
-  const parsed = profileSchema.safeParse({
-    inviteToken: formData.get('inviteToken'),
-    leagueId: formData.get('leagueId'),
-    leagueSlug: formData.get('leagueSlug'),
-    nextStep: formData.get('nextStep'),
-    name: formData.get('name'),
-    phone: formData.get('phone'),
-    category: formData.get('category'),
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+  const parsed = skipSchema.safeParse({ inviteToken: formData.get('inviteToken') });
+  if (!parsed.success) return { error: 'Datos inválidos.' };
   const user = await requireSession(parsed.data.inviteToken);
 
   try {
-    await EnrollmentService.start(parsed.data.inviteToken, user.id, parsed.data.leagueId);
-    await EnrollmentService.saveProfile(user.id, {
-      name: parsed.data.name,
-      phone: parsed.data.phone,
-      category: parsed.data.category,
-    });
+    await InviteLinkService.joinOrganization(parsed.data.inviteToken, user.id);
   } catch (err) {
     return fail(err);
   }
   revalidatePath('/dashboard');
-  redirect(wizardHref(parsed.data.inviteToken, parsed.data.nextStep, parsed.data.leagueSlug) as Route);
+  redirect('/dashboard' as Route);
 }
 
 const existingTeamSchema = z.object({
@@ -161,6 +143,9 @@ export async function invitePartnerAction(
   } catch (err) {
     return fail(err);
   }
+  // The invite email is already queued by the service; get it out now instead of
+  // at 03:00, when the partner has long stopped waiting for it.
+  scheduleEmailFlush();
   revalidatePath('/dashboard');
   redirect(wizardHref(parsed.data.inviteToken, parsed.data.nextStep, parsed.data.leagueSlug) as Route);
 }

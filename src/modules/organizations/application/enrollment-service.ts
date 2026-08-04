@@ -105,27 +105,6 @@ export const EnrollmentService = {
     return { enrollmentId, leagueId, organizationId, resumed: false };
   },
 
-  /** Step 2. The profile fields the club needs before a player can compete. */
-  async saveProfile(
-    userId: string,
-    input: { name: string; phone: string; category: TeamCategory },
-  ): Promise<void> {
-    const name = input.name.trim();
-    if (name.length < 3) {
-      throw new DomainError('INVALID_NAME', 'Escribe tu nombre y apellido (mínimo 3 caracteres).');
-    }
-    const phone = input.phone.trim();
-    // Deliberately permissive: international formats, spaces and dashes all
-    // pass. We only reject values that clearly are not a phone number.
-    if (phone.replace(/[^\d]/g, '').length < 6) {
-      throw new DomainError('INVALID_PHONE', 'Escribe un teléfono de contacto válido.');
-    }
-    await prisma.user.update({
-      where: { id: userId },
-      data: { name, phone, category: input.category },
-    });
-  },
-
   /**
    * Step 3, branch A — "ya tenemos pareja en la app". Registers an existing
    * complete team. Enrollment and registration land in one transaction so the
@@ -135,7 +114,6 @@ export const EnrollmentService = {
     input: { leagueId: string; teamId: string; userId: string },
   ): Promise<{ registrationId: string; partnerUserId: string | null }> {
     const enrollment = await requireEnrollment(input.leagueId, input.userId);
-    await assertProfileComplete(input.userId);
 
     const [league, team] = await Promise.all([
       prisma.league.findUnique({
@@ -245,7 +223,6 @@ export const EnrollmentService = {
     },
   ): Promise<{ inviteId: string; shareUrl: string; teamId: string; notifiedInApp: boolean }> {
     const enrollment = await requireEnrollment(input.leagueId, input.userId);
-    await assertProfileComplete(input.userId);
 
     const league = await prisma.league.findUnique({
       where: { id: input.leagueId },
@@ -779,7 +756,7 @@ export const EnrollmentService = {
    * Never throws for a missing enrollment — it reports `NOT_STARTED`.
    */
   async getView(leagueId: string, userId: string): Promise<EnrollmentView> {
-    const [enrollment, user, league] = await Promise.all([
+    const [enrollment, league] = await Promise.all([
       prisma.tournamentEnrollment.findUnique({
         where: { leagueId_userId: { leagueId, userId } },
         include: {
@@ -791,37 +768,23 @@ export const EnrollmentService = {
           },
         },
       }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { name: true, phone: true, category: true },
-      }),
       prisma.league.findUnique({
         where: { id: leagueId },
         select: { organization: { select: { slug: true } } },
       }),
     ]);
 
-    const missingProfileFields: string[] = [];
-    if (!user?.name || user.name.trim().length < 3) missingProfileFields.push('Nombre y apellido');
-    if (!user?.phone || user.phone.replace(/[^\d]/g, '').length < 6) {
-      missingProfileFields.push('Teléfono de contacto');
-    }
-    const profileComplete = missingProfileFields.length === 0;
-
     if (!enrollment || enrollment.status === 'CANCELLED') {
       return {
         enrollmentId: enrollment?.id ?? null,
         status: enrollment?.status ?? 'NOT_STARTED',
-        currentStep: profileComplete ? 3 : 2,
-        profileComplete,
-        missingProfileFields,
+        currentStep: 3,
         team: null,
         partner: null,
         pendingInvite: null,
         registrationId: null,
         completedAt: null,
         checklist: buildChecklist({
-          profileComplete,
           partnerState: 'missing',
           registered: false,
           partnerName: null,
@@ -845,9 +808,7 @@ export const EnrollmentService = {
     return {
       enrollmentId: enrollment.id,
       status: enrollment.status,
-      currentStep: !profileComplete ? 2 : registered ? 4 : 3,
-      profileComplete,
-      missingProfileFields,
+      currentStep: registered ? 4 : 3,
       team: enrollment.team
         ? {
             id: enrollment.team.id,
@@ -883,7 +844,6 @@ export const EnrollmentService = {
       registrationId: enrollment.registrationId,
       completedAt: enrollment.completedAt,
       checklist: buildChecklist({
-        profileComplete,
         partnerState,
         registered,
         partnerName:
@@ -971,7 +931,6 @@ export const PARTNER_BLOCKED_MESSAGE: Record<
 type PartnerState = 'missing' | 'invited' | 'confirmed';
 
 function buildChecklist(input: {
-  profileComplete: boolean;
   partnerState: PartnerState;
   registered: boolean;
   partnerName: string | null;
@@ -999,14 +958,6 @@ function buildChecklist(input: {
           };
 
   return [
-    {
-      key: 'profile',
-      label: input.profileComplete ? 'Perfil completo' : 'Falta completar tu perfil',
-      state: input.profileComplete ? 'done' : 'blocked',
-      detail: input.profileComplete
-        ? 'Tus datos de contacto están listos.'
-        : 'Necesitamos tu nombre y un teléfono para avisarte de horarios.',
-    },
     partner,
     {
       key: 'registration',
@@ -1031,19 +982,6 @@ async function requireEnrollment(leagueId: string, userId: string) {
     );
   }
   return enrollment;
-}
-
-async function assertProfileComplete(userId: string): Promise<void> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true, phone: true },
-  });
-  if (!user?.name || user.name.trim().length < 3 || !user.phone || user.phone.replace(/[^\d]/g, '').length < 6) {
-    throw new DomainError(
-      'PROFILE_INCOMPLETE',
-      'Completa tu perfil (nombre y teléfono) antes de continuar.',
-    );
-  }
 }
 
 function assertRegistrationOpen(league: {
